@@ -1,0 +1,16 @@
+
+data:
+    root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    limit_scans: 10
+
+model:
+    num_classes: 20
+
+train:
+    train_batch_size: 4
+    val_batch_size: 4
+    lr: 0.0003
+    l2: 0.0
+    
+
