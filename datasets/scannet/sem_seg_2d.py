@@ -11,7 +11,7 @@ import imageio
 import torch
 from torch.utils.data import Dataset
 
-from datasets.scannet.utils import read_label_mapping, map_labels
+from datasets.scannet.utils import read_label_mapping, map_labels, nyu40_to_continuous
 
 
 def collate_func(sample_list):
@@ -31,7 +31,7 @@ class ScanNetSemSeg2D(Dataset):
 
     labels as reported here: http://kaldir.vc.in.tum.de/scannet_benchmark/
     '''
-    def __init__(self, root_dir, label_file, limit_scans=None):
+    def __init__(self, root_dir, label_file, limit_scans=None, transform=None):
         '''
         root_dir: contains scan dirs scene0000_00, etc
         img_size: resize images to this size
@@ -40,8 +40,9 @@ class ScanNetSemSeg2D(Dataset):
         self.root_dir = Path(root_dir)
         self.img_paths = []
         self.label_paths = []
+        self.transform = transform
 
-        self.mapping = read_label_mapping(label_file)
+        self.scannet_to_nyu40 = read_label_mapping(label_file)
 
         scans = sorted(os.listdir(self.root_dir))
         if limit_scans:
@@ -62,18 +63,21 @@ class ScanNetSemSeg2D(Dataset):
                     self.img_paths.append(img_path)
                     self.label_paths.append(label_path)
 
+       
+
     def __len__(self):
         return len(self.img_paths)
-
+    
     def __getitem__(self, idx):
         img_path, label_path = self.img_paths[idx], self.label_paths[idx]
         
-        img = np.array(imageio.imread(img_path))
+        img = np.array(imageio.imread(img_path)).astype(np.float32)
         
         label_scannet = np.array(imageio.imread(label_path))
-        label_nyu40 = map_labels(label_scannet, self.mapping)
-        # TODO: labels from 0-20
-        label_selected = label_nyu40
+        # map from scannet 0-40 to nyu 0-40
+        label_nyu40 = map_labels(label_scannet, self.scannet_to_nyu40)
+        # map from 0-40 to 0-20 continuous labels
+        label_selected = nyu40_to_continuous(label_nyu40)
 
         sample = {
             'img_path': img_path,
@@ -81,5 +85,8 @@ class ScanNetSemSeg2D(Dataset):
             'img': img,
             'label': label_selected
         }
+
+        if self.transform is not None:
+            sample = self.transform(sample) 
 
         return sample

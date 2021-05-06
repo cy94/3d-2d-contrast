@@ -5,6 +5,21 @@ import numpy as np
 
 VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
 
+def nyu40_to_continuous(img):
+    '''
+    map NYU40 labels 0-40 in VALID_CLASSES to continous labels 0-20
+    '''
+    new_img = img.copy()
+    valid_to_cts = dict(zip(VALID_CLASSES, range(len(VALID_CLASSES))))
+
+    for nyu_cls in range(41):
+        if nyu_cls in VALID_CLASSES:
+            new_img[img == nyu_cls] = valid_to_cts[nyu_cls]
+        else:
+            new_img[img == nyu_cls] = 0
+
+    return new_img
+
 # NYU labels
 def create_color_palette():
     colors =  [
