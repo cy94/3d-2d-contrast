@@ -19,7 +19,7 @@ def collate_func(sample_list):
         'img_path': [s['img_path'] for s in sample_list],
         'label_path': [s['label_path'] for s in sample_list],
         'img': torch.Tensor([s['img'] for s in sample_list]),
-        'label': torch.Tensor([s['label'] for s in sample_list]),
+        'label': torch.LongTensor([s['label'] for s in sample_list]),
     }
 
 class ScanNetSemSeg2D(Dataset):
