@@ -56,7 +56,7 @@ def main(args):
     ckpt_dir = f'{save_dir}/ckpt'
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    writer = SummaryWriter(log_dir=f'runs/{save_dir}')
+    writer = SummaryWriter(log_dir=f'{save_dir}')
 
     iter = 0
     for epoch in tqdm(range(cfg['train']['epochs'])):
