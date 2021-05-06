@@ -1,5 +1,10 @@
-valid_classes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
-print(f'{len(valid_classes)} classes')
+import os
+import csv
+import numpy as np
+
+
+VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
+
 # NYU labels
 def create_color_palette():
     colors =  [

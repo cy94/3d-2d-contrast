@@ -8,9 +8,12 @@ model:
     num_classes: 20
 
 train:
-    train_batch_size: 4
-    val_batch_size: 4
+    train_size: 1
+    val_size: 1
+    train_split: null
+
+    train_batch_size: 1
+    val_batch_size: 1
     lr: 0.0003
     l2: 0.0
-    
-
+    num_epochs: 3000
