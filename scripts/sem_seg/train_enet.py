@@ -1,5 +1,6 @@
-from os import read
+import os 
 import argparse
+from datetime import datetime as dt
 
 from tqdm import tqdm
 
@@ -51,10 +52,14 @@ def main(args):
     print(f'Num params: {count_parameters(model)}')
     optimizer = Adam(model.parameters(), lr=cfg['train']['lr'], weight_decay=cfg['train']['l2'])
     
-    writer = SummaryWriter()
+    save_dir = 'runs/' + dt.now().strftime('%d-%b-%H:%M:%S')
+    ckpt_dir = f'{save_dir}/ckpt'
+    os.makedirs(ckpt_dir, exist_ok=True)
+
+    writer = SummaryWriter(log_dir=f'runs/{save_dir}')
 
     iter = 0
-    for _ in tqdm(range(cfg['train']['epochs'])):
+    for epoch in tqdm(range(cfg['train']['epochs'])):
         model.train()
         for batch in train_loader:
             iter += 1
@@ -78,7 +83,14 @@ def main(args):
                 out = model(img)
                 val_loss += (F.cross_entropy(out, label) / len(batch))
             
-            writer.add_scalar('loss/val', val_loss / n_batches, iter)            
+            writer.add_scalar('loss/val', val_loss / n_batches, iter)     
+
+        if epoch % cfg['train']['ckpt_intv'] == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                }, f'{ckpt_dir}/{epoch}.pt')      
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
