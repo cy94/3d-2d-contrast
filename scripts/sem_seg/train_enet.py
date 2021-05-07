@@ -71,7 +71,7 @@ def main(args):
     
     iter = 0
     for epoch in tqdm(range(cfg['train']['epochs']), desc='epoch'):
-        for batch in tqdm(train_loader, desc='train'):
+        for batch in tqdm(train_loader, desc='train', leave=False):
             model.train()
             iter += 1
             img, label = batch['img'].to(device), batch['label'].to(device)
@@ -91,7 +91,7 @@ def main(args):
                 n_batches = 0
 
                 with torch.no_grad():
-                    for batch in tqdm(val_loader, desc='val'):
+                    for batch in tqdm(val_loader, desc='val', leave=False):
                         n_batches += 1
                         img, label = batch['img'].to(device), batch['label'].to(device)
                         out = model(img)
