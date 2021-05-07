@@ -11,8 +11,8 @@ class Resize:
     def __call__(self, sample):
         new_sample = deepcopy(sample)
         # height, width
-        new_sample['img'] = cv2.resize(new_sample['img'], self.size, 
-                                            interpolation=cv2.INTER_NEAREST)
+        new_sample['img'] = cv2.resize(new_sample['img'], self.size) 
+        # use nearest method - keep valid labels!
         new_sample['label'] = cv2.resize(new_sample['label'], self.size, 
                                             interpolation=cv2.INTER_NEAREST)
         return new_sample                                
