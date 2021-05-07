@@ -1,0 +1,10 @@
+data:
+    root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    limit_scans: 10
+
+test:
+    ckpt: runs/06-May-22:59:19/ckpt/26000.pt
+    out_dir: runs/06-May-22:59:19/out
+    test_size: 1
+    batch_size: 1
