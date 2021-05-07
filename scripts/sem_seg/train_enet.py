@@ -76,7 +76,6 @@ def main(args):
             model.train()
             iter += 1
             img, label = batch['img'].to(device), batch['label'].to(device)
-            print(img.shape)
             optimizer.zero_grad()
             out = model(img)
             loss = F.cross_entropy(out, label)
