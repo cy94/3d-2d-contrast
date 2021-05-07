@@ -1,6 +1,21 @@
 from copy import deepcopy
 
 import numpy as np
+import skimage.transform as sktf
+
+class Resize:
+    def __init__(self, size=(640, 480)):
+        # height, width
+        self.size = size[::-1]
+
+    def __call__(self, sample):
+        new_sample = deepcopy(sample)
+        # height, width
+        new_sample['img'] = sktf.resize(new_sample['img'], self.size, order=0, 
+                                        preserve_range=True)
+        new_sample['label'] = sktf.resize(new_sample['label'], self.size, order=0, 
+                                        preserve_range=True)                                        
+        return new_sample                                
 
 class TransposeChannels:
     def __init__(self):

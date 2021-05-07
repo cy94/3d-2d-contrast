@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D, collate_func
-from transforms.image_2d import Normalize, TransposeChannels
+from transforms.image_2d import Normalize, TransposeChannels, Resize
 from models.sem_seg.enet import ENet2
 from models.sem_seg.utils import count_parameters
 
@@ -20,10 +20,15 @@ from torch.utils.tensorboard import SummaryWriter
 
 def main(args):
     cfg = read_config(args.cfg_path)
-    t =  Compose([
-        Normalize(),
-        TransposeChannels(),
-    ])
+
+    # create transforms list
+    transforms = []
+    if cfg['data']['img_size'] is not None:
+        transforms.append(Resize(cfg['data']['img_size']))
+    transforms.append(Normalize())
+    transforms.append(TransposeChannels())
+
+    t = Compose(transforms)
 
     dataset = ScanNetSemSeg2D(cfg['data']['root'], cfg['data']['label_file'],
                                 cfg['data']['limit_scans'],
@@ -62,13 +67,16 @@ def main(args):
 
     if not args.quick_run:
         writer = SummaryWriter(log_dir=f'{save_dir}')
-
+    
+    print(f'Save dir: {save_dir}')
+    
     iter = 0
-    for epoch in tqdm(range(cfg['train']['epochs'])):
-        model.train()
-        for batch in train_loader:
+    for epoch in tqdm(range(cfg['train']['epochs']), desc='epoch'):
+        for batch in tqdm(train_loader, desc='train'):
+            model.train()
             iter += 1
             img, label = batch['img'].to(device), batch['label'].to(device)
+            print(img.shape)
             optimizer.zero_grad()
             out = model(img)
             loss = F.cross_entropy(out, label)
@@ -78,16 +86,18 @@ def main(args):
             if not args.quick_run:
                 writer.add_scalar('loss/train', loss / len(batch), iter)            
 
-        model.eval()
-        val_loss = 0
-        n_batches = 0
+            # evaluate?
+            if iter % cfg['train']['eval_intv'] == 0:
+                model.eval()
+                val_loss = 0
+                n_batches = 0
 
-        with torch.no_grad():
-            for batch in val_loader:
-                n_batches += 1
-                img, label = batch['img'].to(device), batch['label'].to(device)
-                out = model(img)
-                val_loss += (F.cross_entropy(out, label) / len(batch))
+                with torch.no_grad():
+                    for batch in tqdm(val_loader, desc='val'):
+                        n_batches += 1
+                        img, label = batch['img'].to(device), batch['label'].to(device)
+                        out = model(img)
+                        val_loss += (F.cross_entropy(out, label) / len(batch))
             
             if not args.quick_run:
                 writer.add_scalar('loss/val', val_loss / n_batches, iter)     
