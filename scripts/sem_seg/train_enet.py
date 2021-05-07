@@ -52,7 +52,7 @@ def main(args):
     print(f'Num params: {count_parameters(model)}')
     optimizer = Adam(model.parameters(), lr=cfg['train']['lr'], weight_decay=cfg['train']['l2'])
     
-    save_dir = 'runs/' + dt.now().strftime('%d-%b-%H:%M:%S')
+    save_dir = 'runs/' + dt.now().strftime('%d-%b-%H.%M.%S')
     ckpt_dir = f'{save_dir}/ckpt'
     os.makedirs(ckpt_dir, exist_ok=True)
 
