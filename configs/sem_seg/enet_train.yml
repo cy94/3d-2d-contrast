@@ -16,4 +16,6 @@ train:
     val_batch_size: 1
     lr: 0.0003
     l2: 0.0
-    epochs: 3000
+    epochs: 30000
+
+    ckpt_intv: 1000
