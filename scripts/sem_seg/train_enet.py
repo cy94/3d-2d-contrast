@@ -56,7 +56,12 @@ def main(args):
     ckpt_dir = f'{save_dir}/ckpt'
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    writer = SummaryWriter(log_dir=f'{save_dir}')
+    if args.quick_run:
+        print('Quick run')
+        cfg['train']['epochs'] = 1
+
+    if not args.quick_run:
+        writer = SummaryWriter(log_dir=f'{save_dir}')
 
     iter = 0
     for epoch in tqdm(range(cfg['train']['epochs'])):
@@ -70,7 +75,8 @@ def main(args):
             loss.backward()
             optimizer.step()
 
-            writer.add_scalar('loss/train', loss / len(batch), iter)            
+            if not args.quick_run:
+                writer.add_scalar('loss/train', loss / len(batch), iter)            
 
         model.eval()
         val_loss = 0
@@ -83,7 +89,8 @@ def main(args):
                 out = model(img)
                 val_loss += (F.cross_entropy(out, label) / len(batch))
             
-            writer.add_scalar('loss/val', val_loss / n_batches, iter)     
+            if not args.quick_run:
+                writer.add_scalar('loss/val', val_loss / n_batches, iter)     
 
         if epoch % cfg['train']['ckpt_intv'] == 0:
             torch.save({
@@ -96,6 +103,7 @@ def main(args):
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to cfg')
+    p.add_argument('--quick', dest='quick_run', action='store_true', help='Quick run?')
     args = p.parse_args()
 
     main(args)
