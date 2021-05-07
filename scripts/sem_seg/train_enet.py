@@ -87,6 +87,7 @@ def main(args):
 
         if epoch % cfg['train']['ckpt_intv'] == 0:
             torch.save({
+                'cfg': cfg,
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
