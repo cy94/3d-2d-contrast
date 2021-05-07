@@ -20,10 +20,38 @@ def nyu40_to_continuous(img):
 
     return new_img
 
+def continous_to_nyu40(img):
+    '''
+    map continous labels 0-20 NYU40 labels 0-40 in VALID_CLASSES
+    img: single image (h, w) or batch (n, h, w)
+    '''
+    new_img = img.copy()
+
+    cts_to_valid = dict(zip(range(len(VALID_CLASSES)), VALID_CLASSES))
+
+    for cts_cls in range(21):
+        new_img[img == cts_cls] = cts_to_valid[cts_cls]
+    
+    return new_img
+
+def viz_labels(img):
+    '''
+    Map NYU40 labels to corresponding RGB values
+    img: single image (h, w) or batch (n, h, w)
+    '''
+    vis_image = np.zeros(img.shape +(3,), dtype=np.uint8)
+
+    color_palette = create_color_palette()
+
+    for idx, color in enumerate(color_palette):
+        vis_image[img == idx] = color
+
+    return vis_image
+
 # NYU labels
 def create_color_palette():
     colors =  [
-       (0, 0, 0), #index=0
+       (0, 0, 0), # first index=0
        (174, 199, 232),  # 1.wall
        (152, 223, 138),  # 2.floor
        (31, 119, 180),   # 3.cabinet
@@ -63,7 +91,7 @@ def create_color_palette():
        (213, 92, 176), 
        (94, 106, 211), 
        (82, 84, 163),    # 39.otherfurn
-       (100, 85, 144) #index=40
+       (100, 85, 144)    # last index=40
     ]
     return colors
 
