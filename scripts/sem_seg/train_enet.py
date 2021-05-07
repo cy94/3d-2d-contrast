@@ -1,6 +1,9 @@
 import os 
 import argparse
 from datetime import datetime as dt
+import random 
+
+import numpy as np
 
 from tqdm import tqdm
 
@@ -9,6 +12,7 @@ from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D, collate_func
 from transforms.image_2d import Normalize, TransposeChannels, Resize
 from models.sem_seg.enet import ENet2
 from models.sem_seg.utils import count_parameters
+from eval.sem_seg_2d import miou
 
 import torch
 from torch.optim import Adam
@@ -48,9 +52,13 @@ def main(args):
     print(f'Val set: {len(val_set)}')
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
-                            shuffle=True, num_workers=4, collate_fn=collate_func)        
+                            shuffle=True, num_workers=4, collate_fn=collate_func)  
+
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
                             shuffle=False, num_workers=4, collate_fn=collate_func)      
+    val_loader_shuffle = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
+                        shuffle=True, num_workers=4, collate_fn=collate_func)                                  
+
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = ENet2(num_classes=21).to(device)
@@ -69,11 +77,11 @@ def main(args):
     
     print(f'Save dir: {save_dir}')
     
-    iter = 0
+    step = 0
     for epoch in tqdm(range(cfg['train']['epochs']), desc='epoch'):
         for batch in tqdm(train_loader, desc='train', leave=False):
             model.train()
-            iter += 1
+            step += 1
             img, label = batch['img'].to(device), batch['label'].to(device)
             optimizer.zero_grad()
             out = model(img)
@@ -81,24 +89,41 @@ def main(args):
             loss.backward()
             optimizer.step()
 
+            # log train loss
             if not args.quick_run:
-                writer.add_scalar('loss/train', loss / len(batch), iter)            
+                writer.add_scalar('loss/train', loss / len(batch), step)
 
-            # evaluate?
-            if iter % cfg['train']['eval_intv'] == 0:
+            # compute train miou for a few random batches
+            if random.random() > 0.8:  
+                preds = out.argmax(dim=1)
+                miou_train = miou(preds, label, 21)
+                if not np.isnan(miou_train).any() and not args.quick_run:
+                    writer.add_scalar('miou/train', miou_train.mean(), step)            
+
+            # evaluate at intervals?
+            if step % cfg['train']['eval_intv'] == 0:
                 model.eval()
                 val_loss = 0
                 n_batches = 0
 
                 with torch.no_grad():
-                    for batch in tqdm(val_loader, desc='val', leave=False):
+                    for batch_ndx, batch in enumerate(tqdm(val_loader, desc='val', leave=False)):
                         n_batches += 1
                         img, label = batch['img'].to(device), batch['label'].to(device)
                         out = model(img)
                         val_loss += (F.cross_entropy(out, label) / len(batch))
-            
-            if not args.quick_run:
-                writer.add_scalar('loss/val', val_loss / n_batches, iter)     
+
+                if not args.quick_run:
+                    writer.add_scalar('loss/val', val_loss / n_batches, step)     
+                
+                # pick a random batch to compute val miou
+                batch = next(iter(val_loader_shuffle))
+                img, label = batch['img'].to(device), batch['label'].to(device)
+                preds = model(img).argmax(dim=1)
+                miou_val = miou(preds, label, 21)
+
+                if not np.isnan(miou_val).any() and not args.quick_run:
+                    writer.add_scalar('miou/val', miou_val.mean(), step)            
 
         if not args.quick_run and epoch % cfg['train']['ckpt_intv'] == 0:
             torch.save({
