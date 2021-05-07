@@ -102,7 +102,7 @@ def main(args):
             if not args.quick_run:
                 writer.add_scalar('loss/val', val_loss / n_batches, iter)     
 
-        if epoch % cfg['train']['ckpt_intv'] == 0:
+        if not args.quick_run and epoch % cfg['train']['ckpt_intv'] == 0:
             torch.save({
                 'cfg': cfg,
                 'epoch': epoch,
