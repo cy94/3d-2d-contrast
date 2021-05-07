@@ -59,13 +59,12 @@ def main(args):
     
     save_dir = 'runs/' + dt.now().strftime('%d-%b-%H.%M.%S')
     ckpt_dir = f'{save_dir}/ckpt'
-    os.makedirs(ckpt_dir, exist_ok=True)
-
+    
     if args.quick_run:
         print('Quick run')
         cfg['train']['epochs'] = 1
-
-    if not args.quick_run:
+    else:
+        os.makedirs(ckpt_dir, exist_ok=True)
         writer = SummaryWriter(log_dir=f'{save_dir}')
     
     print(f'Save dir: {save_dir}')
