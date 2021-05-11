@@ -31,7 +31,8 @@ class ScanNetSemSeg2D(Dataset):
 
     labels as reported here: http://kaldir.vc.in.tum.de/scannet_benchmark/
     '''
-    def __init__(self, root_dir, label_file, limit_scans=None, transform=None):
+    def __init__(self, root_dir, label_file, limit_scans=None, transform=None,
+                frame_skip=None):
         '''
         root_dir: contains scan dirs scene0000_00, etc
         img_size: resize images to this size
@@ -41,6 +42,8 @@ class ScanNetSemSeg2D(Dataset):
         self.img_paths = []
         self.label_paths = []
         self.transform = transform
+
+        self.frame_skip = frame_skip if frame_skip is not None else 1
 
         self.scannet_to_nyu40 = read_label_mapping(label_file)
 
@@ -53,7 +56,11 @@ class ScanNetSemSeg2D(Dataset):
             color_dir = scan_dir / 'color'
             label_dir = scan_dir / 'label-filt'
 
-            for img_fname in os.listdir(color_dir):
+            # sort color files by ndx - 0,1,2.jpg ...
+            color_files = sorted(os.listdir(color_dir), key=lambda f: int(osp.splitext(f)[0]))
+            # skip frames?
+            for file_ndx in range(0, len(color_files), self.frame_skip):
+                img_fname = color_files[file_ndx]
                 ndx = Path(img_fname).stem
 
                 img_path = color_dir / img_fname

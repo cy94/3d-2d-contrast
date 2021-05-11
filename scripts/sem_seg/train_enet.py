@@ -36,7 +36,8 @@ def main(args):
 
     dataset = ScanNetSemSeg2D(cfg['data']['root'], cfg['data']['label_file'],
                                 cfg['data']['limit_scans'],
-                                transform=t)
+                                transform=t, frame_skip=cfg['data']['frame_skip'])
+
     if cfg['train']['train_split']:
         train_size = int(cfg['train']['train_split'] * len(dataset))
         train_set = Subset(dataset, range(train_size))

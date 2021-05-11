@@ -2,20 +2,23 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    limit_scans: 200
-    img_size: [640, 480]
+    limit_scans: 100
+    # use every nth frame from a scan
+    frame_skip: 20
+    # height, width
+    img_size: [320, 240]
 
 train:
-    train_size: 1
-    val_size: 1
-    train_split: null #0.8
+    train_size: null
+    val_size: null
+    train_split: 0.8
 
-    train_batch_size: 3
-    val_batch_size: 4
+    train_batch_size: 40
+    val_batch_size: 40
     lr: 0.0003
     l2: 0.0
     epochs: 30000
     
     # eval every `eval_intv` batches
     eval_intv: 128
-    ckpt_intv: 100
+    ckpt_intv: 1
