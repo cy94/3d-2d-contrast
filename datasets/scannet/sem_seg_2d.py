@@ -35,8 +35,10 @@ class ScanNetSemSeg2D(Dataset):
                 frame_skip=None):
         '''
         root_dir: contains scan dirs scene0000_00, etc
-        img_size: resize images to this size
         label_file: path to scannetv2-labels.combined.tsv
+        limit_scans: read these many scans in sorted order
+        transform: apply on each sample
+        frame_skip: skip every n frames within every scan
         '''
         self.root_dir = Path(root_dir)
         self.img_paths = []
