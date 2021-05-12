@@ -1,9 +1,10 @@
-
+'''
+Input: ScanNet gt and label PLY files
+Output: GT Binary occupancy voxel grid and label grid
+'''
 import argparse
 import torch
-import time
 
-import cv2
 import numpy as np
 from scipy.spatial.distance import cdist
 
@@ -11,8 +12,6 @@ from tqdm import tqdm
 
 import os, os.path as osp
 from pathlib import Path
-
-import matplotlib.pyplot as plt
 
 import trimesh
 from trimesh.exchange.ply import parse_header, ply_binary
