@@ -106,7 +106,7 @@ def main(args):
         label_grid = get_label_grid(input_grid, gt_vertices, gt_vtx_labels)
 
         x, y = input_grid.matrix, label_grid
-        out_file = f'{scan_id}_occ_grid.npy'
+        out_file = f'{scan_id}_occ_grid.pth'
 
         data = {'x': x, 'y': y}
         torch.save(data, scan_dir / out_file)
