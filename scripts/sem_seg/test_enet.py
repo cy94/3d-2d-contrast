@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-
+import numpy as np
 import imageio
 
 import torch
@@ -14,18 +14,23 @@ from torchvision.transforms import Compose
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D, collate_func
-from datasets.scannet.utils import continous_to_nyu40, viz_labels
-from transforms.image_2d import Normalize, TransposeChannels
+from datasets.scannet.utils import continous_to_nyu40, viz_labels, CLASS_NAMES
+from transforms.image_2d import Normalize, TransposeChannels, Resize
 from models.sem_seg.enet import ENet2
 from models.sem_seg.utils import count_parameters
 
 
 def main(args):
     cfg = read_config(args.cfg_path)
-    t =  Compose([
-        Normalize(),
-        TransposeChannels(),
-    ])
+
+    # create transforms list
+    transforms = []
+    if cfg['data']['img_size'] is not None:
+        transforms.append(Resize(cfg['data']['img_size']))
+    transforms.append(Normalize())
+    transforms.append(TransposeChannels())
+
+    t = Compose(transforms)
 
     test_set = ScanNetSemSeg2D(cfg['data']['root'], cfg['data']['label_file'],
                                 cfg['data']['limit_scans'],
