@@ -35,7 +35,10 @@ class AddChannelDim:
         pass
 
     def __call__(self, sample):
-        return sample
+        new_sample = deepcopy(sample)
+        new_sample['x'] = np.expand_dims(new_sample['x'], axis=-1) 
+
+        return new_sample
 
 class TransposeDims:
     '''
@@ -47,6 +50,10 @@ class TransposeDims:
         pass
 
     def __call__(self, sample):
-        return sample
+        new_sample = deepcopy(sample)
+        new_sample['x'] = new_sample['x'].transpose((3, 2, 1, 0))
+        new_sample['y'] = new_sample['y'].transpose((2, 1, 0))
+
+        return new_sample
 
         
