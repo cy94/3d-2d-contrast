@@ -1,0 +1,23 @@
+
+data:
+    root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    limit_scans: null
+    # pad all grids to this size
+    grid_size: [256, 256, 144]
+
+train:
+    train_size: 1
+    val_size: 1
+    train_split: null #0.8
+
+    train_batch_size: 2
+    val_batch_size: 2
+    lr: 0.001
+    l2: 0.0000
+    epochs: 30000
+    
+    # eval every `eval_intv` batches
+    eval_intv: 256
+    # interval in epochs for checkpointing
+    ckpt_intv: 1
