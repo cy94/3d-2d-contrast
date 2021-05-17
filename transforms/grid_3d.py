@@ -27,8 +27,8 @@ class Pad:
 class AddChannelDim:
     '''
     Add a "1" dimension for the channel
-    input: W, H, D
-    output: W, H, D, 1
+    input: x=W, H, D
+    output: x=W, H, D, 1
 
     '''
     def __init__(self):
@@ -43,8 +43,10 @@ class AddChannelDim:
 class TransposeDims:
     '''
     Change the order of dims to match conv3d's expected input
-    input: W, H, D, C
-    output: C, D, H, W
+    input:  x: W, H, D, C
+            y: W, H, D
+    output: x: C, D, H, W
+            y: D, H, W
     '''
     def __init__(self):
         pass
