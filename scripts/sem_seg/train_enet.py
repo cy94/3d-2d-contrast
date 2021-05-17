@@ -79,7 +79,17 @@ def main(args):
     print(f'Save dir: {save_dir}')
     
     step = 0
-    for epoch in tqdm(range(cfg['train']['epochs']), desc='epoch'):
+    start_epoch = 0
+    
+    if cfg['train']['resume']:
+        print(f'Resuming from ckpt: ', cfg['train']['resume'])
+        ckpt = torch.load(cfg['train']['resume'])
+        model.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        start_epoch = ckpt['epoch']
+        step = (start_epoch + 1) * (len(train_set) // ckpt['cfg']['train']['train_batch_size'])
+
+    for epoch in tqdm(range(start_epoch, cfg['train']['epochs']), desc='epoch'):
         for batch in tqdm(train_loader, desc='train', leave=False):
             model.train()
             step += 1
@@ -124,20 +134,23 @@ def main(args):
                 miou_val = miou(preds, label, 21)
 
                 if not np.isnan(miou_val).any() and not args.quick_run:
-                    writer.add_scalar('miou/val', miou_val.mean(), step)            
+                    writer.add_scalar('miou/val', miou_val.mean(), step)   
 
-        if not args.quick_run and epoch % cfg['train']['ckpt_intv'] == 0:
+        if (not args.no_ckpt) \
+            and (not args.quick_run) \
+            and (epoch % cfg['train']['ckpt_intv'] == 0):
             torch.save({
                 'cfg': cfg,
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                }, f'{ckpt_dir}/{epoch}.pt')      
-
+                }, f'{ckpt_dir}/{epoch}.pt')    
+  
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to cfg')
     p.add_argument('--quick', dest='quick_run', action='store_true', help='Quick run?')
+    p.add_argument('--no-ckpt', dest='no_ckpt', action='store_true', help='Dont store checkpoints')
     args = p.parse_args()
 
     main(args)
