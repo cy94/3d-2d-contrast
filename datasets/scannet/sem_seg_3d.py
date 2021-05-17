@@ -5,6 +5,7 @@
 import os
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -49,7 +50,7 @@ class ScanNetSemSegOccGrid(Dataset):
         data = torch.load(path)
         x, y_orig = data['x'], data['y']
 
-        y_cts = nyu40_to_continuous(y_orig)
+        y_cts = nyu40_to_continuous(y_orig).astype(np.int8)
 
         sample = {'path': path, 'x': x, 'y': y_cts}
 
