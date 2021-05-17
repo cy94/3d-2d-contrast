@@ -1,3 +1,4 @@
+
 import os 
 import argparse
 from datetime import datetime as dt
@@ -14,6 +15,7 @@ from models.sem_seg.utils import count_parameters
 from models.sem_seg.fcn3d import FCN3D
 from eval.sem_seg_2d import miou
 
+from torchinfo import summary
 import torch
 from torch.optim import Adam
 import torch.nn.functional as F
@@ -65,21 +67,21 @@ def main(args):
     print(f'Num params: {count_parameters(model)}')
     optimizer = Adam(model.parameters(), lr=cfg['train']['lr'], weight_decay=cfg['train']['l2'])
 
-    save_dir = 'runs/' + dt.now().strftime('%d-%b-%H.%M.%S')
-    ckpt_dir = f'{save_dir}/ckpt'
     
     if args.quick_run:
         print('Quick run')
         cfg['train']['epochs'] = 1
     else:
+        save_dir = 'runs/' + dt.now().strftime('%d-%b-%H.%M.%S')
+        ckpt_dir = f'{save_dir}/ckpt'
         os.makedirs(ckpt_dir, exist_ok=True)
         writer = SummaryWriter(log_dir=f'{save_dir}')
-    
-    print(train_set[0]['path'])
-    print(f'Save dir: {save_dir}')
+        print(f'Save dir: {save_dir}')
     
     step = 0
     start_epoch = 0
+
+    summary(model, input_size=(cfg['train']['train_batch_size'], 1, 144, 256, 256))
 
     if cfg['train']['resume']:
         ckpt = torch.load(cfg['train']['resume'])
