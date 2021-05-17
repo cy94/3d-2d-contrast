@@ -58,12 +58,13 @@ def main(args):
     val_loader_shuffle = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
                         shuffle=True, num_workers=4, collate_fn=collate_func)                                  
                             
+    start_epoch = 0
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = FCN3D(in_channels=1, num_classes=21, grid_size=cfg['data']['grid_size']).to(device)
     print(f'Num params: {count_parameters(model)}')
     optimizer = Adam(model.parameters(), lr=cfg['train']['lr'], weight_decay=cfg['train']['l2'])
-    
+
     save_dir = 'runs/' + dt.now().strftime('%d-%b-%H.%M.%S')
     ckpt_dir = f'{save_dir}/ckpt'
     
@@ -75,12 +76,19 @@ def main(args):
         writer = SummaryWriter(log_dir=f'{save_dir}')
     
     print(train_set[0]['path'])
-
     print(f'Save dir: {save_dir}')
     
     step = 0
+    start_epoch = 0
 
-    for epoch in tqdm(range(cfg['train']['epochs']), desc='epoch'):
+    if cfg['train']['resume']:
+        ckpt = torch.load(cfg['train']['resume'])
+        model.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        start_epoch = ckpt['epoch']
+        step = (start_epoch + 1) * (len(train_set) // ckpt['cfg']['train']['train_batch_size'])
+
+    for epoch in tqdm(range(start_epoch, cfg['train']['epochs']), desc='epoch'):
         for batch in tqdm(train_loader, desc='train', leave=False):
             model.train()
             step += 1
@@ -127,7 +135,9 @@ def main(args):
                 if not np.isnan(miou_val).any() and not args.quick_run:
                     writer.add_scalar('miou/val', miou_val.mean(), step)            
 
-        if not args.quick_run and epoch % cfg['train']['ckpt_intv'] == 0:
+        if (not args.no_ckpt) \
+            and (not args.quick_run) \
+            and (epoch % cfg['train']['ckpt_intv'] == 0):
             torch.save({
                 'cfg': cfg,
                 'epoch': epoch,
@@ -139,6 +149,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to cfg')
     p.add_argument('--quick', dest='quick_run', action='store_true', help='Quick run?')
+    p.add_argument('--no-ckpt', dest='no_ckpt', action='store_true', help='Dont store checkpoints')
     args = p.parse_args()
 
     main(args)
