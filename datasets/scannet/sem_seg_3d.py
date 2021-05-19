@@ -1,7 +1,7 @@
 '''
 3D semantic segmentation on ScanNet occupancy voxel grids
 '''
-
+import random
 import os
 from pathlib import Path
 
@@ -59,24 +59,37 @@ class ScanNetSemSegOccGrid(Dataset):
         # vols per scene * num scenes
         return self.subvols_per_scene * len(self.paths)
 
+    def sample_subvol(self, x, y):
+        while 1:
+            # pick a random subvolume
+            max_start = np.array(x.shape) - self.subvol_size
+            start = np.random.randint((0, 0, 0), max_start, dtype=np.uint8)
+            end = start + self.subvol_size
+
+            x_sub = x[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+            y_sub = y[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+
+            # classes 0,1,2 = none, wall, floor
+            # only these 3 -> keep only 5% of such subvols
+            # other classes >2? keep this subvol 
+            if (y_sub.max() == 2 and random.random() > 0.95) or (y_sub.max() > 2):
+                break
+
+        return x_sub, y_sub
+
     def __getitem__(self, ndx):
         # pick the scene
         scene_ndx = ndx // self.subvols_per_scene
         path = self.paths[scene_ndx]
         # load the full scene
         data = torch.load(path)
-        x, y = data['x'], data['y']
-        # pick a random subvolume
-        max_start = np.array(x.shape) - self.subvol_size
-        start = np.random.randint((0, 0, 0), max_start, dtype=np.uint8)
-        end = start + self.subvol_size
+        x, y_nyu = data['x'], data['y']
+        # map nyu40 labels to continous labels
+        y = nyu40_to_continuous(y_nyu).astype(np.int8)
+        
+        x_sub, y_sub = self.sample_subvol(x, y)
 
-        x = x[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
-        y = y[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
-
-        y_cts = nyu40_to_continuous(y).astype(np.int8)
-
-        sample = {'path': path, 'x': x, 'y': y_cts}
+        sample = {'path': path, 'x': x_sub, 'y': y_sub}
 
         if self.transform is not None:
             sample = self.transform(sample)
