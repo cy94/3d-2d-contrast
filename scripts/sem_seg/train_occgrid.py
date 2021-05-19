@@ -29,14 +29,11 @@ def main(args):
 
     # create transforms list
     transforms = []
-    transforms.append(Pad(cfg['data']['grid_size']))
     transforms.append(AddChannelDim())
     transforms.append(TransposeDims())
     t = Compose(transforms)
 
-    dataset = ScanNetSemSegOccGrid(cfg['data']['root'],
-                                cfg['data']['limit_scans'],
-                                transform=t)
+    dataset = ScanNetSemSegOccGrid(cfg['data'], transform=t)
 
     if cfg['train']['train_split']:
         train_size = int(cfg['train']['train_split'] * len(dataset))
@@ -63,7 +60,7 @@ def main(args):
     start_epoch = 0
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = FCN3D(in_channels=1, num_classes=21, grid_size=cfg['data']['grid_size']).to(device)
+    model = FCN3D(in_channels=1, num_classes=21).to(device)
     print(f'Num params: {count_parameters(model)}')
     optimizer = Adam(model.parameters(), lr=cfg['train']['lr'], weight_decay=cfg['train']['l2'])
 
