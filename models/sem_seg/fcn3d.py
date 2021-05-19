@@ -9,7 +9,7 @@ class FCN3D(nn.Module):
     '''
     Dense 3d convs on a volume grid
     '''
-    def __init__(self, in_channels, num_classes, grid_size):
+    def __init__(self, in_channels, num_classes):
         '''
         in_channels: number of channels in input
 
@@ -35,12 +35,12 @@ class FCN3D(nn.Module):
             nn.Conv3d(128, 128, 3, 2, 1),
             # same
             nn.Conv3d(128, 128, 3, 1, 1),
-            nn.Conv3d(128, 256, 3, 1, 1),
+            nn.Conv3d(128, 128, 3, 1, 1),
             nn.ReLU(),
             
             # inchannels, outchannels, kernel, stride, padding, output_padding
             # 1/8->1/4
-            nn.ConvTranspose3d(256, 128, 4, 2, 1),
+            nn.ConvTranspose3d(128, 128, 4, 2, 1),
             nn.ReLU(),
             # 1/4->1/2
             nn.ConvTranspose3d(128, 64, 4, 2, 1),
