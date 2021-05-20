@@ -53,7 +53,14 @@ class ScanNetSemSegOccGrid(Dataset):
             path = root_dir / scan_id / f'{scan_id}_occ_grid.pth'
 
             if path.exists():
-                self.paths.append(path)
+                # check if the scene is bigger than the subvol size
+                data = torch.load(path)
+                x = data['x']
+                # scene should be bigger than subvol in all dimensions
+                if (np.array(x.shape) >= self.subvol_size).all():
+                    self.paths.append(path)
+
+        print(f'Valid scans: {len(self.paths)}/{len(scans)}')
 
     def __len__(self):
         # vols per scene * num scenes
@@ -63,7 +70,8 @@ class ScanNetSemSegOccGrid(Dataset):
         while 1:
             # pick a random subvolume
             max_start = np.array(x.shape) - self.subvol_size
-            start = np.random.randint((0, 0, 0), max_start, dtype=np.uint8)
+            # add 1 to max_start because its exclusive
+            start = np.random.randint((0, 0, 0), max_start + 1, dtype=np.uint16)
             end = start + self.subvol_size
 
             x_sub = x[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
