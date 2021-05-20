@@ -80,8 +80,8 @@ def main(args):
     
     step = 0
     start_epoch = 0
-
-    summary(model, input_size=(cfg['train']['train_batch_size'], 1, 144, 256, 256))
+    input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
+    summary(model, input_size=input_size)
 
     if cfg['train']['resume']:
         ckpt = torch.load(cfg['train']['resume'])
