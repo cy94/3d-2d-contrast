@@ -20,21 +20,18 @@ class FCN3D(nn.Module):
             # 1->1/2
             nn.Conv3d(in_channels, 32, 3, 2, 1),
             # same
-            nn.Conv3d(32, 32, 3, 1, 1),
             nn.Conv3d(32, 64, 3, 1, 1),
             nn.ReLU(),
 
             # 1/2->1/4
             nn.Conv3d(64, 64, 3, 2, 1),
             # same
-            nn.Conv3d(64, 64, 3, 1, 1),
             nn.Conv3d(64, 128, 3, 1, 1),
             nn.ReLU(),
             
             # 1.4->1/8
             nn.Conv3d(128, 128, 3, 2, 1),
             # same
-            nn.Conv3d(128, 128, 3, 1, 1),
             nn.Conv3d(128, 128, 3, 1, 1),
             nn.ReLU(),
             
