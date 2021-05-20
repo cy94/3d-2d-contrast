@@ -46,6 +46,9 @@ def main(args):
     else:
         raise ValueError('Train val split not specified')
 
+    train_set = [s for s in train_set]
+    val_set = [s for s in val_set]
+
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
