@@ -22,29 +22,35 @@ from models.sem_seg.utils import count_parameters
 
 def main(args):
     cfg = read_config(args.cfg_path)
+    ckpt = torch.load(cfg['test']['ckpt'])
+    train_cfg = ckpt['cfg']
 
     # create transforms list
     transforms = []
-    if cfg['data']['img_size'] is not None:
-        transforms.append(Resize(cfg['data']['img_size']))
+    if train_cfg['data']['img_size'] is not None:
+        transforms.append(Resize(train_cfg['data']['img_size']))
     transforms.append(Normalize())
     transforms.append(TransposeChannels())
-
     t = Compose(transforms)
 
-    test_set = ScanNetSemSeg2D(cfg['data']['root'], cfg['data']['label_file'],
-                                cfg['data']['limit_scans'],
-                                transform=t)
+    dataset = ScanNetSemSeg2D(train_cfg['data']['root'], train_cfg['data']['label_file'],
+                                train_cfg['data']['limit_scans'],
+                                transform=t, frame_skip=train_cfg['data']['frame_skip'])
+
+    # pick the same val set used during training                                
+    if train_cfg['train']['train_split']:
+        train_size = int(train_cfg['train']['train_split'] * len(dataset))
+        val_set = Subset(dataset, range(train_size, len(dataset)))
+    elif train_cfg['train']['train_size'] and train_cfg['train']['val_size']:
+        val_set = Subset(dataset, range(train_cfg['train']['train_size'], 
+                            train_cfg['train']['train_size']+train_cfg['train']['val_size']))
+
     if cfg['test']['test_size']:
-        test_set = Subset(test_set, range(cfg['test']['test_size']))
+        val_set = Subset(val_set, range(cfg['test']['test_size']))
+        
+    print(f'Val set: {len(val_set)}')
 
-    print(f'Test set: {len(test_set)}')
-
-    print(test_set[0]['img_path'])
-
-    ckpt = torch.load(cfg['test']['ckpt'])
-
-    test_loader = DataLoader(test_set, batch_size=cfg['test']['batch_size'],
+    val_loader = DataLoader(val_set, batch_size=cfg['test']['batch_size'],
                             shuffle=False, num_workers=4, collate_fn=collate_func)        
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -58,11 +64,13 @@ def main(args):
     model.eval()
     num_batches = 0
 
-    out_dir = cfg['test']['out_dir']
-    os.makedirs(out_dir, exist_ok=True)
+    if args.viz:
+        out_dir = Path(cfg['test']['ckpt']).parent.parent / 'out'
+        print(f'Out dir: {out_dir}')
+        os.makedirs(out_dir, exist_ok=True)
 
     with torch.no_grad():
-        for batch in tqdm(test_loader):
+        for batch in tqdm(val_loader):
             num_batches += 1
             img, label = batch['img'].to(device), batch['label'].to(device)
             out = model(img)
@@ -74,7 +82,7 @@ def main(args):
             if args.viz:
                 viz_preds(preds, label, out_dir, batch['label_path'])
 
-    print(f'Test loss: {loss / num_batches}')
+    print(f'Val loss: {loss / num_batches}')
             
 def viz_preds(preds, gt, out_dir, filenames):
     '''
