@@ -4,6 +4,11 @@
 
 Contrastive learning in 3D
 
+## Setup
+- Create a conda environment and install conda requirements from `env.yaml`.
+- Then install pip requirements from `requirements.txt`.
+- [MinkowskiEngine v0.5.4](https://github.com/NVIDIA/MinkowskiEngine/tree/v0.5.4) through pip
+
 ## Dataset
 Download the full ScanNet dataset. Optionally select a subset of the scans by 
 limiting the file list inside the script.
