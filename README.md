@@ -5,8 +5,7 @@
 Contrastive learning in 3D
 
 ## Setup
-- Create a conda environment and install conda requirements from `env.yaml`.
-- Then install pip requirements from `requirements.txt`.
+- Create a conda environment and install conda requirements from `env.yaml` (includes pip installs)
 - [MinkowskiEngine v0.5.4](https://github.com/NVIDIA/MinkowskiEngine/tree/v0.5.4) through pip
 
 ## Dataset
