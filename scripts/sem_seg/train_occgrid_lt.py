@@ -64,6 +64,8 @@ def main(args):
     else:
         raise ValueError('Train val split not specified')
 
+    print(f'Prepare a fixed val set')
+    val_set = [s for s in val_set]
 
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
@@ -86,13 +88,15 @@ def main(args):
         pass
     
     checkpoint_callback = ModelCheckpoint(save_last=True, save_top_k=5, 
-                                        monitor='val_loss')
+                                        monitor='loss/val')
 
     trainer = pl.Trainer(gpus=1, 
                         auto_scale_batch_size='binsearch',
+                        log_every_n_steps=10,
                         callbacks=[checkpoint_callback],
                         max_epochs=cfg['train']['epochs'],
-                        val_check_interval=cfg['train']['eval_intv'])
+                        val_check_interval=cfg['train']['eval_intv'],
+                        fast_dev_run=args.fast_dev_run)
     monkeypatch_tensorboardlogger(trainer.logger)                        
     trainer.fit(model, train_loader, val_loader)
 
