@@ -4,7 +4,7 @@ import numpy as np
 
 CLASS_NAMES = ['none', 'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 
 'door', 'window', 'bookshelf', 'picture', 'counter', 'desk', 'curtain', 'refrigerator', 
-'shower curtain', 'toilet', 'sink', 'bathtub', 'otherfurn']
+'shower_curtain', 'toilet', 'sink', 'bathtub', 'otherfurn']
     
 VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
 
