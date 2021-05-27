@@ -13,8 +13,9 @@ import pytorch_lightning as pl
 import torchmetrics as tmetrics 
 import torchmetrics.functional as tmetricsF
 
-from eval.sem_seg_2d import miou
-from datasets.scannet.utils import CLASS_NAMES
+from eval.vis import confmat_to_fig, fig_to_arr
+from eval.iou_confmat import iou_confmat
+from datasets.scannet.utils import CLASS_NAMES, CLASS_WEIGHTS
 
 class FCN3D(pl.LightningModule):
     '''
@@ -26,8 +27,11 @@ class FCN3D(pl.LightningModule):
 
         '''
         super().__init__()
-        self.cfg = cfg
+        self.save_hyperparameters()
         self.num_classes = num_classes
+
+        self.class_weights = torch.Tensor(CLASS_WEIGHTS) if cfg['train']['class_weights'] else None
+
         self.layers = nn.ModuleList([
             # args: inchannels, outchannels, kernel, stride, padding
             # 1->1/2
@@ -71,7 +75,7 @@ class FCN3D(pl.LightningModule):
     def common_step(self, batch):
         x, y = batch['x'], batch['y']
         out = self(x)
-        loss = F.cross_entropy(out, y)
+        loss = F.cross_entropy(out, y, weight=self.class_weights.to(self.device))
         preds = out.argmax(dim=1)
         return preds, loss
 
@@ -81,9 +85,10 @@ class FCN3D(pl.LightningModule):
 
         # miou only for some batches - compute right now and log
         if random.random() > 0.7:
-            ious = tmetricsF.iou(preds, batch['y'], num_classes=self.num_classes, 
+            ious, confmat = iou_confmat(preds, batch['y'], num_classes=self.num_classes, 
                                 reduction='none', absent_score=-1)
             self.log_ious(ious, 'train')
+            self.log_confmat(confmat, 'train')
             accs = tmetricsF.accuracy(preds, batch['y'], average=None,
                                         num_classes=self.num_classes)
             self.log_accs(accs, 'train')                                        
@@ -120,11 +125,20 @@ class FCN3D(pl.LightningModule):
 
         return loss
     
+    def log_confmat(self, mat, split):
+        fig = confmat_to_fig(mat.cpu().numpy(), CLASS_NAMES)
+        img = fig_to_arr(fig)
+        tag = f'confmat/{split}'
+        self.logger.experiment.add_image(tag, img, global_step=self.global_step, 
+                                        dataformats='HWC')
+
+
     def validation_epoch_end(self, validation_step_outputs):
         loss = torch.Tensor(validation_step_outputs).mean()
         self.log('loss/val', loss)
 
         self.log_ious(self.iou.compute(), 'val')
         self.log_accs(self.acc.compute(), 'val')
+        self.log_confmat(self.iou.confmat, 'val')
 
         
