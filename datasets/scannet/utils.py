@@ -6,6 +6,21 @@ CLASS_NAMES = ['none', 'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'tabl
 'door', 'window', 'bookshelf', 'picture', 'counter', 'desk', 'curtain', 'refrigerator', 
 'shower_curtain', 'toilet', 'sink', 'bathtub', 'otherfurn']
     
+'''
+1/class fraction weights
+
+obtained by 
+counts = np.bincount(labels)
+fraction = counts / counts.sum()
+weights = 1/fraction
+'''
+CLASS_WEIGHTS = [1.03756382e+00, 9.30298584e+01, 2.58599740e+02, 4.01412026e+02,
+ 4.59677168e+02, 2.94258362e+02, 9.34196145e+02, 4.43675232e+02,
+ 4.35827788e+02, 1.00649389e+03, 1.10304146e+03, 4.78983854e+03,
+ 2.21304118e+03, 8.76567461e+02, 1.70824223e+03, 2.43478239e+03,
+ 2.03566667e+03, 2.64171236e+03, 3.37212697e+03, 4.33822532e+03,
+ 5.52710563e+02]
+
 VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
 
 def nyu40_to_continuous(img):
