@@ -3,6 +3,9 @@
 '''
 import random
 
+import matplotlib
+matplotlib.use('agg') 
+import matplotlib.pyplot as plt
 import numpy as np
 
 import torch
@@ -30,7 +33,11 @@ class FCN3D(pl.LightningModule):
         self.save_hyperparameters()
         self.num_classes = num_classes
 
-        self.class_weights = torch.Tensor(CLASS_WEIGHTS) if cfg['train']['class_weights'] else None
+        if cfg['train']['class_weights']:
+            print('Using class weights')
+            self.class_weights = torch.Tensor(CLASS_WEIGHTS)
+        else: 
+            self.class_weights = None
 
         self.layers = nn.ModuleList([
             # args: inchannels, outchannels, kernel, stride, padding
@@ -128,6 +135,7 @@ class FCN3D(pl.LightningModule):
     def log_confmat(self, mat, split):
         fig = confmat_to_fig(mat.cpu().numpy(), CLASS_NAMES)
         img = fig_to_arr(fig)
+        plt.close()
         tag = f'confmat/{split}'
         self.logger.experiment.add_image(tag, img, global_step=self.global_step, 
                                         dataformats='HWC')
@@ -140,5 +148,7 @@ class FCN3D(pl.LightningModule):
         self.log_ious(self.iou.compute(), 'val')
         self.log_accs(self.acc.compute(), 'val')
         self.log_confmat(self.iou.confmat, 'val')
+
+        self.log("hp_metric", loss)
 
         
