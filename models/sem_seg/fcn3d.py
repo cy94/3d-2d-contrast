@@ -82,7 +82,8 @@ class FCN3D(pl.LightningModule):
     def common_step(self, batch):
         x, y = batch['x'], batch['y']
         out = self(x)
-        loss = F.cross_entropy(out, y, weight=self.class_weights.to(self.device))
+        loss = F.cross_entropy(out, y, weight=self.class_weights.to(self.device),
+                                ignore_index=120)
         preds = out.argmax(dim=1)
         return preds, loss
 
@@ -93,11 +94,12 @@ class FCN3D(pl.LightningModule):
         # miou only for some batches - compute right now and log
         if random.random() > 0.7:
             ious, confmat = iou_confmat(preds, batch['y'], num_classes=self.num_classes, 
-                                reduction='none', absent_score=-1)
+                                reduction='none', absent_score=-1, ignore_index=120)
             self.log_ious(ious, 'train')
             self.log_confmat(confmat, 'train')
             accs = tmetricsF.accuracy(preds, batch['y'], average=None,
-                                        num_classes=self.num_classes)
+                                        num_classes=self.num_classes,
+                                        ignore_index=120)
             self.log_accs(accs, 'train')                                        
 
         return loss
@@ -119,9 +121,11 @@ class FCN3D(pl.LightningModule):
 
     def on_validation_epoch_start(self):
         self.iou = tmetrics.IoU(self.num_classes, reduction='none', 
-                                absent_score=-1, compute_on_step=False).to(self.device)
+                                absent_score=-1, compute_on_step=False,
+                                ignore_index=120).to(self.device)
         self.acc = tmetrics.Accuracy(num_classes=self.num_classes, average=None,
-                                compute_on_step=False).to(self.device)                                
+                                compute_on_step=False,
+                                ignore_index=120).to(self.device)                                
 
     def validation_step(self, batch, batch_idx):
         preds, loss = self.common_step(batch)
