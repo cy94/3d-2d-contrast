@@ -52,6 +52,7 @@ def main(args):
     t = Compose(transforms)
 
     dataset = ScanNetSemSegOccGrid(cfg['data'], transform=t)
+    print(f'Full dataset size: {len(dataset)}')
 
     if cfg['train']['train_split']:
         train_size = int(cfg['train']['train_split'] * len(dataset))
