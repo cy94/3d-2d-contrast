@@ -2,6 +2,20 @@ from copy import deepcopy
 
 import numpy as np
 
+def pad_volume(vol, size, pad_val=-100):
+    '''
+    vol: (l, b, h) array
+    size: (3,) array
+    pad_val: value to pad
+    '''
+    diff = size - np.array(vol.shape)
+    # left and right padding for 3 dims (ie l/r, front/back, top/bottom)
+    pad = np.stack((np.floor(diff/2), np.ceil(diff/2)), axis=-1).astype(np.uint8).tolist()
+    
+    padded = np.pad(vol, pad, constant_values=pad_val)
+
+    return padded
+
 class Pad:
     '''
     Pad (l,b,h) grid to max_size
@@ -15,12 +29,8 @@ class Pad:
         '''
         new_sample = deepcopy(sample)
         
-        diff = self.size - np.array(new_sample['x'].shape)
-        # left and right padding for 3 dims (ie l/r, front/back, top/bottom)
-        pad = np.stack((np.floor(diff/2), np.ceil(diff/2)), axis=-1).astype(np.uint8).tolist()
-        
-        new_sample['x'] = np.pad(new_sample['x'], pad, constant_values=-100)
-        new_sample['y'] = np.pad(new_sample['y'], pad, constant_values=-100)
+        new_sample['x'] = pad_volume(new_sample['x'], self.size)
+        new_sample['y'] = pad_volume(new_sample['y'], self.size)
 
         return new_sample
 
