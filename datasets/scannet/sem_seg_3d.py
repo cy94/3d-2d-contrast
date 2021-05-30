@@ -68,10 +68,14 @@ class ScanNetSemSegOccGrid(Dataset):
         '''
         x, y - volumes of the same size
         '''
-        # pad the input volume for 2 reasons
+        # pad the input volume for these reasons
         # 1. if the volume is is smaller than the subvol size
         #    pad it along the required dimensions so that a proper subvol can be created
-        # 2. need to learn the padding, which is done later during inference
+        # 2. need to learn the padding, which is needed later during inference
+        # 3. augmentation
+        # 
+        # for 2+3 - apply padding to the whole scene, then sample subvolumes as usual
+        # so that subvols on the edge of the scene get padding
         #
         # result: left+right padding = max(subvol size, padding required to reach subvol size)
         # then apply half of this padding on each side 
@@ -103,7 +107,7 @@ class ScanNetSemSegOccGrid(Dataset):
 
             # classes 0,1,2 = none, wall, floor
             # only these 3 -> keep only 5% of such subvols
-            # other classes >2? keep this subvol 
+            # other classes with index >2? keep this subvol 
             if (y_sub.max() == 2 and random.random() > 0.95) or (y_sub.max() > 2):
                 break
 
