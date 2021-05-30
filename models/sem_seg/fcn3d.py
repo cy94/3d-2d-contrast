@@ -32,8 +32,10 @@ class FCN3D(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
+        print(f'FCN with {self.num_classes} classes')
+        
         self.target_padding = cfg['data']['target_padding']
-
+        
         if cfg['train']['class_weights']:
             print('Using class weights')
             self.class_weights = torch.Tensor(CLASS_WEIGHTS)
@@ -94,15 +96,15 @@ class FCN3D(pl.LightningModule):
 
         # miou only for some batches - compute right now and log
         if random.random() > 0.7:
-            ious, confmat = iou_confmat(preds, batch['y'], num_classes=self.num_classes, 
-                                reduction='none', absent_score=-1, 
-                                # ignore_index=120
+            ious, confmat = iou_confmat(preds, batch['y'], 
+                                num_classes=self.num_classes, 
+                                reduction='none', 
+                                absent_score=-1, 
                                 )
             self.log_ious(ious, 'train')
             self.log_confmat(confmat, 'train')
             accs = tmetricsF.accuracy(preds, batch['y'], average=None,
                                         num_classes=self.num_classes,
-                                        #ignore_index=120
                                         )
             self.log_accs(accs, 'train')                                        
 
@@ -124,7 +126,7 @@ class FCN3D(pl.LightningModule):
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
     def on_validation_epoch_start(self):
-        self.iou = tmetrics.IoU(self.num_classes, reduction='none', 
+        self.iou = tmetrics.IoU(num_classes=self.num_classes, reduction='none', 
                                 absent_score=-1, compute_on_step=False,
                                 ignore_index=self.target_padding
                                 ).to(self.device)
