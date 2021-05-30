@@ -33,7 +33,7 @@ class FCN3D(pl.LightningModule):
         self.save_hyperparameters()
         self.num_classes = num_classes
         print(f'FCN with {self.num_classes} classes')
-        
+
         self.target_padding = cfg['data']['target_padding']
         
         if cfg['train']['class_weights']:
@@ -97,14 +97,16 @@ class FCN3D(pl.LightningModule):
         # miou only for some batches - compute right now and log
         if random.random() > 0.7:
             ious, confmat = iou_confmat(preds, batch['y'], 
-                                num_classes=self.num_classes, 
+                                num_classes=self.num_classes + 1, 
                                 reduction='none', 
                                 absent_score=-1, 
+                                ignore_index=self.target_padding
                                 )
             self.log_ious(ious, 'train')
             self.log_confmat(confmat, 'train')
             accs = tmetricsF.accuracy(preds, batch['y'], average=None,
-                                        num_classes=self.num_classes,
+                                        num_classes=self.num_classes + 1,
+                                        ignore_index=self.target_padding
                                         )
             self.log_accs(accs, 'train')                                        
 
@@ -126,12 +128,13 @@ class FCN3D(pl.LightningModule):
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
     def on_validation_epoch_start(self):
-        self.iou = tmetrics.IoU(num_classes=self.num_classes, reduction='none', 
+        self.iou = tmetrics.IoU(num_classes=self.num_classes + 1, reduction='none', 
                                 absent_score=-1, compute_on_step=False,
                                 ignore_index=self.target_padding
                                 ).to(self.device)
-        self.acc = tmetrics.Accuracy(num_classes=self.num_classes, average=None,
+        self.acc = tmetrics.Accuracy(num_classes=self.num_classes + 1, average=None,
                                 compute_on_step=False,
+                                ignore_index=self.target_padding,
                                 ).to(self.device)                                
 
     def validation_step(self, batch, batch_idx):

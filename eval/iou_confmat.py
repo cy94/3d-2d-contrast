@@ -3,51 +3,19 @@ adapted from:
 https://github.com/PyTorchLightning/metrics/blob/master/torchmetrics/functional/classification/iou.py#L47-L111
 returns both IOU and confmat
 '''
-# Copyright The PyTorch Lightning team.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
 from typing import Optional
 
 import torch
 from torch import Tensor
 
-from torchmetrics.functional.classification.confusion_matrix import _confusion_matrix_update
+import torchmetrics as tmetrics
+from torchmetrics.utilities.checks import _input_format_classification
+from torchmetrics.utilities.enums import DataType
 from torchmetrics.utilities.data import get_num_classes
-from torchmetrics.utilities.distributed import reduce
+from torchmetrics.functional.classification.confusion_matrix import _confusion_matrix_update
 
-
-def _iou_from_confmat(
-    confmat: Tensor,
-    num_classes: int,
-    ignore_index: Optional[int] = None,
-    absent_score: float = 0.0,
-    reduction: str = 'elementwise_mean',
-):
-    intersection = torch.diag(confmat)
-    union = confmat.sum(0) + confmat.sum(1) - intersection
-
-    # If this class is absent in both target AND pred (union == 0), then use the absent_score for this class.
-    scores = intersection.float() / union.float()
-    scores[union == 0] = absent_score
-
-    # Remove the ignored class index from the scores.
-    if ignore_index is not None and 0 <= ignore_index < num_classes:
-        scores = torch.cat([
-            scores[:ignore_index],
-            scores[ignore_index + 1:],
-        ])
-    return reduce(scores, reduction=reduction)
-
+from torchmetrics.functional.classification.iou import _iou_from_confmat
 
 def iou_confmat(
     preds: Tensor,
