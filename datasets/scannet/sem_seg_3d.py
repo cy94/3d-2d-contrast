@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import Dataset
 
 from datasets.scannet.utils import nyu40_to_continuous
+from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
     return {
@@ -42,7 +43,7 @@ class ScanNetSemSegOccGrid(Dataset):
         self.subvols_per_scene = cfg['subvols_per_scene']
         self.paths = []
         self.transform = transform
-        self.subvol_size = cfg['subvol_size']
+        self.subvol_size = np.array(cfg['subvol_size'])
 
         scans = sorted(os.listdir(root_dir))
 
@@ -53,20 +54,43 @@ class ScanNetSemSegOccGrid(Dataset):
             path = root_dir / scan_id / f'{scan_id}_occ_grid.pth'
 
             if path.exists():
-                # check if the scene is bigger than the subvol size
-                data = torch.load(path)
-                x = data['x']
-                # scene should be bigger than subvol in all dimensions
-                if (np.array(x.shape) >= self.subvol_size).all():
-                    self.paths.append(path)
+                self.paths.append(path)
 
-        print(f'Valid scans: {len(self.paths)}/{len(scans)}')
+        # important: shuffle the scenes because they were recorded in a certain
+        # order and are not completely independent!
+        random.shuffle(self.paths)
 
     def __len__(self):
         # vols per scene * num scenes
         return self.subvols_per_scene * len(self.paths)
 
     def sample_subvol(self, x, y):
+        '''
+        x, y - volumes of the same size
+        '''
+        # pad the input volume for 2 reasons
+        # 1. if the volume is is smaller than the subvol size
+        #    pad it along the required dimensions so that a proper subvol can be created
+        # 2. need to learn the padding, which is done later during inference
+        #
+        # result: left+right padding = max(subvol size, padding required to reach subvol size)
+        # then apply half of this padding on each side 
+
+        # the padding required for small scenes (left+right)
+        small_scene_pad = self.subvol_size - x.shape
+        small_scene_pad[small_scene_pad < 0] = 0
+
+        # augmentation padding for all other scenes (left+right)
+        aug_pad = self.subvol_size
+
+        # final scene size
+        pad = np.maximum(small_scene_pad, aug_pad)
+        scene_size = np.array(x.shape) + pad
+        # splits the padding equally on both sides and applies it
+        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, 120)
+
+        # now x, y are atleast the size of subvol in each dimension
+        # sample subvols as usual
         while 1:
             # pick a random subvolume
             max_start = np.array(x.shape) - self.subvol_size
