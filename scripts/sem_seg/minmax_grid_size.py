@@ -17,15 +17,18 @@ def main(args):
 
     grid_sizes = []
 
-    for scan_id in tqdm(sorted(os.listdir(root))[:200], desc='scan'):
+    for scan_id in tqdm(sorted(os.listdir(root)), desc='scan'):
         scan_dir = root / scan_id
         
         in_file = f'{scan_id}_occ_grid.pth'
         data = torch.load(scan_dir / in_file)
         grid = data['y']
         grid_sizes.append(grid.shape)
-
-    print(f'Max grid size: {np.array(grid_sizes).max(axis=0)}')
+    
+    grid_sizes = np.array(grid_sizes)
+    
+    print(f'Max grid size: {grid_sizes.max(axis=0)}')
+    print(f'Max grid size: {grid_sizes.min(axis=0)}')
 
 
 if __name__ == '__main__':
