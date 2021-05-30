@@ -3,21 +3,26 @@ data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
     limit_scans: null
-    # pad all grids to this size
-    grid_size: [256, 256, 144]
+    # size of each subvol
+    subvol_size: [32, 32, 32]
+    # randomly sample these many subvols per scene
+    subvols_per_scene: 100
+    # padding value used in the target
+    target_padding: 25
 
 train:
-    train_size: 1
-    val_size: 1
+    # takes preference, set to null to use a fixed size below
     train_split: null #0.8
+    train_size: 1000
+    val_size: 1000
 
-    train_batch_size: 2
-    val_batch_size: 2
-    lr: 0.001
+    train_batch_size: 128
+    val_batch_size: 128
+    lr: 0.0003
     l2: 0.0000
     epochs: 30000
-    
+    class_weights: true
     # eval every `eval_intv` batches
-    eval_intv: 256
-    # interval in epochs for checkpointing
-    ckpt_intv: 1
+    eval_intv: 128
+
+    resume: null

@@ -44,6 +44,7 @@ class ScanNetSemSegOccGrid(Dataset):
         self.paths = []
         self.transform = transform
         self.subvol_size = np.array(cfg['subvol_size'])
+        self.target_padding = cfg['target_padding']
 
         scans = sorted(os.listdir(root_dir))
 
@@ -91,7 +92,7 @@ class ScanNetSemSegOccGrid(Dataset):
         pad = np.maximum(small_scene_pad, aug_pad)
         scene_size = np.array(x.shape) + pad
         # splits the padding equally on both sides and applies it
-        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, 120)
+        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, self.target_padding)
 
         # now x, y are atleast the size of subvol in each dimension
         # sample subvols as usual
