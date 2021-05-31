@@ -22,17 +22,22 @@ def write_list(path, l):
 
 def main(args):
     root = Path(args.scannet_dir)
-    train_frac = 0.8
+    train_frac = 0.7
+    val_frac = 0.2
 
     scans = os.listdir(root)
     random.shuffle(scans)
+
     n_train = int(train_frac * len(scans))
+    n_val = int(val_frac * len(scans))
     
     train_scans = scans[:n_train]
-    val_scans = scans[n_train:]
+    val_scans = scans[n_train:n_train+n_val]
+    test_scans = scans[n_train+n_val:]
     
-    write_list(root / 'train.txt', train_scans)
-    write_list(root / 'val.txt', val_scans)
+    write_list(root.parent / 'train.txt', train_scans)
+    write_list(root.parent / 'val.txt', val_scans)
+    write_list(root.parent / 'test.txt', test_scans)
 
 if __name__ == '__main__':
     # params
