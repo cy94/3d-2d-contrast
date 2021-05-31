@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from datasets.scannet.utils import nyu40_to_continuous
+from datasets.scannet.utils import nyu40_to_continuous, read_list
 from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
@@ -28,7 +28,7 @@ class ScanNetSemSegOccGrid(Dataset):
 
     labels as given here here: http://kaldir.vc.in.tum.de/scannet_benchmark/
     '''
-    def __init__(self, cfg, transform=None):
+    def __init__(self, cfg, transform=None, split=None):
         '''
         data_cfg:
             see configs/occgrid_train.yml
@@ -46,7 +46,11 @@ class ScanNetSemSegOccGrid(Dataset):
         self.subvol_size = np.array(cfg['subvol_size'])
         self.target_padding = cfg['target_padding']
 
-        scans = sorted(os.listdir(root_dir))
+        if split:
+            # read train/val/test list
+            scans = read_list(cfg[f'{split}_list'])
+        else:
+            scans = sorted(os.listdir(root_dir))
 
         if cfg['limit_scans']:
             scans = scans[:cfg['limit_scans']]

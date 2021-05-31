@@ -51,25 +51,29 @@ def main(args):
     transforms.append(TransposeDims())
     t = Compose(transforms)
 
-    dataset = ScanNetSemSegOccGrid(cfg['data'], transform=t)
-    print(f'Full dataset size: {len(dataset)}')
-
-    if cfg['train']['train_split']:
-        train_size = int(cfg['train']['train_split'] * len(dataset))
-        train_set = Subset(dataset, range(train_size))
-        val_set = Subset(dataset, range(train_size, len(dataset)))
-    elif cfg['train']['train_size'] and cfg['train']['val_size']:
-        train_set = Subset(dataset, range(cfg['train']['train_size']))
-        val_set = Subset(dataset, range(cfg['train']['train_size'], 
-                            cfg['train']['train_size']+cfg['train']['val_size']))
+    if cfg['data']['train_list'] and cfg['data']['val_list']:
+        train_set = ScanNetSemSegOccGrid(cfg['data'], transform=t, split='train')
+        val_set = ScanNetSemSegOccGrid(cfg['data'], transform=t, split='val')
     else:
-        raise ValueError('Train val split not specified')
-
-    print(f'Prepare a fixed val set')
-    val_set = [s for s in val_set]
+        dataset = ScanNetSemSegOccGrid(cfg['data'], transform=t)
+        print(f'Full dataset size: {len(dataset)}')
+        if cfg['train']['train_split']:
+            train_size = int(cfg['train']['train_split'] * len(dataset))
+            train_set = Subset(dataset, range(train_size))
+            val_set = Subset(dataset, range(train_size, len(dataset)))
+        elif cfg['train']['train_size'] and cfg['train']['val_size']:
+            train_set = Subset(dataset, range(cfg['train']['train_size']))
+            val_set = Subset(dataset, range(cfg['train']['train_size'], 
+                                cfg['train']['train_size']+cfg['train']['val_size']))
+        else:
+            raise ValueError('Train val split not specified')
 
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
+    
+    print(f'Prepare a fixed val set')
+    val_set = [s for s in val_set]
+
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             shuffle=True, num_workers=8, collate_fn=collate_func,

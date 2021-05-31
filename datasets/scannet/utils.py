@@ -23,6 +23,18 @@ CLASS_WEIGHTS = [1.03756382e+00, 9.30298584e+01, 2.58599740e+02, 4.01412026e+02,
 
 VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
 
+def read_list(path):
+    '''
+    read list of lines from a file
+    path: Path object or str
+    '''
+    with open(path) as f:
+        lines = f.readlines()
+
+    cleanlines = [line.strip() for line in lines]
+
+    return cleanlines
+
 def nyu40_to_continuous(img):
     '''
     map NYU40 labels 0-40 in VALID_CLASSES to continous labels 0-20
