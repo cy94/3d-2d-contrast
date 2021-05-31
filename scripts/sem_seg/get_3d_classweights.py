@@ -15,7 +15,7 @@ from datasets.scannet.utils import CLASS_NAMES
 
 def main(args):
     cfg = read_config(args.cfg_path)
-    dataset = ScanNetSemSegOccGrid(cfg['data'])
+    dataset = ScanNetSemSegOccGrid(cfg['data'], full_scene=True)
     print(f'Dataset: {len(dataset)}')
     
     num_classes = len(CLASS_NAMES)
