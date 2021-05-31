@@ -2,19 +2,22 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    train_list: /mnt/data/scannet/train.txt
+    val_list: /mnt/data/scannet/val.txt
     limit_scans: null
     # size of each subvol
     subvol_size: [32, 32, 32]
     # randomly sample these many subvols per scene
     subvols_per_scene: 100
     # padding value used in the target
-    target_padding: 25
+    # gt values are 0..20
+    target_padding: 21
 
 train:
     # takes preference, set to null to use a fixed size below
     train_split: null #0.8
-    train_size: 1000
-    val_size: 1000
+    train_size: null #1000
+    val_size: null #1000
 
     train_batch_size: 128
     val_batch_size: 128
