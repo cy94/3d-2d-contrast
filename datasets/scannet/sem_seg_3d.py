@@ -134,6 +134,8 @@ class ScanNetSemSegOccGrid(Dataset):
         # load the full scene
         data = torch.load(path)
         x, y_nyu = data['x'], data['y']
+        # convert bool x to float
+        x = x.astype(float)
         # map nyu40 labels to continous labels
         y = nyu40_to_continuous(y_nyu).astype(np.int8)
         
