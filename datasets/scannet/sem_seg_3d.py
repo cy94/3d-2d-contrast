@@ -28,7 +28,7 @@ class ScanNetSemSegOccGrid(Dataset):
 
     labels as given here here: http://kaldir.vc.in.tum.de/scannet_benchmark/
     '''
-    def __init__(self, cfg, transform=None, split=None):
+    def __init__(self, cfg, transform=None, split=None, full_scene=False):
         '''
         data_cfg:
             see configs/occgrid_train.yml
@@ -36,7 +36,9 @@ class ScanNetSemSegOccGrid(Dataset):
             limit_scans: read only these many scans
             subvol_size: size of subvolumes to sample
             subvols_per_scene: sample these many subvolumes per scene
-            transform: apply on each subvol
+        transform: apply on each subvol
+        split: name of the split, used to read the list from cfg
+        full_scene: return the full scene
         '''
         root_dir = Path(cfg['root'])
         
@@ -45,6 +47,7 @@ class ScanNetSemSegOccGrid(Dataset):
         self.transform = transform
         self.subvol_size = np.array(cfg['subvol_size'])
         self.target_padding = cfg['target_padding']
+        self.full_scene = full_scene
 
         if split:
             # read train/val/test list
@@ -67,6 +70,8 @@ class ScanNetSemSegOccGrid(Dataset):
 
     def __len__(self):
         # vols per scene * num scenes
+        if self.full_scene:
+            return len(self.paths)
         return self.subvols_per_scene * len(self.paths)
 
     def sample_subvol(self, x, y):
@@ -119,8 +124,12 @@ class ScanNetSemSegOccGrid(Dataset):
         return x_sub, y_sub
 
     def __getitem__(self, ndx):
-        # pick the scene
-        scene_ndx = ndx // self.subvols_per_scene
+        if not self.full_scene:
+            # get the scene ndx for this subvol 
+            scene_ndx = ndx // self.subvols_per_scene
+        else:
+            scene_ndx = ndx
+
         path = self.paths[scene_ndx]
         # load the full scene
         data = torch.load(path)
@@ -128,9 +137,12 @@ class ScanNetSemSegOccGrid(Dataset):
         # map nyu40 labels to continous labels
         y = nyu40_to_continuous(y_nyu).astype(np.int8)
         
-        x_sub, y_sub = self.sample_subvol(x, y)
+        if self.full_scene:
+            xval, yval = x, y
+        else:
+            xval, yval = self.sample_subvol(x, y)
 
-        sample = {'path': path, 'x': x_sub, 'y': y_sub}
+        sample = {'path': path, 'x': xval, 'y': yval}
 
         if self.transform is not None:
             sample = self.transform(sample)
