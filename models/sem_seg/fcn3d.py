@@ -123,7 +123,8 @@ class FCN3D(pl.LightningModule):
             if iou != -1:
                 tag = f'iou/{split}/{CLASS_NAMES[class_ndx]}'
                 self.log(tag, iou)
-        valid_ious = list(filter(lambda i: i != -1, ious))
+        # exclude the none and padding classes while calculating miou
+        valid_ious = list(filter(lambda i: i != -1, ious[1:-1]))
         if len(valid_ious) > 0:
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
