@@ -137,6 +137,8 @@ class ScanNetSemSegOccGrid(Dataset):
         x = x.astype(float)
         # map nyu40 labels to continous labels
         y = nyu40_to_continuous(y_nyu).astype(np.int8)
+        # ignore the "none" class
+        y[y == 0] = self.target_padding
         
         if self.full_scene:
             xval, yval = x, y
