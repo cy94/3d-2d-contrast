@@ -163,6 +163,7 @@ class ScanNetGridTestSubvols:
         '''
         x = scene['x']
         y = scene['y']
+        self.path = scene['path']
         self.subvol_size = subvol_size
         self.target_padding = target_padding
 
@@ -198,7 +199,7 @@ class ScanNetGridTestSubvols:
         sub_x = self.x[slice]
         sub_y = self.y[slice]
 
-        sample = {'x': sub_x, 'y': sub_y}
+        sample = {'x': sub_x, 'y': sub_y, 'path': self.path}
 
         if self.transform is not None:
             sample = self.transform(sample)
