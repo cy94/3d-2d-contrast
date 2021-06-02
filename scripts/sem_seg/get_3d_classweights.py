@@ -24,10 +24,19 @@ def main(args):
     for ndx, sample in enumerate(tqdm(dataset)):
         counts += np.bincount(sample['y'].flatten(), minlength=num_classes)
 
-    fraction = counts/counts.sum()
-    print('Class distrib:', fraction)
-    print('1/fraction:', 1/fraction)
-    print('1/log(freq):', 1/np.log(counts))
+    # remove none and target padding counts, 20 classes left
+    counts = counts[1:-1]
+    print('Counts:', counts)
+    fraction = counts/counts.sum() 
+    print('Class distrib: ',fraction)
+    
+    inv_frac = 1/fraction
+    print('1/fraction: ', inv_frac.tolist())
+    print('Normed: ', (inv_frac / inv_frac.sum()).tolist())
+
+    inv_log = 1/np.log(counts)
+    print('1/log(freq): ', inv_log.tolist())
+    print('normed: ', (inv_log / inv_log.sum()).tolist())
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
