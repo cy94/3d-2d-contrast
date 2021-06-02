@@ -116,6 +116,8 @@ class FCN3D(pl.LightningModule):
         self.train_iou.reset()
         self.train_acc.reset()
 
+        return outputs
+
     def log_accs(self, accs, split):
         for class_ndx, acc in enumerate(accs):
             tag = f'acc/{split}/{CLASS_NAMES[class_ndx]}'
