@@ -10,18 +10,14 @@ from tqdm import tqdm
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
-from transforms.grid_3d import AddChannelDim, Pad, TransposeDims
+from transforms.grid_3d import AddChannelDim, TransposeDims
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.fcn3d import FCN3D
-from eval.sem_seg_2d import miou
 
 from torchinfo import summary
 import torch
-from torch.optim import Adam
-import torch.nn.functional as F
 from torch.utils.data import Subset, DataLoader
 from torchvision.transforms import Compose
-from torch.utils.tensorboard import SummaryWriter
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
