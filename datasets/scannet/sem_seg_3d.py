@@ -47,11 +47,10 @@ class ScanNetSemSegOccGrid(Dataset):
         self.transform = transform
         self.full_scene = full_scene
 
-        if not self.full_scene:
-            # sample subvolumes
-            self.subvols_per_scene = cfg['subvols_per_scene']
-            self.subvol_size = np.array(cfg['subvol_size'])
-            self.target_padding = cfg['target_padding']
+        # sample subvolumes
+        self.subvols_per_scene = cfg.get('subvols_per_scene', None)
+        self.subvol_size = np.array(cfg.get('subvol_size', None))
+        self.target_padding = cfg.get('target_padding', None)
 
         if split:
             # read train/val/test list
