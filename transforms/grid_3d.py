@@ -16,6 +16,27 @@ def pad_volume(vol, size, pad_val=-100):
 
     return padded
 
+class MapClasses:
+    '''
+    Ignore the none class, set it to a different value
+    '''
+    def __init__(self, class_map):
+        '''
+        class_map: dict int -> int
+        '''
+        self.class_map = class_map
+    
+    def __call__(self, sample):
+        new_sample = deepcopy(sample)
+        y = new_sample['y']
+
+        for old, new in self.class_map.items():
+            y[y == old] = new
+
+        new_sample['y'] = y
+
+        return new_sample
+        
 class Pad:
     '''
     Pad (l,b,h) grid to max_size

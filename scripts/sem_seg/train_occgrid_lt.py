@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
-from transforms.grid_3d import AddChannelDim, TransposeDims
+from transforms.grid_3d import AddChannelDim, TransposeDims, MapClasses
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.fcn3d import FCN3D
 
@@ -45,6 +45,8 @@ def main(args):
     transforms = []
     transforms.append(AddChannelDim())
     transforms.append(TransposeDims())
+    # map none class to padding, no loss on this class
+    transforms.append(MapClasses({0: cfg['data']['target_padding']}))
     t = Compose(transforms)
 
     if cfg['data']['train_list'] and cfg['data']['val_list']:
