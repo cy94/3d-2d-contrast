@@ -2,9 +2,13 @@ import os
 import csv
 import numpy as np
 
-CLASS_NAMES = ['none', 'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 
-'door', 'window', 'bookshelf', 'picture', 'counter', 'desk', 'curtain', 'refrigerator', 
-'shower_curtain', 'toilet', 'sink', 'bathtub', 'otherfurn', 'padding']
+CLASS_NAMES = ['none', 'wall', 'floor', 'cabinet', 
+            'bed', 'chair', 'sofa', 'table', 
+            'door', 'window', 'bookshelf', 'picture', 
+            'counter', 'desk', 'curtain', 'refrigerator', 
+            'shower_curtain', 'toilet', 'sink', 'bathtub', 
+            'otherfurn', 
+            'padding']
     
 '''
 1/class fraction weights
