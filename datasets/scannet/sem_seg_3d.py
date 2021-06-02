@@ -4,6 +4,7 @@
 import random
 import os
 from pathlib import Path
+from collections import OrderedDict
 
 import numpy as np
 import torch
@@ -42,12 +43,15 @@ class ScanNetSemSegOccGrid(Dataset):
         '''
         root_dir = Path(cfg['root'])
         
-        self.subvols_per_scene = cfg['subvols_per_scene']
         self.paths = []
         self.transform = transform
-        self.subvol_size = np.array(cfg['subvol_size'])
-        self.target_padding = cfg['target_padding']
         self.full_scene = full_scene
+
+        if not self.full_scene:
+            # sample subvolumes
+            self.subvols_per_scene = cfg['subvols_per_scene']
+            self.subvol_size = np.array(cfg['subvol_size'])
+            self.target_padding = cfg['target_padding']
 
         if split:
             # read train/val/test list
@@ -63,10 +67,6 @@ class ScanNetSemSegOccGrid(Dataset):
 
             if path.exists():
                 self.paths.append(path)
-
-        # important: shuffle the scenes because they were recorded in a certain
-        # order and are not completely independent!
-        random.shuffle(self.paths)
 
     def __len__(self):
         # vols per scene * num scenes
@@ -150,3 +150,60 @@ class ScanNetSemSegOccGrid(Dataset):
             sample = self.transform(sample)
 
         return sample
+
+class ScanNetGridTestSubvols:
+    '''
+    Take a full scannet scene, pad it to multiple of subvolumes
+    Read all non overlapping subvolumes
+    '''
+    def __init__(self, scene, subvol_size, target_padding, transform=None):
+        '''
+        scene: a full_scene sample from the above dataset
+        subvol_size: size of the subvolumes
+        '''
+        x = scene['x']
+        y = scene['y']
+        self.subvol_size = subvol_size
+        self.target_padding = target_padding
+
+        self.transform = transform 
+
+        # pad the scene to multiples of subvols
+        padded_size = ((np.array(x.shape) // self.subvol_size) + 1) * self.subvol_size
+        self.x = pad_volume(x, padded_size)
+        self.y = pad_volume(y, padded_size, self.target_padding)
+
+        # mapping from ndx to subvol slices
+        self.mapping = OrderedDict()
+        ndx = 0
+        # height
+        for k in range(0, self.x.shape[2], self.subvol_size[2]):
+            # width
+            for j in range(0, self.x.shape[1], self.subvol_size[1]):
+                # length
+                for i in range(0, self.x.shape[0], self.subvol_size[0]):
+                    slice = np.s_[
+                        i : i+self.subvol_size[0], 
+                        j : j+self.subvol_size[1], 
+                        k : k+self.subvol_size[2], 
+                    ]
+                    self.mapping[ndx] = slice
+                    ndx += 1
+
+    def __len__(self):
+        return len(self.mapping)
+
+    def __getitem__(self, ndx):
+        slice = self.mapping[ndx]
+        sub_x = self.x[slice]
+        sub_y = self.y[slice]
+
+        sample = {'x': sub_x, 'y': sub_y}
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample
+
+
+
