@@ -95,27 +95,26 @@ class FCN3D(pl.LightningModule):
         preds = out.argmax(dim=1)
         return preds, loss
 
+    def on_fit_start(self):
+        self.train_iou, self.train_acc = self.create_metrics()                               
+
     def training_step(self, batch, batch_idx):
         preds, loss = self.common_step(batch)
         self.log('loss/train', loss)
 
-        # miou only for some batches - compute right now and log
         if random.random() > 0.7:
-            ious, confmat = iou_confmat(preds, batch['y'], 
-                                num_classes=self.num_classes + 1, 
-                                reduction='none', 
-                                absent_score=-1, 
-                                ignore_index=self.target_padding
-                                )
-            self.log_ious(ious, 'train')
-            self.log_confmat(confmat, 'train')
-            accs = tmetricsF.accuracy(preds, batch['y'], average=None,
-                                        num_classes=self.num_classes + 1,
-                                        ignore_index=self.target_padding
-                                        )
-            self.log_accs(accs, 'train')                                        
+            self.train_iou(preds, batch['y'])
+            self.train_acc(preds, batch['y'])
+
+            self.log_ious(self.train_iou.compute(), 'train')
+            self.log_accs(self.train_acc.compute(), 'train')                                        
+            self.log_confmat(self.train_iou.confmat, 'train')
 
         return loss
+
+    def training_step_end(self, outputs):
+        self.train_iou.reset()
+        self.train_acc.reset()
 
     def log_accs(self, accs, split):
         for class_ndx, acc in enumerate(accs):
@@ -148,14 +147,14 @@ class FCN3D(pl.LightningModule):
         return iou, acc                                
 
     def on_validation_epoch_start(self):
-        self.iou, self.acc = self.create_metrics()                               
+        self.val_iou, self.val_acc = self.create_metrics()                               
 
     def validation_step(self, batch, batch_idx):
         preds, loss = self.common_step(batch)
         # update the iou metric
         if random.random() > 0.7:
-            self.iou(preds, batch['y'])
-            self.acc(preds, batch['y'])
+            self.val_iou(preds, batch['y'])
+            self.val_acc(preds, batch['y'])
 
         return loss
     
@@ -172,9 +171,9 @@ class FCN3D(pl.LightningModule):
         loss = torch.Tensor(validation_step_outputs).mean()
         self.log('loss/val', loss)
 
-        self.log_ious(self.iou.compute(), 'val')
-        self.log_accs(self.acc.compute(), 'val')
-        self.log_confmat(self.iou.confmat, 'val')
+        self.log_ious(self.val_iou.compute(), 'val')
+        self.log_accs(self.val_acc.compute(), 'val')
+        self.log_confmat(self.val_iou.confmat, 'val')
 
         self.log("hp_metric", loss)
     
