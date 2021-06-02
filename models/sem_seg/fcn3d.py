@@ -7,10 +7,13 @@ import matplotlib
 matplotlib.use('agg') 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchvision.transforms import Compose
 
 import pytorch_lightning as pl
 import torchmetrics as tmetrics 
@@ -19,6 +22,8 @@ import torchmetrics.functional as tmetricsF
 from eval.vis import confmat_to_fig, fig_to_arr
 from eval.iou_confmat import iou_confmat
 from datasets.scannet.utils import CLASS_NAMES, CLASS_WEIGHTS
+from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
+from transforms.grid_3d import AddChannelDim, TransposeDims
 
 class FCN3D(pl.LightningModule):
     '''
@@ -128,15 +133,22 @@ class FCN3D(pl.LightningModule):
         if len(valid_ious) > 0:
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
-    def on_validation_epoch_start(self):
-        self.iou = tmetrics.IoU(num_classes=self.num_classes + 1, reduction='none', 
+    def create_metrics(self):
+        '''
+        create iou and accuracy metrics objects
+        '''
+        iou = tmetrics.IoU(num_classes=self.num_classes + 1, reduction='none', 
                                 absent_score=-1, compute_on_step=False,
                                 ignore_index=self.target_padding
                                 ).to(self.device)
-        self.acc = tmetrics.Accuracy(num_classes=self.num_classes + 1, average=None,
+        acc = tmetrics.Accuracy(num_classes=self.num_classes + 1, average=None,
                                 compute_on_step=False,
                                 ignore_index=self.target_padding,
-                                ).to(self.device)                                
+                                ).to(self.device)
+        return iou, acc                                
+
+    def on_validation_epoch_start(self):
+        self.iou, self.acc = self.create_metrics()                               
 
     def validation_step(self, batch, batch_idx):
         preds, loss = self.common_step(batch)
@@ -165,5 +177,40 @@ class FCN3D(pl.LightningModule):
         self.log_confmat(self.iou.confmat, 'val')
 
         self.log("hp_metric", loss)
+    
+    def test_scenes(self, dataset, test_cfg):
+        '''
+        scene_dataset: list of scannet scenes
+        '''
+        # create transforms list
+        transforms = []
+        transforms.append(AddChannelDim())
+        transforms.append(TransposeDims())
+        t = Compose(transforms)
+
+        iou, acc = self.create_metrics()
+
+        # init metrics
+        for scene in tqdm(dataset, desc='scene'):
+            subvols = ScanNetGridTestSubvols(scene, self.hparams['cfg']['data']['subvol_size'], 
+                                target_padding=self.target_padding, 
+                                transform=t)
+            test_loader = DataLoader(subvols, batch_size=test_cfg['test']['batch_size'],
+                                    shuffle=False, num_workers=8, collate_fn=collate_func,
+                                    pin_memory=True) 
+
+            for batch in tqdm(test_loader, desc='batch', leave=False):
+                preds, _ = self.common_step(batch)
+                iou(preds, batch['y'])
+                acc(preds, batch['y'])
+
+        ious = iou.compute()
+        accs = acc.compute()
+        print('Accuracy:', accs)
+        print('Mean:', accs[1:-1].mean())
+        print('IoUs:', ious)
+        print('Mean:', ious[1:-1].mean())
+
+
 
         
