@@ -228,18 +228,18 @@ class UNet3D(SemSegNet):
 
         self.layers = nn.ModuleList([
             # 1->1/2
-            Down3D(in_channels, 64),
+            Down3D(in_channels, 32),
             # 1/2->1/4
-            Down3D(64, 128),
+            Down3D(32, 64),
             # 1/4->1/8
-            Down3D(128, 256),
+            Down3D(64, 128),
             
             # 1/8->1/4
-            Up3D(256, 128),
+            Up3D(128, 64),
             # 1/4->1/2
-            Up3D(128*2, 64),
+            Up3D(64*2, 32),
             # 1/2->original shape
-            Up3D(64*2, num_classes),
+            Up3D(32*2, num_classes),
         ])
 
     def forward(self, x):
