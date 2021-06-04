@@ -6,7 +6,6 @@ import random
 import matplotlib
 matplotlib.use('agg') 
 import matplotlib.pyplot as plt
-import numpy as np
 from tqdm import tqdm
 
 import torch
@@ -17,28 +16,20 @@ from torchvision.transforms import Compose
 
 import pytorch_lightning as pl
 import torchmetrics as tmetrics 
-import torchmetrics.functional as tmetricsF
 
 from eval.vis import confmat_to_fig, fig_to_arr
-from eval.iou_confmat import iou_confmat
 from datasets.scannet.utils import CLASS_NAMES, CLASS_WEIGHTS
 from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
 from transforms.grid_3d import AddChannelDim, TransposeDims
 
-class FCN3D(pl.LightningModule):
+class SemSegNet(pl.LightningModule):
     '''
-    Dense 3d convs on a volume grid
+    Parent class for semantic segmentation on voxel grid
     '''
-    def __init__(self, in_channels, num_classes, cfg=None):
-        '''
-        in_channels: number of channels in input
-
-        '''
+    def __init__(self, num_classes, cfg=None):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
-        print(f'FCN with {self.num_classes} classes')
-
         self.target_padding = cfg['data']['target_padding']
         
         if cfg['train']['class_weights']:
@@ -46,37 +37,6 @@ class FCN3D(pl.LightningModule):
             self.class_weights = torch.Tensor(CLASS_WEIGHTS)
         else: 
             self.class_weights = None
-
-        self.layers = nn.ModuleList([
-            # args: inchannels, outchannels, kernel, stride, padding
-            # 1->1/2
-            nn.Conv3d(in_channels, 32, 3, 2, 1),
-            # same
-            nn.Conv3d(32, 32, 3, 1, 1),
-            nn.ReLU(),
-
-            # 1/2->1/4
-            nn.Conv3d(32, 64, 3, 2, 1),
-            # same
-            nn.Conv3d(64, 64, 3, 1, 1),
-            nn.ReLU(),
-            
-            # 1.4->1/8
-            nn.Conv3d(64, 128, 3, 2, 1),
-            # same
-            nn.Conv3d(128, 128, 3, 1, 1),
-            nn.ReLU(),
-            
-            # inchannels, outchannels, kernel, stride, padding, output_padding
-            # 1/8->1/4
-            nn.ConvTranspose3d(128, 64, 4, 2, 1),
-            nn.ReLU(),
-            # 1/4->1/2
-            nn.ConvTranspose3d(64, 64, 4, 2, 1),
-            nn.ReLU(),
-            # 1/2->original shape
-            nn.ConvTranspose3d(64, num_classes, 4, 2, 1),
-        ])
 
     def forward(self, x):
         for layer in self.layers:
@@ -212,6 +172,45 @@ class FCN3D(pl.LightningModule):
         print('IoUs:', ious)
         print('Mean:', ious[1:-1].mean())
 
+class FCN3D(SemSegNet):
+    '''
+    Dense 3d convs on a volume grid
+    '''
+    def __init__(self, in_channels, num_classes, cfg=None):
+        '''
+        in_channels: number of channels in input
 
+        '''
+        super().__init__(num_classes, cfg)
 
-        
+        self.layers = nn.ModuleList([
+            # args: inchannels, outchannels, kernel, stride, padding
+            # 1->1/2
+            nn.Conv3d(in_channels, 32, 3, 2, 1),
+            # same
+            nn.Conv3d(32, 32, 3, 1, 1),
+            nn.ReLU(),
+
+            # 1/2->1/4
+            nn.Conv3d(32, 64, 3, 2, 1),
+            # same
+            nn.Conv3d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            
+            # 1.4->1/8
+            nn.Conv3d(64, 128, 3, 2, 1),
+            # same
+            nn.Conv3d(128, 128, 3, 1, 1),
+            nn.ReLU(),
+            
+            # inchannels, outchannels, kernel, stride, padding, output_padding
+            # 1/8->1/4
+            nn.ConvTranspose3d(128, 64, 4, 2, 1),
+            nn.ReLU(),
+            # 1/4->1/2
+            nn.ConvTranspose3d(64, 64, 4, 2, 1),
+            nn.ReLU(),
+            # 1/2->original shape
+            nn.ConvTranspose3d(64, num_classes, 4, 2, 1),
+        ])
+
