@@ -21,6 +21,7 @@ from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.utils import CLASS_NAMES, CLASS_WEIGHTS
 from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
 from transforms.grid_3d import AddChannelDim, TransposeDims
+from models.layers_3d import Down3D, Up3D
 
 class SemSegNet(pl.LightningModule):
     '''
@@ -213,4 +214,59 @@ class FCN3D(SemSegNet):
             # 1/2->original shape
             nn.ConvTranspose3d(64, num_classes, 4, 2, 1),
         ])
+
+class UNet3D(SemSegNet):
+    '''
+    Dense 3d convs on a volume grid
+    '''
+    def __init__(self, in_channels, num_classes, cfg=None):
+        '''
+        in_channels: number of channels in input
+
+        '''
+        super().__init__(num_classes, cfg)
+
+        self.layers = nn.ModuleList([
+            # 1->1/2
+            Down3D(in_channels, 64),
+            # 1/2->1/4
+            Down3D(64, 128),
+            # 1/4->1/8
+            Down3D(128, 256),
+            
+            # 1/8->1/4
+            Up3D(256, 128),
+            # 1/4->1/2
+            Up3D(128*2, 64),
+            # 1/2->original shape
+            Up3D(64*2, num_classes),
+        ])
+
+    def forward(self, x):
+        # length of the down/up path
+        L = len(self.layers)//2
+        outs = []
+
+        # down layers
+        # store the outputs of all but the last one
+        for layer in self.layers[:L]:
+            x = layer(x)
+            outs.append(x)
+
+        # remove the last output and reverse
+        outs = list(reversed(outs[:-1]))
+        
+        # lowest connection in the "U"
+        x = self.layers[L](x)
+
+        # up layers
+        for ndx, layer in enumerate(self.layers[L+1:]):
+            x = torch.cat([x, outs[ndx]], dim=1)
+            x = layer(x)
+            
+        return x
+
+        
+
+        
 

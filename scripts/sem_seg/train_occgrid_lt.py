@@ -1,18 +1,11 @@
 
-import os 
 import argparse
-from datetime import datetime as dt
-import random 
-
-import numpy as np
-
-from tqdm import tqdm
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
 from transforms.grid_3d import AddChannelDim, TransposeDims, MapClasses
 from models.sem_seg.utils import count_parameters
-from models.sem_seg.fcn3d import FCN3D
+from models.sem_seg.fcn3d import FCN3D, UNet3D
 
 from torchinfo import summary
 import torch
@@ -22,21 +15,6 @@ from torchvision.transforms import Compose
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-
-def log_metrics(self, metrics, step=None):
-    for k, v in metrics.items():
-        if isinstance(v, dict):
-            self.experiment.add_scalars(k, v, step)
-        else:
-            if isinstance(v, torch.Tensor):
-                v = v.item()
-            self.experiment.add_scalar(k, v, step)
-
-
-def monkeypatch_tensorboardlogger(logger):
-    import types
-
-    logger.log_metrics = types.MethodType(log_metrics, logger)
 
 def main(args):
     cfg = read_config(args.cfg_path)
@@ -81,7 +59,11 @@ def main(args):
                             shuffle=False, num_workers=8, collate_fn=collate_func,
                             pin_memory=True) 
 
-    model = FCN3D(in_channels=1, num_classes=21, cfg=cfg)
+    models = {
+        'FCN3D': FCN3D,
+        'UNet3D': UNet3D,
+    }
+    model = models[cfg['model']['name']](in_channels=1, num_classes=21, cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
@@ -100,11 +82,8 @@ def main(args):
                         max_epochs=cfg['train']['epochs'],
                         val_check_interval=cfg['train']['eval_intv'],
                         fast_dev_run=args.fast_dev_run)
-    monkeypatch_tensorboardlogger(trainer.logger)                        
     trainer.fit(model, train_loader, val_loader)
 
-    return 
-  
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to cfg')
