@@ -8,6 +8,7 @@ class Down3D(nn.Module):
             # args: inchannels, outchannels, kernel, stride, padding
             # x->x/2 dimensions
             nn.Conv3d(in_channels, out_channels, 3, 2, 1),
+            nn.ReLU(),
             # same
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
@@ -24,6 +25,7 @@ class Up3D(nn.Module):
             # inchannels, outchannels, kernel, stride, padding, output_padding
             # x/2->x dimensions
             nn.ConvTranspose3d(in_channels, out_channels, 4, 2, 1),
+            nn.ReLU(),
             # same
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
