@@ -239,7 +239,7 @@ class UNet3D(SemSegNet):
             # 1/4->1/2
             Up3D(64*2, 32),
             # 1/2->original shape
-            Up3D(32*2, num_classes),
+            Up3D(32*2, num_classes, dropout=False),
         ])
 
     def forward(self, x):

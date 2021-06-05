@@ -19,7 +19,7 @@ class Down3D(nn.Module):
         return self.layers(x)
 
 class Up3D(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, dropout=True):
         super().__init__()
         self.layers = nn.Sequential(
             # inchannels, outchannels, kernel, stride, padding, output_padding
@@ -29,7 +29,7 @@ class Up3D(nn.Module):
             # same
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
-            nn.Dropout3d(0.1)
+            nn.Dropout3d(0.1) if dropout else nn.Identity()
         )
 
     def forward(self, x):
