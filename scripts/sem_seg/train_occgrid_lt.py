@@ -3,7 +3,7 @@ import argparse
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
-from transforms.grid_3d import AddChannelDim, TransposeDims, MapClasses
+from transforms.grid_3d import AddChannelDim, DenseToSparse, TransposeDims, MapClasses
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.fcn3d import FCN3D, SparseNet3D, UNet3D
 
@@ -17,13 +17,15 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 
 def main(args):
     cfg = read_config(args.cfg_path)
-
+    model_name = cfg['model']['name']
     # create transforms list
-    transforms = []
-    transforms.append(AddChannelDim())
-    transforms.append(TransposeDims())
     # map none class to padding, no loss on this class
-    transforms.append(MapClasses({0: cfg['data']['target_padding']}))
+    transforms = [MapClasses({0: cfg['data']['target_padding']})]
+    if model_name in ('SparseNet3D',):
+        transforms.append(DenseToSparse())
+    else:
+        transforms.append(AddChannelDim())
+        transforms.append(TransposeDims())
     t = Compose(transforms)
 
     if cfg['data']['train_list'] and cfg['data']['val_list']:
@@ -63,12 +65,17 @@ def main(args):
     models = {
         'FCN3D': FCN3D,
         'UNet3D': UNet3D,
+        'SparseNet3D': SparseNet3D,
     }
     model = models[cfg['model']['name']](in_channels=1, num_classes=21, cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
-    summary(model, input_size=input_size)
+    # doesn't work with sparse tensors
+    try:
+        summary(model, input_size=input_size)
+    except:
+        pass
 
     if cfg['train']['resume']:
         pass
