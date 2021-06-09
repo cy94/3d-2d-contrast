@@ -1,19 +1,27 @@
 
 import argparse
 
+import torch
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid
 
 from models.sem_seg.utils import count_parameters
-from models.sem_seg.fcn3d import FCN3D
+from models.sem_seg.fcn3d import FCN3D, UNet3D
 
 import pytorch_lightning as pl
 
 def main(args):
     cfg = read_config(args.cfg_path)
+    train_cfg = torch.load(cfg['test']['ckpt'])['hyper_parameters']['cfg']
 
-    model = FCN3D.load_from_checkpoint(cfg['test']['ckpt'])
+    models = {
+        'FCN3D': FCN3D,
+        'UNet3D': UNet3D,
+    }
+
+    model = models[train_cfg['model']['name']].load_from_checkpoint(cfg['test']['ckpt'],
+                                                in_channels=1, num_classes=21)
     model.eval()
     print(f'Num params: {count_parameters(model)}')
 
