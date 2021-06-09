@@ -14,6 +14,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 
+import MinkowskiEngine as ME
+import MinkowskiEngine.MinkowskiFunctional as MF
+
 import pytorch_lightning as pl
 import torchmetrics as tmetrics 
 
@@ -38,6 +41,12 @@ class SemSegNet(pl.LightningModule):
             self.class_weights = torch.Tensor(CLASS_WEIGHTS)
         else: 
             self.class_weights = None
+
+        # init the model layers
+        self.init_model()
+
+    def init_model(self):
+        pass
 
     def forward(self, x):
         for layer in self.layers:
@@ -172,6 +181,109 @@ class SemSegNet(pl.LightningModule):
         print('Mean:', accs[1:-1].mean())
         print('IoUs:', ious)
         print('Mean:', ious[1:-1].mean())
+
+class SparseNet3D(SemSegNet):
+    '''
+    Sparse convs on 3D grid using Minkowski Engine
+    '''
+    def __init__(self, in_channels, num_classes, cfg=None):
+        '''
+        in_channels: number of channels in input
+
+        '''
+        self.in_channels = in_channels
+        super().__init__(num_classes, cfg)
+        
+    @staticmethod
+    def collation_fn(sample_list):
+        '''
+        Collate sparse inputs into ME tensors
+        '''
+        # Generate batched coordinates
+        coords_batch = ME.utils.batched_coordinates([s['coords'] for s in sample_list])
+
+        # Concatenate all lists
+        feats_batch = torch.cat([torch.Tensor(s['feats']) for s in sample_list])
+        labels_batch = torch.cat([torch.LongTensor(s['labels']) for s in sample_list])
+
+        inputs_batch = ME.SparseTensor(feats_batch, coords_batch)
+
+        return {'x': inputs_batch, 'y': labels_batch}
+
+    def init_model(self):
+        # dimension of the space
+        D = 3
+
+        self.block1 = torch.nn.Sequential(
+            ME.MinkowskiConvolution(
+                in_channels=self.in_channels,
+                out_channels=8,
+                kernel_size=3,
+                stride=1,
+                dimension=D),
+            ME.MinkowskiBatchNorm(8))
+
+        self.block2 = torch.nn.Sequential(
+            ME.MinkowskiConvolution(
+                in_channels=8,
+                out_channels=16,
+                kernel_size=3,
+                stride=2,
+                dimension=D),
+            ME.MinkowskiBatchNorm(16),
+        )
+
+        self.block3 = torch.nn.Sequential(
+            ME.MinkowskiConvolution(
+                in_channels=16,
+                out_channels=32,
+                kernel_size=3,
+                stride=2,
+                dimension=D),
+            ME.MinkowskiBatchNorm(32))
+
+        self.block3_tr = torch.nn.Sequential(
+            ME.MinkowskiConvolutionTranspose(
+                in_channels=32,
+                out_channels=16,
+                kernel_size=3,
+                stride=2,
+                dimension=D),
+            ME.MinkowskiBatchNorm(16))
+
+        self.block2_tr = torch.nn.Sequential(
+            ME.MinkowskiConvolutionTranspose(
+                in_channels=32,
+                out_channels=16,
+                kernel_size=3,
+                stride=2,
+                dimension=D),
+            ME.MinkowskiBatchNorm(16))
+
+        self.conv1_tr = ME.MinkowskiConvolution(
+            in_channels=24,
+            out_channels=self.num_classes,
+            kernel_size=1,
+            stride=1,
+            dimension=D)
+
+    def forward(self, x):
+        out_s1 = self.block1(x)
+        out = MF.relu(out_s1)
+
+        out_s2 = self.block2(out)
+        out = MF.relu(out_s2)
+
+        out_s4 = self.block3(out)
+        out = MF.relu(out_s4)
+
+        out = MF.relu(self.block3_tr(out))
+        out = ME.cat(out, out_s2)
+
+        out = MF.relu(self.block2_tr(out))
+        out = ME.cat(out, out_s1)
+
+        return self.conv1_tr(out)
 
 class FCN3D(SemSegNet):
     '''
