@@ -193,6 +193,16 @@ class SparseNet3D(SemSegNet):
         '''
         self.in_channels = in_channels
         super().__init__(num_classes, cfg)
+
+    def common_step(self, batch):
+        coords, feats, y = batch['coords'], batch['feats'], batch['y']
+        inputs = ME.SparseTensor(feats, coords)
+
+        out = self(inputs)
+        loss = F.cross_entropy(out.F.squeeze(), y, weight=self.class_weights.to(self.device),
+                                ignore_index=self.target_padding)
+        preds = out.argmax(dim=1)
+        return preds, loss
         
     @staticmethod
     def collation_fn(sample_list):
@@ -206,9 +216,7 @@ class SparseNet3D(SemSegNet):
         feats_batch = torch.cat([torch.Tensor(s['feats']) for s in sample_list])
         labels_batch = torch.cat([torch.LongTensor(s['labels']) for s in sample_list])
 
-        inputs_batch = ME.SparseTensor(feats_batch, coords_batch)
-
-        return {'x': inputs_batch, 'y': labels_batch}
+        return {'coords': coords_batch, 'feats': feats_batch, 'y': labels_batch}
 
     def init_model(self):
         # dimension of the space
