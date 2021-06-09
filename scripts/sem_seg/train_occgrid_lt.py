@@ -5,10 +5,9 @@ from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
 from transforms.grid_3d import AddChannelDim, TransposeDims, MapClasses
 from models.sem_seg.utils import count_parameters
-from models.sem_seg.fcn3d import FCN3D, UNet3D
+from models.sem_seg.fcn3d import FCN3D, SparseNet3D, UNet3D
 
 from torchinfo import summary
-import torch
 from torch.utils.data import Subset, DataLoader
 from torchvision.transforms import Compose
 
@@ -50,13 +49,15 @@ def main(args):
     print(f'Prepare a fixed val set')
     val_set = [s for s in val_set]
 
+    cfunc = SparseNet3D.collation_fn if cfg['model']['name'] == 'SparseNet3D' \
+        else collate_func
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
-                            shuffle=True, num_workers=8, collate_fn=collate_func,
+                            shuffle=True, num_workers=8, collate_fn=cfunc,
                             pin_memory=True)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
-                            shuffle=False, num_workers=8, collate_fn=collate_func,
+                            shuffle=False, num_workers=8, collate_fn=cfunc,
                             pin_memory=True) 
 
     models = {
