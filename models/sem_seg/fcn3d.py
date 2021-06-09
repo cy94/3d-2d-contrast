@@ -199,9 +199,10 @@ class SparseNet3D(SemSegNet):
         inputs = ME.SparseTensor(feats, coords)
 
         out = self(inputs)
-        loss = F.cross_entropy(out.F.squeeze(), y, weight=self.class_weights.to(self.device),
+        out_arr = out.F.squeeze()
+        loss = F.cross_entropy(out_arr, y, weight=self.class_weights.to(self.device),
                                 ignore_index=self.target_padding)
-        preds = out.argmax(dim=1)
+        preds = out_arr.argmax(dim=1)
         return preds, loss
         
     @staticmethod
