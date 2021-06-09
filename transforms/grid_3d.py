@@ -16,6 +16,29 @@ def pad_volume(vol, size, pad_val=-100):
 
     return padded
 
+class DenseToSparse:
+    '''
+    Convert dense grid to sparse coords, features and labels
+    '''
+    def __init__(self):
+        pass
+
+    def __call__(self, sample):
+        new_sample = deepcopy(sample)
+        # coords of occupied grid cells
+        locs = np.nonzero(new_sample['x'])
+        x, y, z = locs
+        coords = np.transpose(locs)
+
+        # coords - N, 3
+        new_sample['coords'] = coords
+        # const feature for each of these cells
+        new_sample['feats'] = np.ones((len(coords), 1))
+        # pick the labels of these cells
+        new_sample['labels'] = new_sample['y'][x, y, z]
+
+        return new_sample
+
 class MapClasses:
     '''
     Ignore the none class, set it to a different value
