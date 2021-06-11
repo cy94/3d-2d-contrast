@@ -16,6 +16,61 @@ def pad_volume(vol, size, pad_val=-100):
 
     return padded
 
+class RandomRotate:
+    '''
+    Randomly rotate the scene by 90, 180 or 270 degrees 
+    '''
+    def __init__(self):
+        self.rng = np.random.default_rng()
+
+    def __call__(self, sample):
+        '''
+        sample with x and y
+        rotate both of them
+        '''
+        new_sample = deepcopy(sample)
+
+        # rotate 0, 1, 2 or 3 times
+        num_rots = self.rng.integers(0, 3, endpoint=True)
+        new_sample['x'] = np.rot90(new_sample['x'], k=num_rots)
+        new_sample['y'] = np.rot90(new_sample['y'], k=num_rots)
+
+        return new_sample
+
+class RandomTranslate:
+    '''
+    Randomly translate the whole scene
+    '''
+    def __init__(self, max_shift=(10, 10, 3)):
+        self.max_shift = np.array(max_shift)
+        self.rng = np.random.default_rng()
+
+    def __call__(self, sample):
+        new_sample = deepcopy(sample)
+        # generate one shift
+        shift = self.rng.integers(-self.max_shift, self.max_shift, endpoint=True)
+        new_sample['coords'] = new_sample['coords'] + shift
+
+        return new_sample
+
+class JitterCoords:
+    '''
+    Jitter each coordinate
+    '''
+    def __init__(self, max_shift=(2, 2, 2)):
+        self.max_shift = np.array(max_shift)
+        self.rng = np.random.default_rng()
+    
+    def __call__(self, sample):
+        new_sample = deepcopy(sample)
+
+        num_points = len(new_sample['coords'])
+        # generate one shift for each point
+        shift = self.rng.integers(-self.max_shift, self.max_shift, (num_points, 3), endpoint=True)
+        new_sample['coords'] = new_sample['coords'] + shift
+
+        return new_sample
+
 class DenseToSparse:
     '''
     Convert dense grid to sparse coords, features and labels
