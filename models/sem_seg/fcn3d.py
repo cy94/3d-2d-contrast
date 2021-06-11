@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose
 
 import MinkowskiEngine as ME
 import MinkowskiEngine.MinkowskiFunctional as MF
@@ -23,7 +22,6 @@ import torchmetrics as tmetrics
 from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.utils import CLASS_NAMES, CLASS_WEIGHTS
 from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
-from transforms.grid_3d import AddChannelDim, TransposeDims
 from models.layers_3d import Down3D, Up3D
 
 class SemSegNet(pl.LightningModule):
@@ -149,23 +147,14 @@ class SemSegNet(pl.LightningModule):
 
         self.log("hp_metric", loss)
     
-    def test_scenes(self, dataset, test_cfg):
-        '''
-        scene_dataset: list of scannet scenes
-        '''
-        # create transforms list
-        transforms = []
-        transforms.append(AddChannelDim())
-        transforms.append(TransposeDims())
-        t = Compose(transforms)
-
+    def _get_test_metrics(self, dataset, test_cfg, transform):
         iou, acc = self.create_metrics()
-
+        
         # init metrics
         for scene in tqdm(dataset, desc='scene'):
             subvols = ScanNetGridTestSubvols(scene, self.hparams['cfg']['data']['subvol_size'], 
                                 target_padding=self.target_padding, 
-                                transform=t)
+                                transform=transform)
             test_loader = DataLoader(subvols, batch_size=test_cfg['test']['batch_size'],
                                     shuffle=False, num_workers=8, collate_fn=collate_func,
                                     pin_memory=True) 
@@ -175,8 +164,17 @@ class SemSegNet(pl.LightningModule):
                 iou(preds, batch['y'])
                 acc(preds, batch['y'])
 
+        return iou, acc
+
+    def test_scenes(self, dataset, test_cfg, transform):
+        '''
+        scene_dataset: list of scannet scenes
+        '''
+        iou, acc = self._get_test_metrics(dataset, test_cfg, transform)
+
         ious = iou.compute()
         accs = acc.compute()
+
         print('Accuracy:', accs)
         print('Mean:', accs[1:-1].mean())
         print('IoUs:', ious)
@@ -205,6 +203,24 @@ class SparseNet3D(SemSegNet):
         preds = out_arr.argmax(dim=1)
         return preds, loss
         
+    def _get_test_metrics(self, dataset, test_cfg, transform):
+        # init metrics
+        iou, acc = self.create_metrics()
+
+        # set the transform on the full scene
+        dataset.transform = transform
+
+        test_loader = DataLoader(dataset, batch_size=test_cfg['test']['batch_size'],
+                                shuffle=False, num_workers=8, collate_fn=self.collation_fn,
+                                pin_memory=True) 
+
+        for batch in tqdm(test_loader, desc='batch', leave=False):
+            preds, _ = self.common_step(batch)
+            iou(preds, batch['y'])
+            acc(preds, batch['y'])
+
+        return iou, acc
+
     @staticmethod
     def collation_fn(sample_list):
         '''
