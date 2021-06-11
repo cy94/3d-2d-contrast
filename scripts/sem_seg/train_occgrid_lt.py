@@ -3,7 +3,8 @@ import argparse
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
-from transforms.grid_3d import AddChannelDim, DenseToSparse, TransposeDims, MapClasses
+from transforms.grid_3d import AddChannelDim, DenseToSparse, TransposeDims, \
+    MapClasses, RandomRotate, RandomTranslate, JitterCoords
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.fcn3d import FCN3D, SparseNet3D, UNet3D
 from models.sem_seg.sparse.res16unet import SparseResUNet
@@ -25,9 +26,14 @@ def main(args):
 
     # create transforms list
     # map none class to padding, no loss on this class
-    transforms = [MapClasses({0: cfg['data']['target_padding']})]
+    transforms = [
+        MapClasses({0: cfg['data']['target_padding']}),
+        RandomRotate()
+        ]
     if model_name in SPARSE_MODELS:
         transforms.append(DenseToSparse())
+        transforms.append(RandomTranslate())
+        # transforms.append(JitterCoords())
     else:
         transforms.append(AddChannelDim())
         transforms.append(TransposeDims())
