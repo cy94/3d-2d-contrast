@@ -90,7 +90,7 @@ class SemSegNet(pl.LightningModule):
         for class_ndx, acc in enumerate(accs):
             tag = f'acc/{split}/{CLASS_NAMES[class_ndx]}'
             self.log(tag, acc)
-        self.log(f'acc/{split}/mean', accs.mean())
+        self.log(f'acc/{split}/mean', accs[1:-1].mean())
 
     def log_ious(self, ious, split):
         for class_ndx, iou in enumerate(ious):
