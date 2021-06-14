@@ -20,7 +20,7 @@ import pytorch_lightning as pl
 import torchmetrics as tmetrics 
 
 from eval.vis import confmat_to_fig, fig_to_arr
-from datasets.scannet.utils import CLASS_NAMES, CLASS_WEIGHTS
+from datasets.scannet.common import CLASS_NAMES, CLASS_WEIGHTS
 from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
 from models.layers_3d import Down3D, Up3D
 
@@ -52,7 +52,17 @@ class SemSegNet(pl.LightningModule):
         return x
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        opts = {
+            'adam': torch.optim.Adam,
+            'sgd': torch.optim.SGD
+        }
+        cfg = self.hparams['cfg']['train']
+        if 'opt' in cfg:
+            opt_cls = opts[cfg['opt']]
+        else:
+            opt_cls = 'adam'
+        optimizer = opt_cls(self.parameters(), lr=cfg['lr'], weight_decay=cfg['l2'])
+        
         return optimizer
 
     def common_step(self, batch):
@@ -194,9 +204,15 @@ class SparseNet3D(SemSegNet):
 
     def common_step(self, batch):
         coords, feats, y = batch['coords'], batch['feats'], batch['y']
-        inputs = ME.SparseTensor(feats, coords)
+        
+        # For some networks, making the network invariant to even, odd coords is important. Random translation
+        coords[:, 1:] += (torch.rand(3) * 100).type_as(coords)
 
-        out = self(inputs)
+        # Preprocess input
+        feats[:, :3] = feats[:, :3] / 255. - 0.5
+        sinput = ME.SparseTensor(feats, coords)
+
+        out = self(sinput)
         out_arr = out.F.squeeze()
         loss = F.cross_entropy(out_arr, y, weight=self.class_weights.to(self.device),
                                 ignore_index=self.target_padding)
