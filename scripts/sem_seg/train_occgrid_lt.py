@@ -1,13 +1,12 @@
 
 import argparse
+from datasets.scannet.utils import get_trainval_loaders, get_trainval_sets
 
 from lib.misc import read_config
-from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid
-from models.sem_seg.utils import count_parameters, get_transform, SPARSE_MODELS, \
-                                MODEL_MAP, get_collate_func
+from models.sem_seg.utils import count_parameters
+from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
 
 from torchinfo import summary
-from torch.utils.data import Subset, DataLoader
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -18,50 +17,18 @@ def main(args):
     model_name = cfg['model']['name']
     is_sparse = model_name in SPARSE_MODELS
 
-    # basic transforms + augmentation
-    train_t = get_transform(cfg, 'train')
-    # basic transforms, no augmentation
-    val_t = get_transform(cfg, 'val')
-
-    if cfg['data']['train_list'] and cfg['data']['val_list']:
-        train_set = ScanNetSemSegOccGrid(cfg['data'], transform=train_t, split='train', 
-                                        full_scene=is_sparse)
-        val_set = ScanNetSemSegOccGrid(cfg['data'], transform=val_t, split='val', 
-                                        full_scene=is_sparse)
-    else:
-        dataset = ScanNetSemSegOccGrid(cfg['data'], transform=None, full_scene=is_sparse)
-        print(f'Full dataset size: {len(dataset)}')
-        if cfg['train']['train_split']:
-            train_size = int(cfg['train']['train_split'] * len(dataset))
-            train_set = Subset(dataset, range(train_size))
-            val_set = Subset(dataset, range(train_size, len(dataset)))
-        elif cfg['train']['train_size'] and cfg['train']['val_size']:
-            train_set = Subset(dataset, range(cfg['train']['train_size']))
-            val_set = Subset(dataset, range(cfg['train']['train_size'], 
-                                cfg['train']['train_size']+cfg['train']['val_size']))
-        else:
-            raise ValueError('Train val split not specified')
-        train_set.transform = train_t
-        val_set.transform = val_t
-
+    train_set, val_set = get_trainval_sets(cfg)
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
     
-    print(f'Prepare a fixed val set')
-    val_set = [s for s in val_set]
+    # training on chunks
+    if not is_sparse:
+        print(f'Prepare a fixed val set')
+        val_set = [s for s in val_set]
 
-    cfunc = get_collate_func(cfg)
-    
+    train_loader, val_loader = get_trainval_loaders(train_set, val_set, cfg)
 
-    train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
-                            shuffle=True, num_workers=8, collate_fn=cfunc,
-                            pin_memory=True)  
-
-    val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
-                            shuffle=False, num_workers=8, collate_fn=cfunc,
-                            pin_memory=True) 
-
-    model = MODEL_MAP[model_name](in_channels=1, num_classes=21, cfg=cfg)
+    model = MODEL_MAP[model_name](in_channels=3, num_classes=21, cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
