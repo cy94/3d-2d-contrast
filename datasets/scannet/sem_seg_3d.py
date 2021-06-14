@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from datasets.scannet.utils import nyu40_to_continuous, read_list
+from datasets.scannet.common import nyu40_to_continuous, read_list
 from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
