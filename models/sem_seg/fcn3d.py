@@ -62,13 +62,23 @@ class SemSegNet(pl.LightningModule):
         else:
             opt_cls = 'adam'
         optimizer = opt_cls(self.parameters(), lr=cfg['lr'], weight_decay=cfg['l2'])
+        print('Using optimizer:', optimizer)
         
         return optimizer
+
+    def get_class_weights(self):
+        if self.class_weights is not None:
+            weight = self.class_weights.to(self.device)
+        else:
+            weight = None
+        return weight
 
     def common_step(self, batch):
         x, y = batch['x'], batch['y']
         out = self(x)
-        loss = F.cross_entropy(out, y, weight=self.class_weights.to(self.device),
+        
+        
+        loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
         preds = out.argmax(dim=1)
         return preds, loss
@@ -214,7 +224,7 @@ class SparseNet3D(SemSegNet):
 
         out = self(sinput)
         out_arr = out.F.squeeze()
-        loss = F.cross_entropy(out_arr, y, weight=self.class_weights.to(self.device),
+        loss = F.cross_entropy(out_arr, y, weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
         preds = out_arr.argmax(dim=1)
         return preds, loss
