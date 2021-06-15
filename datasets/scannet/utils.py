@@ -1,17 +1,15 @@
-from transforms.common import ComposeCustom
-from models.sem_seg.utils import SPARSE_MODELS
-from transforms.sparse_3d import ElasticDistortion, RandomDropout, RandomHorizontalFlip
-from datasets.scannet.sparse_3d import ScannetVoxelization2cmDataset, ScannetVoxelizationDataset
-
 import torch
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
 import MinkowskiEngine as ME
 
-from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
-
 from transforms.grid_3d import DenseToSparse, RandomTranslate, RandomRotate, \
     MapClasses, AddChannelDim, TransposeDims
+from transforms.common import ComposeCustom
+from models.sem_seg.utils import SPARSE_MODELS
+from transforms.sparse_3d import ChromaticAutoContrast, ChromaticJitter, ChromaticTranslation, ElasticDistortion, RandomDropout, RandomHorizontalFlip
+from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
+from datasets.scannet.sparse_3d import ScannetVoxelization2cmDataset, ScannetVoxelizationDataset
 
 
 class cfl_collate_fn_factory:
@@ -102,15 +100,26 @@ def get_trainval_loaders(train_set, val_set, cfg):
     return train_loader, val_loader
 
 def get_trainval_sparse(cfg):
+    # augment the whole PC
     prevoxel_transform = ComposeCustom([
        ElasticDistortion(ScannetVoxelizationDataset.ELASTIC_DISTORT_PARAMS) 
     ]) 
-
-    input_transform = ComposeCustom([
+    # augment coords
+    input_transform = [
         RandomDropout(0.2),
         RandomHorizontalFlip(ScannetVoxelizationDataset.ROTATION_AXIS, \
                                 ScannetVoxelizationDataset.IS_TEMPORAL),
-    ])
+    ]
+    # augment the colors?
+    use_rgb = cfg['data'].get('use_rgb', False)
+    if use_rgb:
+        input_transform += [
+            ChromaticAutoContrast(),
+            ChromaticTranslation(0.1),
+            ChromaticJitter(0.05),
+        ]
+
+    input_transform = ComposeCustom(input_transform)
 
     train_set = ScannetVoxelization2cmDataset(
                     cfg,
@@ -119,7 +128,8 @@ def get_trainval_sparse(cfg):
                     target_transform=None,
                     cache=False,
                     augment_data=True,
-                    phase='train')
+                    phase='train',
+                    use_rgb=use_rgb)
 
     val_set = ScannetVoxelization2cmDataset(
                     cfg,
@@ -128,7 +138,8 @@ def get_trainval_sparse(cfg):
                     target_transform=None,
                     cache=False,
                     augment_data=False,
-                    phase='val')
+                    phase='val',
+                    use_rgb=use_rgb)
 
     return train_set, val_set
 

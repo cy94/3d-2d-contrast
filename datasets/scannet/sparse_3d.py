@@ -217,9 +217,11 @@ class VoxelizationDataset(VoxelizationDatasetBase):
                return_transformation=False,
                augment_data=False,
                config=None,
+               use_rgb=True,
                **kwargs):
 
     self.augment_data = augment_data
+    self.use_rgb = use_rgb
     self.config = config
     VoxelizationDatasetBase.__init__(
         self,
@@ -264,12 +266,13 @@ class VoxelizationDataset(VoxelizationDatasetBase):
       feats = torch.cat((feats, norm_coords), 1)
     return coords, feats, labels
 
-  def convert_mat2cfl(self, mat):
-    # Generally, xyz,rgb,label
-    return mat[:, :3], mat[:, 3:-1], mat[:, -1]
-
   def __getitem__(self, index):
     coords, feats, labels, center = self.load_ply(index)
+
+    # replace features with constant values
+    if not self.use_rgb:
+      feats = np.ones_like(feats)
+
     # Downsample the pointcloud with finer voxel size before transformation for memory and speed
     if self.PREVOXELIZATION_VOXEL_SIZE is not None:
       inds = ME.utils.sparse_quantize(
@@ -285,11 +288,11 @@ class VoxelizationDataset(VoxelizationDatasetBase):
     coords, feats, labels, transformation = self.voxelizer.voxelize(
         coords, feats, labels, center=center)
 
-    # map labels not used for evaluation to ignore_label
     if self.input_transform is not None:
       coords, feats, labels = self.input_transform(coords, feats, labels)
     if self.target_transform is not None:
       coords, feats, labels = self.target_transform(coords, feats, labels)
+    # map labels not used for evaluation to ignore_label
     if self.IGNORE_LABELS is not None:
       labels = np.array([self.label_map[x] for x in labels], dtype=np.int)
 
@@ -338,7 +341,8 @@ class ScannetVoxelizationDataset(VoxelizationDataset):
                augment_data=True,
                elastic_distortion=False,
                cache=False,
-               phase=DatasetPhase.Train):
+               phase=DatasetPhase.Train,
+               use_rgb=True):
     if isinstance(phase, str):
       phase = str2datasetphase_type(phase)
     # Use cropped rooms for train/val
@@ -357,7 +361,8 @@ class ScannetVoxelizationDataset(VoxelizationDataset):
         return_transformation=False,
         augment_data=augment_data,
         elastic_distortion=elastic_distortion,
-        config=config)
+        config=config,
+        use_rgb=use_rgb)
 
   def get_output_id(self, iteration):
     return '_'.join(Path(self.data_paths[iteration]).stem.split('_')[:2])

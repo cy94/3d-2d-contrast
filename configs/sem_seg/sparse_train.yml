@@ -1,0 +1,29 @@
+
+data:
+    root: /mnt/data/scannet/scans_processed/train
+    train_list: /mnt/data/scannet/train.txt
+    val_list: /mnt/data/scannet/val.txt
+    # gt values are 0..19
+    target_padding: 20
+    # has effect only for sparse models
+    use_rgb: true
+
+model: 
+    name: SparseResUNet
+
+train:
+    # takes preference, set to null to use a fixed size below
+    train_split: null #0.8
+    train_size: null #1000
+    val_size: null #1000
+    opt: sgd
+    train_batch_size: 1
+    val_batch_size: 4
+    lr: 0.0001
+    l2: 0.0001
+    epochs: 30000
+    class_weights: false
+    # eval every `eval_intv` batches
+    eval_intv: 128
+
+    resume: null
