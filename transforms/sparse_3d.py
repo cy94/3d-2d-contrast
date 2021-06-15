@@ -5,6 +5,55 @@ import scipy
 import scipy.ndimage, scipy.interpolate
 
 
+class ChromaticTranslation(object):
+  """Add random color to the image, input must be an array in [0,255] or a PIL image"""
+
+  def __init__(self, trans_range_ratio=1e-1):
+    """
+    trans_range_ratio: ratio of translation i.e. 255 * 2 * ratio * rand(-0.5, 0.5)
+    """
+    self.trans_range_ratio = trans_range_ratio
+
+  def __call__(self, coords, feats, labels):
+    if random.random() < 0.95:
+      tr = (np.random.rand(1, 3) - 0.5) * 255 * 2 * self.trans_range_ratio
+      feats[:, :3] = np.clip(tr + feats[:, :3], 0, 255)
+    return coords, feats, labels
+
+
+class ChromaticAutoContrast(object):
+
+  def __init__(self, randomize_blend_factor=True, blend_factor=0.5):
+    self.randomize_blend_factor = randomize_blend_factor
+    self.blend_factor = blend_factor
+
+  def __call__(self, coords, feats, labels):
+    if random.random() < 0.2:
+      lo = feats[:, :3].min(0, keepdims=True)
+      hi = feats[:, :3].max(0, keepdims=True)
+      assert hi.max() > 1, f"invalid color value. Color is supposed to be [0-255]"
+
+      scale = 255 / (hi - lo)
+
+      contrast_feats = (feats[:, :3] - lo) * scale
+
+      blend_factor = random.random() if self.randomize_blend_factor else self.blend_factor
+      feats[:, :3] = (1 - blend_factor) * feats + blend_factor * contrast_feats
+    return coords, feats, labels
+
+
+class ChromaticJitter(object):
+
+  def __init__(self, std=0.01):
+    self.std = std
+
+  def __call__(self, coords, feats, labels):
+    if random.random() < 0.95:
+      noise = np.random.randn(feats.shape[0], 3)
+      noise *= self.std * 255
+      feats[:, :3] = np.clip(noise + feats[:, :3], 0, 255)
+    return coords, feats, labels
+
 class RandomHorizontalFlip(object):
 
   def __init__(self, upright_axis, is_temporal):
