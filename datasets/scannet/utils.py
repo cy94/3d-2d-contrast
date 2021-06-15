@@ -1,6 +1,6 @@
 import torch
 from torchvision.transforms import Compose
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import Subset, DataLoader, Sampler
 import MinkowskiEngine as ME
 
 from transforms.grid_3d import DenseToSparse, RandomTranslate, RandomRotate, \
@@ -183,3 +183,32 @@ def get_trainval_sets(cfg):
         train_set, val_set = get_trainval_dense(cfg)
         
     return train_set, val_set
+
+class InfSampler(Sampler):
+  """Samples elements randomly, without replacement.
+
+    Arguments:
+        data_source (Dataset): dataset to sample from
+    """
+
+  def __init__(self, data_source, shuffle=False):
+    self.data_source = data_source
+    self.shuffle = shuffle
+    self.reset_permutation()
+
+  def reset_permutation(self):
+    perm = len(self.data_source)
+    if self.shuffle:
+      perm = torch.randperm(perm)
+    self._perm = perm.tolist()
+
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    if len(self._perm) == 0:
+      self.reset_permutation()
+    return self._perm.pop()
+
+  def __len__(self):
+    return len(self.data_source)
