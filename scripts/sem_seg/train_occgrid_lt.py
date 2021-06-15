@@ -32,11 +32,11 @@ def main(args):
     model = MODEL_MAP[model_name](in_channels=3, num_classes=21, cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
-    input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
-    # doesn't work with sparse tensors
     try:
+        input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
         summary(model, input_size=input_size)
     except:
+        # doesn't work with sparse tensors
         pass
 
     checkpoint_callback = ModelCheckpoint(save_last=True, save_top_k=5, 
