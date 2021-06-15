@@ -22,6 +22,7 @@ def main(args):
     print(f'Val set: {len(val_set)}')
     
     # training on chunks
+    # only train set random, val_set not random
     if not is_sparse:
         print(f'Prepare a fixed val set')
         val_set = [s for s in val_set]
