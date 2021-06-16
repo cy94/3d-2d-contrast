@@ -1,31 +1,29 @@
 '''
 Get class weights for 3D voxel grid
 '''
-import os 
 import argparse
-from datetime import datetime as dt
 
 import numpy as np
 
 from tqdm import tqdm
 
 from lib.misc import read_config
-from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid
-from datasets.scannet.utils import CLASS_NAMES
+from datasets.scannet.common import CLASS_NAMES
+from datasets.scannet.utils import get_trainval_sets
 
 def main(args):
     cfg = read_config(args.cfg_path)
-    dataset = ScanNetSemSegOccGrid(cfg['data'], full_scene=True)
-    print(f'Dataset: {len(dataset)}')
+    dataset, _ = get_trainval_sets(cfg)
+    print(f'Train set: {len(dataset)}')
     
-    num_classes = len(CLASS_NAMES)
+    num_classes = 20 + 1
     counts = np.zeros((num_classes,))
     
-    for ndx, sample in enumerate(tqdm(dataset)):
-        counts += np.bincount(sample['y'].flatten(), minlength=num_classes)
+    for _, sample in enumerate(tqdm(dataset)):
+        counts += np.bincount(sample[2].flatten(), minlength=num_classes)
 
-    # remove none and target padding counts, 20 classes left
-    counts = counts[1:-1]
+    # remove the last ignored class
+    counts = counts[:-1]
     print('Counts:', counts)
     fraction = counts/counts.sum() 
     print('Class distrib: ',fraction)
