@@ -88,9 +88,20 @@ def get_transform(cfg, mode):
 
 def get_trainval_loaders(train_set, val_set, cfg):
     cfunc = get_collate_func(cfg)
+
+    # infinite sampling for sparse models (from mink-nets repo)
+    is_sparse = cfg['model']['name'] in SPARSE_MODELS
+    # change for sparse
+    if is_sparse:
+      train_sampler = InfSampler(train_set, True) 
+      train_shuffle = False
+    else:
+      # default for all models  
+      train_sampler, train_shuffle = None, True
     
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
-                            shuffle=True, num_workers=8, collate_fn=cfunc,
+                            shuffle=train_shuffle, num_workers=8, collate_fn=cfunc,
+                            sampler=train_sampler,
                             pin_memory=True)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
@@ -112,6 +123,7 @@ def get_trainval_sparse(cfg):
     ]
     # augment the colors?
     use_rgb = cfg['data'].get('use_rgb', False)
+    print('Sparse dataset, use RGB?:', use_rgb)
     if use_rgb:
         input_transform += [
             ChromaticAutoContrast(),
@@ -133,8 +145,8 @@ def get_trainval_sparse(cfg):
 
     val_set = ScannetVoxelization2cmDataset(
                     cfg,
-                    prevoxel_transform=prevoxel_transform,
-                    input_transform=input_transform,
+                    prevoxel_transform=None,
+                    input_transform=None,
                     target_transform=None,
                     cache=False,
                     augment_data=False,
