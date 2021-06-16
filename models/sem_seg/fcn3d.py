@@ -52,16 +52,16 @@ class SemSegNet(pl.LightningModule):
         return x
 
     def configure_optimizers(self):
-        opts = {
-            'adam': torch.optim.Adam,
-            'sgd': torch.optim.SGD
-        }
-        cfg = self.hparams['cfg']['train']
-        if 'opt' in cfg:
-            opt_cls = opts[cfg['opt']]
-        else:
-            opt_cls = 'adam'
-        optimizer = opt_cls(self.parameters(), lr=cfg['lr'], weight_decay=cfg['l2'])
+        cfg = self.hparams['cfg']['train']['opt']
+        if cfg['name'] == 'sgd':
+            optimizer = torch.optim.SGD(self.parameters(), lr=cfg['lr'], 
+                weight_decay=cfg['l2'],
+                momentum=cfg['momentum'],
+                dampening=cfg['dampening'])
+        elif cfg['name'] == 'adam':
+            optimizer = torch.optim.Adam(self.parameters(), lr=cfg['lr'], 
+                weight_decay=cfg['l2'])
+                            
         print('Using optimizer:', optimizer)
         
         return optimizer
