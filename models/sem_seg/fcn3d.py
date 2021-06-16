@@ -126,11 +126,11 @@ class SemSegNet(pl.LightningModule):
         '''
         create iou and accuracy metrics objects
         '''
-        iou = tmetrics.IoU(num_classes=self.num_classes + 1, reduction='none', 
+        iou = tmetrics.IoU(num_classes=self.num_classes, reduction='none', 
                                 absent_score=-1, compute_on_step=False,
                                 ignore_index=self.target_padding
                                 ).to(self.device)
-        acc = tmetrics.Accuracy(num_classes=self.num_classes + 1, average=None,
+        acc = tmetrics.Accuracy(num_classes=self.num_classes, average=None,
                                 compute_on_step=False,
                                 ignore_index=self.target_padding,
                                 ).to(self.device)
