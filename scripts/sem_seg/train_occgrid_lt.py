@@ -56,7 +56,8 @@ def main(args):
                         callbacks=callbacks,
                         max_epochs=cfg['train']['epochs'],
                         val_check_interval=cfg['train']['eval_intv'],
-                        fast_dev_run=args.fast_dev_run)
+                        fast_dev_run=args.fast_dev_run,
+                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
     trainer.fit(model, train_loader, val_loader)
 
 if __name__ == '__main__':
