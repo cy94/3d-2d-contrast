@@ -55,9 +55,9 @@ class cfl_collate_fn_factory:
         'y': labels_batch.long()
     } 
 
-def get_collate_func(cfg):
+def get_collate_func(cfg, mode='train'):
     if cfg['model']['name'] in SPARSE_MODELS:
-        return cfl_collate_fn_factory(0)
+        return cfl_collate_fn_factory(600000 if mode == 'train' else 0)
     else:
         return collate_func
 
@@ -87,7 +87,9 @@ def get_transform(cfg, mode):
     return t
 
 def get_trainval_loaders(train_set, val_set, cfg):
-    cfunc = get_collate_func(cfg)
+    # could have diff collate funcs for train and val
+    train_cfunc = get_collate_func(cfg, 'train')
+    val_cfunc = get_collate_func(cfg, 'val')
 
     # infinite sampling for sparse models (from mink-nets repo)
     is_sparse = cfg['model']['name'] in SPARSE_MODELS
@@ -100,12 +102,12 @@ def get_trainval_loaders(train_set, val_set, cfg):
       train_sampler, train_shuffle = None, True
     
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
-                            shuffle=train_shuffle, num_workers=8, collate_fn=cfunc,
+                            shuffle=train_shuffle, num_workers=8, collate_fn=train_cfunc,
                             sampler=train_sampler,
                             pin_memory=True)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
-                            shuffle=False, num_workers=8, collate_fn=cfunc,
+                            shuffle=False, num_workers=8, collate_fn=val_cfunc,
                             pin_memory=True) 
                             
     return train_loader, val_loader
@@ -133,7 +135,7 @@ def get_trainval_sparse(cfg):
 
     input_transform = ComposeCustom(input_transform)
 
-    train_set = ScannetVoxelization2cmDataset(
+    train_set = ScannetVoxelizationDataset(
                     cfg,
                     prevoxel_transform=prevoxel_transform,
                     input_transform=input_transform,
@@ -143,7 +145,7 @@ def get_trainval_sparse(cfg):
                     phase='train',
                     use_rgb=use_rgb)
 
-    val_set = ScannetVoxelization2cmDataset(
+    val_set = ScannetVoxelizationDataset(
                     cfg,
                     prevoxel_transform=None,
                     input_transform=None,
