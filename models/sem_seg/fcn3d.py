@@ -63,7 +63,21 @@ class SemSegNet(pl.LightningModule):
                 weight_decay=cfg['l2'])
                             
         print('Using optimizer:', optimizer)
-        
+
+        # use scheduler?
+        if 'schedule' in self.hparams['cfg']['train']:
+            cfg = self.hparams['cfg']['train']['schedule']
+            if cfg['name'] == 'step':
+                scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 
+                                                cfg['step_size'], cfg['gamma'])
+            elif cfg['name'] == 'exp':
+                scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer,
+                                                cfg['gamma'])
+
+            print('Using scheduler:', scheduler)
+            # optimizer and scheduler - use lists
+            return [optimizer], [scheduler]
+        # only optimizer
         return optimizer
 
     def get_class_weights(self):
