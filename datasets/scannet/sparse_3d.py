@@ -364,15 +364,5 @@ class ScannetVoxelizationDataset(VoxelizationDataset):
         config=config,
         use_rgb=use_rgb)
 
-  def get_output_id(self, iteration):
-    return '_'.join(Path(self.data_paths[iteration]).stem.split('_')[:2])
-
-  def _augment_locfeat(self, pointcloud):
-    # Assuming that pointcloud is xyzrgb(...), append location feat.
-    pointcloud = np.hstack(
-        (pointcloud[:, :6], 100 * np.expand_dims(pointcloud[:, self.LOCFEAT_IDX], 1),
-         pointcloud[:, 6:]))
-    return pointcloud
-
 class ScannetVoxelization2cmDataset(ScannetVoxelizationDataset):
   VOXEL_SIZE = 0.02
