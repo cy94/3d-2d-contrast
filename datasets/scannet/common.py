@@ -23,26 +23,14 @@ counts = np.bincount(labels)
 fraction = counts / counts.sum()
 weights = 1/fraction
 '''
-# CLASS_WEIGHTS = [
-#     # 0=none - doesnt matter
-#     #  1, 
-#      0.0014, 0.002, 0.01, 
-#      0.015, 0.006, 0.015, 0.01, 
-#      0.01, 0.014, 0.02, 0.085, 
-#      0.08, 0.021, 0.024, 0.078, 
-#      0.16, 0.14, 0.17, 0.12, 
-#      0.01, 1
-#  ]
 
-# sparse model
-# last class is ignored
+# any model: exactly 20 classes. dont need weights for none, padding, etc
 CLASS_WEIGHTS = [0.0014, 0.0017, 0.0104,
          0.0155, 0.0064, 0.0169, 0.0121, 
          0.0097, 0.013 , 0.0198, 0.0861, 
          0.0875, 0.0223, 0.0213, 0.0821, 
          0.1485, 0.1428, 0.1729, 0.1166, 
-         0.0129, 
-         0]
+         0.0129]
 
 VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
 
