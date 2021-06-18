@@ -124,7 +124,7 @@ class SemSegNet(pl.LightningModule):
         for class_ndx, acc in enumerate(accs):
             tag = f'acc/{split}/{CLASS_NAMES[class_ndx]}'
             self.log(tag, acc)
-        self.log(f'acc/{split}/mean', accs[1:-1].mean())
+        self.log(f'acc/{split}/mean', accs[:-1].mean())
 
     def log_ious(self, ious, split):
         for class_ndx, iou in enumerate(ious):
@@ -132,7 +132,7 @@ class SemSegNet(pl.LightningModule):
                 tag = f'iou/{split}/{CLASS_NAMES[class_ndx]}'
                 self.log(tag, iou)
         # exclude the none and padding classes while calculating miou
-        valid_ious = list(filter(lambda i: i != -1, ious[1:-1]))
+        valid_ious = list(filter(lambda i: i != -1, ious[:-1]))
         if len(valid_ious) > 0:
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
@@ -140,11 +140,13 @@ class SemSegNet(pl.LightningModule):
         '''
         create iou and accuracy metrics objects
         '''
-        iou = tmetrics.IoU(num_classes=self.num_classes, reduction='none', 
+                                # different convention in torchmetrics?
+        iou = tmetrics.IoU(num_classes=self.num_classes+1, reduction='none', 
                                 absent_score=-1, compute_on_step=False,
-                                ignore_index=self.target_padding
+                                ignore_index=self.target_padding,
                                 ).to(self.device)
-        acc = tmetrics.Accuracy(num_classes=self.num_classes, average=None,
+                                # different convention in torchmetrics?
+        acc = tmetrics.Accuracy(num_classes=self.num_classes+1, average=None,
                                 compute_on_step=False,
                                 ignore_index=self.target_padding,
                                 ).to(self.device)
