@@ -26,7 +26,7 @@ def main(args):
         print('Select a subset of data for quick run')
         train_set = Subset(train_set, range(128))
         val_set = Subset(val_set, range(128))
-    
+
     # training on chunks
     # only train set random, val_set not random
     if not is_sparse:
@@ -35,7 +35,7 @@ def main(args):
 
     train_loader, val_loader = get_trainval_loaders(train_set, val_set, cfg)
 
-    model = MODEL_MAP[model_name](in_channels=3, num_classes=21, cfg=cfg)
+    model = MODEL_MAP[model_name](in_channels=3, num_classes=20, cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     try:
