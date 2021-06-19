@@ -50,7 +50,12 @@ def main(args):
         print('Saving checkpoints')
         callbacks.append(ModelCheckpoint(save_last=True, save_top_k=5, 
                                             monitor='loss/val'))
-    trainer = pl.Trainer(gpus=1, 
+    ckpt = cfg['train']['resume']                                             
+    if ckpt is not None:
+        print(f'Resuming from checkpoint: {ckpt}')
+
+    trainer = pl.Trainer(resume_from_checkpoint=ckpt,
+                        gpus=1, 
                         auto_scale_batch_size='binsearch',
                         log_every_n_steps=10,
                         callbacks=callbacks,
