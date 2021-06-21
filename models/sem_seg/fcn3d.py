@@ -128,7 +128,7 @@ class SemSegNet(pl.LightningModule):
         for class_ndx, acc in enumerate(accs):
             tag = f'acc/{split}/{CLASS_NAMES[class_ndx]}'
             self.log(tag, acc)
-        self.log(f'acc/{split}/mean', accs[:-1].mean())
+        self.log(f'acc/{split}/mean', accs.mean())
 
     def log_ious(self, ious, split):
         for class_ndx, iou in enumerate(ious):
@@ -136,7 +136,7 @@ class SemSegNet(pl.LightningModule):
                 tag = f'iou/{split}/{CLASS_NAMES[class_ndx]}'
                 self.log(tag, iou)
         # exclude the none and padding classes while calculating miou
-        valid_ious = list(filter(lambda i: i != -1, ious[:-1]))
+        valid_ious = list(filter(lambda i: i != -1, ious))
         if len(valid_ious) > 0:
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
