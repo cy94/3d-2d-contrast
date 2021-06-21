@@ -12,8 +12,7 @@ CLASS_NAMES = ['wall', 'floor', 'cabinet',
             'door', 'window', 'bookshelf', 'picture', 
             'counter', 'desk', 'curtain', 'refrigerator', 
             'shower_curtain', 'toilet', 'sink', 'bathtub', 
-            'otherfurn', 
-            'padding']
+            'otherfurn']
     
 '''
 1/class fraction weights
