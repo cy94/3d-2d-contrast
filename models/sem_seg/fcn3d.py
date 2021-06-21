@@ -249,6 +249,13 @@ class SparseNet3D(SemSegNet):
         self.log_accs(confmat.accs, split)                                        
         self.log_confmat(confmat.mat, split)
 
+    def validation_step(self, batch, batch_idx):
+        preds, loss = self.common_step(batch, 'val')
+
+        self.val_confmat.update(preds, batch['y'])
+
+        return loss
+
     def validation_epoch_end(self, val_step_outputs):
         loss = torch.Tensor(val_step_outputs).mean()
         self.log('loss/val', loss)
@@ -258,7 +265,7 @@ class SparseNet3D(SemSegNet):
         self.log("hp_metric", loss)        
 
     def training_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch)
+        preds, loss = self.common_step(batch, 'train')
         self.log('loss/train', loss)
 
         self.train_confmat.update(preds, batch['y'])
@@ -301,11 +308,15 @@ class SparseNet3D(SemSegNet):
     def get_prediction(self, output):
         return output.max(1)[1]
 
-    def common_step(self, batch):
+    def common_step(self, batch, mode):
+        '''
+        mode: train or val
+        '''
         coords, feats, y = batch['coords'], batch['feats'], batch['y']
         
-        # For some networks, making the network invariant to even, odd coords is important. Random translation
-        coords[:, 1:] += (torch.rand(3) * 100).type_as(coords)
+        if mode == 'train':
+            # For some networks, making the network invariant to even, odd coords is important. Random translation
+            coords[:, 1:] += (torch.rand(3) * 100).type_as(coords)
 
         # Preprocess input
         feats[:, :3] = feats[:, :3] / 255. - 0.5
