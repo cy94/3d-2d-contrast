@@ -271,7 +271,7 @@ class VoxelizationDataset(VoxelizationDatasetBase):
 
     # replace features with constant values
     if not self.use_rgb:
-      feats = np.ones_like(feats)
+      feats = np.ones_like(feats) * 255
 
     # Downsample the pointcloud with finer voxel size before transformation for memory and speed
     if self.PREVOXELIZATION_VOXEL_SIZE is not None:
