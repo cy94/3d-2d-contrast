@@ -1,5 +1,13 @@
 import numpy as np
 
+def fast_hist(pred, label, n):
+  k = (label >= 0) & (label < n)
+  return np.bincount(n * label[k].astype(int) + pred[k], minlength=n**2).reshape(n, n)
+
+def per_class_iu(hist):
+  with np.errstate(divide='ignore', invalid='ignore'):
+    return np.diag(hist) / (hist.sum(1) + hist.sum(0) - np.diag(hist))
+
 def miou(preds, gt, num_classes):
     ious = []
     pred = preds.view(-1)
