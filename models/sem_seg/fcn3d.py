@@ -1,6 +1,7 @@
 '''
 3D fully conv network
 '''
+from eval.sem_seg_2d import fast_hist, per_class_iu
 import random
 
 import matplotlib
@@ -12,6 +13,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+
+import numpy as np
 
 import MinkowskiEngine as ME
 import MinkowskiEngine.MinkowskiFunctional as MF
@@ -227,6 +230,36 @@ class SparseNet3D(SemSegNet):
         '''
         self.in_channels = in_channels
         super().__init__(num_classes, cfg)
+
+    def test_scenes(self, test_loader):
+        hist = np.zeros((self.num_classes, self.num_classes))
+
+        with torch.no_grad():
+            for batch in tqdm(test_loader):
+                coords, feats, y = batch['coords'], batch['feats'], batch['y']
+                # normalize colors
+                feats[:, :3] = feats[:, :3] / 255. - 0.5
+                sinput = ME.SparseTensor(feats, coords)
+                # sparse output
+                sout = self(sinput)
+                # regular output
+                out = sout.F
+                pred = self.get_prediction(out).int()
+
+                target_np = y.numpy()
+                # update counts
+                hist += fast_hist(pred.cpu().numpy().flatten(), target_np.flatten(), 
+                                    self.num_classes)
+
+        # get IOUs              
+        ious = per_class_iu(hist) * 100
+        print(f'mIOU {np.nanmean(ious):.3f}')
+
+        print('\nClasses: ' + ' '.join(CLASS_NAMES) + '\n')
+        print('IOU: ' + ' '.join('{:.03f}'.format(i) for i in ious) + '\n')
+
+    def get_prediction(self, output):
+        return output.max(1)[1]
 
     def common_step(self, batch):
         coords, feats, y = batch['coords'], batch['feats'], batch['y']
