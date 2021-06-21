@@ -49,7 +49,7 @@ def main(args):
     if not args.no_ckpt:
         print('Saving checkpoints')
         callbacks.append(ModelCheckpoint(save_last=True, save_top_k=5, 
-                                            monitor='loss/val'))
+                                            monitor='iou/val/mean'))
     ckpt = cfg['train']['resume']                                             
     if ckpt is not None:
         print(f'Resuming from checkpoint: {ckpt}')
