@@ -1,6 +1,7 @@
 '''
 3D fully conv network
 '''
+from eval.common import ConfMat
 from eval.sem_seg_2d import fast_hist, per_class_iu
 import random
 
@@ -168,7 +169,10 @@ class SemSegNet(pl.LightningModule):
         return loss
     
     def log_confmat(self, mat, split):
-        fig = confmat_to_fig(mat.cpu().numpy(), CLASS_NAMES)
+        '''
+        mat: np array
+        '''
+        fig = confmat_to_fig(mat, CLASS_NAMES)
         img = fig_to_arr(fig)
         plt.close()
         tag = f'confmat/{split}'
@@ -230,6 +234,42 @@ class SparseNet3D(SemSegNet):
         '''
         self.in_channels = in_channels
         super().__init__(num_classes, cfg)
+
+    def create_metrics(self):
+        return ConfMat(self.num_classes)
+
+    def on_fit_start(self):
+        self.train_confmat = self.create_metrics()
+
+    def on_validation_epoch_start(self):
+        self.val_confmat = self.create_metrics()
+
+    def log_everything(self, confmat, split):
+        self.log_ious(confmat.ious, split)
+        self.log_accs(confmat.accs, split)                                        
+        self.log_confmat(confmat.mat, split)
+
+    def validation_epoch_end(self, val_step_outputs):
+        loss = torch.Tensor(val_step_outputs).mean()
+        self.log('loss/val', loss)
+
+        self.log_everything(self.val_confmat, 'val')
+
+        self.log("hp_metric", loss)        
+
+    def training_step(self, batch, batch_idx):
+        preds, loss = self.common_step(batch)
+        self.log('loss/train', loss)
+
+        self.train_confmat.update(preds, batch['y'])
+        self.log_everything(self.train_confmat, 'train')
+
+        return loss
+
+    def training_step_end(self, outputs):
+        self.train_confmat.reset()
+
+        return outputs
 
     def test_scenes(self, test_loader):
         hist = np.zeros((self.num_classes, self.num_classes))
