@@ -1,8 +1,6 @@
 
 data:
     root: /mnt/data/scannet/scans_processed/train
-    train_list: /mnt/data/scannet/train.txt
-    val_list: /mnt/data/scannet/val.txt
     # gt values are 0..19
     target_padding: 20
     # has effect only for sparse models
