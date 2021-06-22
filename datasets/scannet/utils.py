@@ -57,7 +57,7 @@ class cfl_collate_fn_factory:
 
 def get_collate_func(cfg, mode='train'):
     if cfg['model']['name'] in SPARSE_MODELS:
-        return cfl_collate_fn_factory(600000 if mode == 'train' else 0)
+        return cfl_collate_fn_factory(0)
     else:
         return collate_func
 
