@@ -49,8 +49,11 @@ def main(args):
     if not args.no_ckpt:
         print('Saving checkpoints')
         callbacks.append(ModelCheckpoint(save_last=True, save_top_k=5, 
-                                            monitor='iou/val/mean',
-                                            mode='max'))
+                                        monitor='iou/val/mean',
+                                        mode='max',
+                                # put the miou in the filename
+                                filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
+                                auto_insert_metric_name=False))
     ckpt = cfg['train']['resume']                                             
     if ckpt is not None:
         print(f'Resuming from checkpoint: {ckpt}')
