@@ -9,7 +9,7 @@ from lib.ScanNet.SensReader.python.SensorData import SensorData
 def main(args):
     root = Path(args.scannet_dir)
 
-    for scan_id in tqdm(sorted(os.listdir(root))[5:100]):
+    for scan_id in tqdm(sorted(os.listdir(root))):
         out_path = root / scan_id
         sens_file = root / scan_id / f'{scan_id}.sens'
 
