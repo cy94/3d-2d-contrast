@@ -279,7 +279,7 @@ class SparseNet3D(SemSegNet):
         return outputs
 
     def test_scenes(self, test_loader):
-        hist = np.zeros((self.num_classes, self.num_classes))
+        confmat = self.create_metrics()
 
         with torch.no_grad():
             for batch in tqdm(test_loader):
@@ -293,17 +293,19 @@ class SparseNet3D(SemSegNet):
                 out = sout.F
                 pred = self.get_prediction(out).int()
 
-                target_np = y.numpy()
                 # update counts
-                hist += fast_hist(pred.cpu().numpy().flatten(), target_np.flatten(), 
-                                    self.num_classes)
+                confmat.update(pred, y)
 
         # get IOUs              
-        ious = per_class_iu(hist) * 100
+        ious = confmat.ious
+        accs = confmat.accs
+        
         print(f'mIOU {np.nanmean(ious):.3f}')
+        print(f'mAcc {np.nanmean(accs):.3f}')
 
         print('\nClasses: ' + ' '.join(CLASS_NAMES) + '\n')
         print('IOU: ' + ' '.join('{:.03f}'.format(i) for i in ious) + '\n')
+        print('Acc: ' + ' '.join('{:.03f}'.format(i) for i in accs) + '\n')
 
     def get_prediction(self, output):
         return output.max(1)[1]
