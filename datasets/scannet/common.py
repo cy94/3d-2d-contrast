@@ -7,23 +7,30 @@ import numpy as np
 
 import csv
 
+# 20 valid NYU40 class IDs as present in the TSV file
+VALID_CLASSES = [1, 2, 3, 
+            4, 5, 6, 7, 
+            8, 9, 10, 11, 
+            12, 14, 16, 24, 
+            28, 33, 34, 36, 
+            39] 
+
+# full class names
 CLASS_NAMES = ['wall', 'floor', 'cabinet', 
             'bed', 'chair', 'sofa', 'table', 
             'door', 'window', 'bookshelf', 'picture', 
             'counter', 'desk', 'curtain', 'refrigerator', 
             'shower_curtain', 'toilet', 'sink', 'bathtub', 
             'otherfurn']
+
+# short class names, max 5 chars
+CLASS_NAMES_SHORT = ['wall', 'floor', 'cab',
+            'bed', 'chair', 'sofa', 'tab',
+            'door', 'wind', 'bksf', 'pic',
+            'cntr', 'desk', 'curt', 'refg',
+            'show', 'toil', 'sink', 'bath',
+            'othr']
     
-'''
-1/class fraction weights
-
-obtained by 
-counts = np.bincount(labels)
-fraction = counts / counts.sum()
-weights = 1/fraction
-'''
-
-# any model: exactly 20 classes. dont need weights for none, padding, etc
 CLASS_WEIGHTS = [0.0014, 0.0017, 0.0104,
          0.0155, 0.0064, 0.0169, 0.0121, 
          0.0097, 0.013 , 0.0198, 0.0861, 
@@ -31,7 +38,6 @@ CLASS_WEIGHTS = [0.0014, 0.0017, 0.0104,
          0.1485, 0.1428, 0.1729, 0.1166, 
          0.0129]
 
-VALID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39] 
 
 def nyu40_to_continuous(img):
     '''
