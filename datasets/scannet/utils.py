@@ -61,27 +61,20 @@ def get_collate_func(cfg, mode='train'):
     else:
         return collate_func
 
-def get_transform(cfg, mode):
+def get_transform_dense(cfg, mode):
     '''
     cfg: the full train cfg
     mode: train or val
     '''
-    train = (mode == 'train')
-    model_name = cfg['model']['name']
     # create transforms list
-    # map none class to padding, no loss on this class
-    transforms = [
-        MapClasses({0: cfg['data']['target_padding']}),
-        ]
-    if train: transforms.append(RandomRotate())
-    # augmentations for sparse conv
-    if model_name in SPARSE_MODELS:
-        transforms.append(DenseToSparse())
-        if train: transforms.append(RandomTranslate())
-    # augmentations for dense conv
-    else:
-        transforms.append(AddChannelDim())
-        transforms.append(TransposeDims())
+    transforms = []
+
+    if mode == 'train': 
+      transforms.append(RandomRotate())
+
+    transforms.append(AddChannelDim())
+    transforms.append(TransposeDims())
+
     t = Compose(transforms)
 
     return t
@@ -159,29 +152,13 @@ def get_trainval_sparse(cfg):
 
 def get_trainval_dense(cfg):
     # basic transforms + augmentation
-    train_t = get_transform(cfg, 'train')
+    train_t = get_transform_dense(cfg, 'train')
     # basic transforms, no augmentation
-    val_t = get_transform(cfg, 'val')
+    val_t = get_transform_dense(cfg, 'val')
 
-    if cfg['data']['train_list'] and cfg['data']['val_list']:
-        train_set = ScanNetSemSegOccGrid(cfg['data'], transform=train_t, split='train')
-        val_set = ScanNetSemSegOccGrid(cfg['data'], transform=val_t, split='val')
-    else:
-        dataset = ScanNetSemSegOccGrid(cfg['data'], transform=None)
-        print(f'Full dataset size: {len(dataset)}')
-        if cfg['train']['train_split']:
-            train_size = int(cfg['train']['train_split'] * len(dataset))
-            train_set = Subset(dataset, range(train_size))
-            val_set = Subset(dataset, range(train_size, len(dataset)))
-        elif cfg['train']['train_size'] and cfg['train']['val_size']:
-            train_set = Subset(dataset, range(cfg['train']['train_size']))
-            val_set = Subset(dataset, range(cfg['train']['train_size'], 
-                                cfg['train']['train_size']+cfg['train']['val_size']))
-        else:
-            raise ValueError('Train val split not specified')
-        train_set.transform = train_t
-        val_set.transform = val_t
-    
+    train_set = ScanNetSemSegOccGrid(cfg['data'], transform=train_t, split='train')
+    val_set = ScanNetSemSegOccGrid(cfg['data'], transform=val_t, split='val')
+
     return train_set, val_set
 
 def get_trainval_sets(cfg):
