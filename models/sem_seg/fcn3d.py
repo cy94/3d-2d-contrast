@@ -2,7 +2,6 @@
 3D fully conv network
 '''
 from eval.common import ConfMat
-from eval.sem_seg_2d import fast_hist, per_class_iu
 import random
 
 import matplotlib
@@ -91,10 +90,12 @@ class SemSegNet(pl.LightningModule):
             weight = None
         return weight
 
-    def common_step(self, batch):
+    def common_step(self, batch, mode=None):
+        '''
+        mode: train/val/None - can be used in subclasses for differing behaviour
+        '''
         x, y = batch['x'], batch['y']
         out = self(x)
-        
         
         loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
@@ -102,25 +103,19 @@ class SemSegNet(pl.LightningModule):
         return preds, loss
 
     def on_fit_start(self):
-        self.train_iou, self.train_acc = self.create_metrics()                               
+        self.train_confmat = self.create_metrics()
 
     def training_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch)
+        preds, loss = self.common_step(batch, 'train')
         self.log('loss/train', loss)
 
-        if random.random() > 0.7:
-            self.train_iou(preds, batch['y'])
-            self.train_acc(preds, batch['y'])
-
-            self.log_ious(self.train_iou.compute(), 'train')
-            self.log_accs(self.train_acc.compute(), 'train')                                        
-            self.log_confmat(self.train_iou.confmat, 'train')
+        self.train_confmat.update(preds, batch['y'])
+        self.log_everything(self.train_confmat, 'train')
 
         return loss
 
     def training_step_end(self, outputs):
-        self.train_iou.reset()
-        self.train_acc.reset()
+        self.train_confmat.reset()
 
         return outputs
 
@@ -129,6 +124,11 @@ class SemSegNet(pl.LightningModule):
             tag = f'acc/{split}/{CLASS_NAMES[class_ndx]}'
             self.log(tag, acc)
         self.log(f'acc/{split}/mean', accs.mean())
+
+    def log_everything(self, confmat, split):
+        self.log_ious(confmat.ious, split)
+        self.log_accs(confmat.accs, split)                                        
+        self.log_confmat(confmat.mat, split)
 
     def log_ious(self, ious, split):
         for class_ndx, iou in enumerate(ious):
@@ -141,30 +141,15 @@ class SemSegNet(pl.LightningModule):
             self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
 
     def create_metrics(self):
-        '''
-        create iou and accuracy metrics objects
-        '''
-                                # different convention in torchmetrics?
-        iou = tmetrics.IoU(num_classes=self.num_classes+1, reduction='none', 
-                                absent_score=-1, compute_on_step=False,
-                                ignore_index=self.target_padding,
-                                ).to(self.device)
-                                # different convention in torchmetrics?
-        acc = tmetrics.Accuracy(num_classes=self.num_classes+1, average=None,
-                                compute_on_step=False,
-                                ignore_index=self.target_padding,
-                                ).to(self.device)
-        return iou, acc                                
+        return ConfMat(self.num_classes)                               
 
     def on_validation_epoch_start(self):
-        self.val_iou, self.val_acc = self.create_metrics()                               
+        self.val_confmat = self.create_metrics()
 
     def validation_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch)
-        # update the iou metric
-        if random.random() > 0.7:
-            self.val_iou(preds, batch['y'])
-            self.val_acc(preds, batch['y'])
+        preds, loss = self.common_step(batch, 'val')
+
+        self.val_confmat.update(preds, batch['y'])
 
         return loss
     
@@ -180,48 +165,13 @@ class SemSegNet(pl.LightningModule):
                                         dataformats='HWC')
 
 
-    def validation_epoch_end(self, validation_step_outputs):
-        loss = torch.Tensor(validation_step_outputs).mean()
+    def validation_epoch_end(self, val_step_outputs):
+        loss = torch.Tensor(val_step_outputs).mean()
         self.log('loss/val', loss)
 
-        self.log_ious(self.val_iou.compute(), 'val')
-        self.log_accs(self.val_acc.compute(), 'val')
-        self.log_confmat(self.val_iou.confmat, 'val')
+        self.log_everything(self.val_confmat, 'val')
 
-        self.log("hp_metric", loss)
-    
-    def _get_test_metrics(self, dataset, test_cfg, transform):
-        iou, acc = self.create_metrics()
-        
-        # init metrics
-        for scene in tqdm(dataset, desc='scene'):
-            subvols = ScanNetGridTestSubvols(scene, self.hparams['cfg']['data']['subvol_size'], 
-                                target_padding=self.target_padding, 
-                                transform=transform)
-            test_loader = DataLoader(subvols, batch_size=test_cfg['test']['batch_size'],
-                                    shuffle=False, num_workers=8, collate_fn=collate_func,
-                                    pin_memory=True) 
-
-            for batch in tqdm(test_loader, desc='batch', leave=False):
-                preds, _ = self.common_step(batch)
-                iou(preds, batch['y'])
-                acc(preds, batch['y'])
-
-        return iou, acc
-
-    def test_scenes(self, dataset, test_cfg, transform):
-        '''
-        scene_dataset: list of scannet scenes
-        '''
-        iou, acc = self._get_test_metrics(dataset, test_cfg, transform)
-
-        ious = iou.compute()
-        accs = acc.compute()
-
-        print('Accuracy:', accs)
-        print('Mean:', accs[1:-1].mean())
-        print('IoUs:', ious)
-        print('Mean:', ious[1:-1].mean())
+        self.log("hp_metric", loss)    
 
 class SparseNet3D(SemSegNet):
     '''
@@ -234,49 +184,6 @@ class SparseNet3D(SemSegNet):
         '''
         self.in_channels = in_channels
         super().__init__(num_classes, cfg)
-
-    def create_metrics(self):
-        return ConfMat(self.num_classes)
-
-    def on_fit_start(self):
-        self.train_confmat = self.create_metrics()
-
-    def on_validation_epoch_start(self):
-        self.val_confmat = self.create_metrics()
-
-    def log_everything(self, confmat, split):
-        self.log_ious(confmat.ious, split)
-        self.log_accs(confmat.accs, split)                                        
-        self.log_confmat(confmat.mat, split)
-
-    def validation_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch, 'val')
-
-        self.val_confmat.update(preds, batch['y'])
-
-        return loss
-
-    def validation_epoch_end(self, val_step_outputs):
-        loss = torch.Tensor(val_step_outputs).mean()
-        self.log('loss/val', loss)
-
-        self.log_everything(self.val_confmat, 'val')
-
-        self.log("hp_metric", loss)        
-
-    def training_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch, 'train')
-        self.log('loss/train', loss)
-
-        self.train_confmat.update(preds, batch['y'])
-        self.log_everything(self.train_confmat, 'train')
-
-        return loss
-
-    def training_step_end(self, outputs):
-        self.train_confmat.reset()
-
-        return outputs
 
     def test_scenes(self, test_loader):
         confmat = self.create_metrics()
@@ -312,6 +219,7 @@ class SparseNet3D(SemSegNet):
 
     def common_step(self, batch, mode):
         '''
+        the inference function that is unique to the sparse model
         mode: train or val
         '''
         coords, feats, y = batch['coords'], batch['feats'], batch['y']
@@ -330,24 +238,6 @@ class SparseNet3D(SemSegNet):
                                 ignore_index=self.target_padding)
         preds = out_arr.argmax(dim=1)
         return preds, loss
-        
-    def _get_test_metrics(self, dataset, test_cfg, transform):
-        # init metrics
-        iou, acc = self.create_metrics()
-
-        # set the transform on the full scene
-        dataset.transform = transform
-
-        test_loader = DataLoader(dataset, batch_size=test_cfg['test']['batch_size'],
-                                shuffle=False, num_workers=8, collate_fn=self.collation_fn,
-                                pin_memory=True) 
-
-        for batch in tqdm(test_loader, desc='batch', leave=False):
-            preds, _ = self.common_step(batch)
-            iou(preds, batch['y'])
-            acc(preds, batch['y'])
-
-        return iou, acc
 
     @staticmethod
     def collation_fn(sample_list):
