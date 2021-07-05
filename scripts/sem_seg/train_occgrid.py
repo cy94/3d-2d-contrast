@@ -60,7 +60,6 @@ def main(args):
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         gpus=1, 
-                        auto_scale_batch_size='binsearch',
                         log_every_n_steps=10,
                         callbacks=callbacks,
                         max_epochs=cfg['train']['epochs'],
