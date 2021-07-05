@@ -1,6 +1,7 @@
 # ENet: https://arxiv.org/abs/1606.02147
 # based off of https://github.com/bermanmaxim/Enet-PyTorch
 
+from models.sem_seg.fcn3d import SemSegNet
 import torch
 import torch.nn as nn
 
@@ -113,13 +114,13 @@ class StatefulMaxUnpool2d(nn.Module):
     def forward(self, x):
         return self.unpooling.forward(x, self.pooling.indices, self.pooling.input_size)
 
-class ENet(nn.Module):
+class ENet(SemSegNet):
     '''
     Taken from 3DMV on Github
     https://github.com/angeladai/3DMV
     '''
-    def __init__(self, num_classes):
-        super().__init__()
+    def __init__(self, num_classes, cfg=None):
+        super().__init__(num_classes, cfg)
 
         pooling_0 = StatefulMaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=False)
         pooling_1 = StatefulMaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=False)
@@ -1055,7 +1056,7 @@ class UpsamplingBottleneck(nn.Module):
         return self.out_activation(out)
 
 
-class ENet2(nn.Module):
+class ENet2(SemSegNet):
     """Generate the ENet model.
 
     Keyword arguments:
@@ -1069,8 +1070,8 @@ class ENet2(nn.Module):
 
     """
 
-    def __init__(self, num_classes, encoder_relu=False, decoder_relu=True):
-        super().__init__()
+    def __init__(self, num_classes, cfg=None, encoder_relu=False, decoder_relu=False):
+        super().__init__(num_classes, cfg)
 
         self.initial_block = InitialBlock(3, 16, relu=encoder_relu)
 
