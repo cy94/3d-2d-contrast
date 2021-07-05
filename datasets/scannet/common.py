@@ -39,9 +39,11 @@ CLASS_WEIGHTS = [0.0014, 0.0017, 0.0104,
          0.0129]
 
 
-def nyu40_to_continuous(img):
+def nyu40_to_continuous(img, ignore_label=20):
     '''
     map NYU40 labels 0-40 in VALID_CLASSES to continous labels 0-20
+    img: h,w array
+    ignore_label: the label to assign all the non-valid classes
     '''
     new_img = img.copy()
     valid_to_cts = dict(zip(VALID_CLASSES, range(len(VALID_CLASSES))))
@@ -50,7 +52,7 @@ def nyu40_to_continuous(img):
         if nyu_cls in VALID_CLASSES:
             new_img[img == nyu_cls] = valid_to_cts[nyu_cls]
         else:
-            new_img[img == nyu_cls] = 0
+            new_img[img == nyu_cls] = ignore_label
 
     return new_img
 
@@ -130,6 +132,7 @@ def create_color_palette():
     return colors
 
 # map scannet -> nyu40
+# mappings not present in the dict will be kept as-is
 def map_labels(arr, label_mapping):
     mapped = np.copy(arr)
     for k,v in label_mapping.items():
