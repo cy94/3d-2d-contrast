@@ -30,12 +30,16 @@ def main(args):
     # training on chunks
     # only train set random, val_set not random
     if not is_sparse:
+        in_channels = 1
         print(f'Prepare a fixed val set')
         val_set = [s for s in val_set]
+    else:
+        # sparse model always has 3 channels, with real or dummy RGB values
+        in_channels = 3
 
     train_loader, val_loader = get_trainval_loaders(train_set, val_set, cfg)
 
-    model = MODEL_MAP[model_name](in_channels=3, num_classes=20, cfg=cfg)
+    model = MODEL_MAP[model_name](in_channels=in_channels, num_classes=20, cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     try:
@@ -59,7 +63,7 @@ def main(args):
         print(f'Resuming from checkpoint: {ckpt}')
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
-                        gpus=1, 
+                        gpus=1 if not args.cpu else None, 
                         log_every_n_steps=10,
                         callbacks=callbacks,
                         max_epochs=cfg['train']['epochs'],
@@ -73,6 +77,8 @@ if __name__ == '__main__':
     p.add_argument('cfg_path', help='Path to cfg')
     p.add_argument('--no-ckpt', action='store_true', dest='no_ckpt', 
                     default=False, help='Dont store checkpoints (for debugging)')
+    p.add_argument('--cpu', action='store_true', dest='cpu', 
+                    default=False, help='Train on CPU')                    
     p.add_argument('--subset', action='store_true', dest='subset', 
                     default=False, help='Use a subset of dataset')
     parser = pl.Trainer.add_argparse_args(p)
