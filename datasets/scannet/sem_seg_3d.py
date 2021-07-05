@@ -25,7 +25,7 @@ class ScanNetSemSegOccGrid(Dataset):
     ScanNet 3d semantic segmentation on voxel grid
 
     x: (l, b, h) binary grid
-    labels: 0-20 
+    labels: 0-19 (20 classes) + target padding/ignore label 
 
     labels as given here here: http://kaldir.vc.in.tum.de/scannet_benchmark/
     '''
@@ -100,24 +100,25 @@ class ScanNetSemSegOccGrid(Dataset):
         pad = np.maximum(small_scene_pad, aug_pad)
         scene_size = np.array(x.shape) + pad
         # splits the padding equally on both sides and applies it
-        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, self.target_padding)
+        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, pad_val=self.target_padding)
 
         # now x, y are atleast the size of subvol in each dimension
         # sample subvols as usual
         while 1:
-            # pick a random subvolume
+            # the max value at which the subvol index can start 
             max_start = np.array(x.shape) - self.subvol_size
+            # pick an index between 0 and the max value along each dimension
             # add 1 to max_start because its exclusive
             start = np.random.randint((0, 0, 0), max_start + 1, dtype=np.uint16)
             end = start + self.subvol_size
-
+            # extract the subvol from the full scene
             x_sub = x[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
             y_sub = y[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
 
-            # classes 0,1,2 = none, wall, floor
-            # only these 3 -> keep only 5% of such subvols
-            # other classes with index >2? keep this subvol 
-            if (y_sub.max() == 2 and random.random() > 0.95) or (y_sub.max() > 2):
+            # classes 0,1 = wall, floor
+            # if: the subvol has only these 2 classes -> keep only 5% of such subvols
+            # or: other classes with index >2? keep the subvol
+            if (y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1):
                 break
 
         return x_sub, y_sub
@@ -136,7 +137,7 @@ class ScanNetSemSegOccGrid(Dataset):
         # convert bool x to float
         x = x.astype(float)
         # map nyu40 labels to continous labels
-        y = nyu40_to_continuous(y_nyu).astype(np.int8)
+        y = nyu40_to_continuous(y_nyu, ignore_label=self.target_padding).astype(np.int8)
         
         if self.full_scene:
             xval, yval = x, y
