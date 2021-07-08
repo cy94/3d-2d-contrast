@@ -15,6 +15,9 @@ VALID_CLASSES = [1, 2, 3,
             28, 33, 34, 36, 
             39] 
 
+# train on 40 classes
+VALID_CLASSES_ALL = list(range(1, 41))        
+
 # full class names
 CLASS_NAMES = ['wall', 'floor', 'cabinet', 
             'bed', 'chair', 'sofa', 'table', 
@@ -23,6 +26,16 @@ CLASS_NAMES = ['wall', 'floor', 'cabinet',
             'shower_curtain', 'toilet', 'sink', 'bathtub', 
             'otherfurn']
 
+# 40 class names
+CLASS_NAMES_ALL = ['wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 
+'door', 'window', 'bookshelf', 'picture', 'counter', 'blinds', 'desk', 'shelves', 
+'curtain', 'dresser', 'pillow', 'mirror', 'floor mat', 'clothes', 'ceiling', 
+'books', 'refridgerator', 'television', 'paper', 'towel', 'shower_curtain', 
+'box', 'whiteboard', 'person', 'night stand', 'toilet', 'sink', 'lamp', 
+'bathtub', 'bag', 'otherstructure', 'otherfurniture', 'otherprop']
+
+
+
 # short class names, max 5 chars
 CLASS_NAMES_SHORT = ['wall', 'floor', 'cab',
             'bed', 'chair', 'sofa', 'tab',
@@ -30,6 +43,14 @@ CLASS_NAMES_SHORT = ['wall', 'floor', 'cab',
             'cntr', 'desk', 'curt', 'refg',
             'show', 'toil', 'sink', 'bath',
             'othr']
+
+# all class names, max 5 chars
+CLASS_NAMES_ALL_SHORT = ['wall', 'floor', 'cabnt', 'bed', 'chair', 'sofa', 'table', 
+'door', 'wind', 'bkslf', 'pic', 'cntr', 'blind', 'desk', 'shelvs', 
+'curtn', 'dresr', 'pillo', 'mirrr', 'flmat', 'cloths', 'ceil', 
+'books', 'fridg', 'tv', 'paper', 'towel', 'scurt', 
+'box', 'wbord', 'persn', 'nstnd', 'toil', 'sink', 'lamp', 
+'btub', 'bag', 'struc', 'furn', 'prop']            
     
 CLASS_WEIGHTS = [0.0014, 0.0017, 0.0104,
          0.0155, 0.0064, 0.0169, 0.0121, 
@@ -37,6 +58,8 @@ CLASS_WEIGHTS = [0.0014, 0.0017, 0.0104,
          0.0875, 0.0223, 0.0213, 0.0821, 
          0.1485, 0.1428, 0.1729, 0.1166, 
          0.0129]
+
+CLASS_WEIGHTS_ALL = []
 
 
 def nyu40_to_continuous(img, ignore_label=20):
