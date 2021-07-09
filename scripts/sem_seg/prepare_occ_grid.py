@@ -52,7 +52,7 @@ def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, voxel_size=None, meth
     centers = input_grid.points
     indices = input_grid.points_to_indices(centers)
     pairs = list(zip(centers, indices))
-    label_grid = np.zeros_like(input_grid.matrix, dtype=np.uint8)
+    label_grid = np.zeros_like(input_grid.matrix, dtype=np.uint16)
 
     for center, ndx in tqdm(pairs, leave=False, desc='nearest_point'):
         if method == 'nearest':
