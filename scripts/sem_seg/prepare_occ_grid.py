@@ -16,8 +16,6 @@ from pathlib import Path
 import trimesh
 from trimesh.exchange.ply import parse_header, ply_binary
 
-from datasets.scannet.utils import VALID_CLASSES
-
 def read_gt(gt_path):
     '''
     get vertices, rgb and labels from scannet GT PLY file such as 
@@ -77,7 +75,7 @@ def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, voxel_size=None, meth
                 label = None
         
         # assign to label and color grid
-        if label is not None and label in VALID_CLASSES:
+        if label is not None:
             label_grid[ndx[0], ndx[1], ndx[2]] = label
 
     return label_grid
@@ -87,7 +85,7 @@ def main(args):
     voxel_size = args.voxel_size
     print(f'Using voxel size: {voxel_size}')
 
-    for scan_id in tqdm(sorted(os.listdir(root))[:5], desc='scan'):
+    for scan_id in tqdm(sorted(os.listdir(root)), desc='scan'):
         scan_dir = root / scan_id
 
         input_file = f'{scan_id}_vh_clean_2.ply' 
@@ -99,10 +97,8 @@ def main(args):
         
         # read GT mesh, get vertex coordinates and labels
         gt_vertices, _, labels = read_gt(scan_dir / gt_file)
-        gt_vtx_labels = np.array([l if l in VALID_CLASSES else 0 for l in labels.tolist()], 
-                                dtype=np.uint8)
 
-        label_grid = get_label_grid(input_grid, gt_vertices, gt_vtx_labels)
+        label_grid = get_label_grid(input_grid, gt_vertices, labels)
 
         x, y = input_grid.matrix, label_grid
         out_file = f'{scan_id}_occ_grid.pth'
