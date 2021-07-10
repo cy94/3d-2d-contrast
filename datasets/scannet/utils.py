@@ -55,7 +55,7 @@ class cfl_collate_fn_factory:
         'y': labels_batch.long()
     } 
 
-def get_collate_func(cfg, mode='train'):
+def get_collate_func(cfg):
     if cfg['model']['name'] in SPARSE_MODELS:
         return cfl_collate_fn_factory(0)
     else:
@@ -71,13 +71,38 @@ def get_transform_dense(cfg, mode):
 
     if mode == 'train': 
       transforms.append(RandomRotate())
-
+    
     transforms.append(AddChannelDim())
     transforms.append(TransposeDims())
 
     t = Compose(transforms)
 
     return t
+
+def get_loader(dataset, cfg, split, batch_size):
+    # could have diff collate funcs for train and val
+    collate_func = get_collate_func(cfg)
+
+    # infinite sampling for sparse models (from mink-nets repo)
+    is_sparse = cfg['model']['name'] in SPARSE_MODELS
+    # change for sparse
+    if split == 'train':
+      if is_sparse:
+        # sampler does the shuffling, no need to set shuffle
+        sampler = InfSampler(dataset, True) 
+        shuffle = False
+      else:
+        # default for all models - no sampler, only shuffle
+        sampler, shuffle = None, True
+    else:
+      # val and test - no sampler, no shuffle
+      sampler, shuffle = None, False
+    
+    loader = DataLoader(dataset, batch_size=batch_size,
+                            shuffle=shuffle, num_workers=8, collate_fn=collate_func,
+                            sampler=sampler, pin_memory=True)  
+
+    return loader
 
 def get_trainval_loaders(train_set, val_set, cfg):
     # could have diff collate funcs for train and val
@@ -150,6 +175,58 @@ def get_trainval_sparse(cfg):
 
     return train_set, val_set
 
+def get_sparse_dataset(cfg, split):
+    use_rgb = cfg['data'].get('use_rgb', False)
+    print('Sparse dataset, use RGB?:', use_rgb)
+
+    if split == 'train':
+      # augmentations
+      # augment the whole PC
+      prevoxel_transform = ComposeCustom([
+        ElasticDistortion(ScannetVoxelizationDataset.ELASTIC_DISTORT_PARAMS) 
+      ]) 
+      # augment coords
+      input_transform = [
+          RandomDropout(0.2),
+          RandomHorizontalFlip(ScannetVoxelizationDataset.ROTATION_AXIS, \
+                                  ScannetVoxelizationDataset.IS_TEMPORAL),
+      ]
+      # augment the colors?
+      if use_rgb:
+          input_transform += [
+              ChromaticAutoContrast(),
+              ChromaticTranslation(0.1),
+              ChromaticJitter(0.05),
+          ]
+      input_transform = ComposeCustom(input_transform)
+      augment_data = True
+    elif split in ('val', 'test'):
+      prevoxel_transform = None
+      input_transform = None
+      augment_data = False
+
+    dataset = ScannetVoxelizationDataset(
+                    cfg,
+                    prevoxel_transform=prevoxel_transform,
+                    input_transform=input_transform,
+                    target_transform=None,
+                    cache=False,
+                    augment_data=augment_data,
+                    phase=split,
+                    use_rgb=use_rgb)
+
+    return dataset
+
+def get_dense_dataset(cfg, split):
+    # dont transform full scenes, the chunks get transformed later
+    transform = get_transform_dense(cfg, split) if split != 'test' else None
+    # testing - get whole scenes, not random chunks
+    full_scene = (split == 'test')
+    dataset = ScanNetSemSegOccGrid(cfg['data'], transform=transform, split=split,
+                                  full_scene=full_scene)
+
+    return dataset
+
 def get_trainval_dense(cfg):
     # basic transforms + augmentation
     train_t = get_transform_dense(cfg, 'train')
@@ -160,6 +237,20 @@ def get_trainval_dense(cfg):
     val_set = ScanNetSemSegOccGrid(cfg['data'], transform=val_t, split='val')
 
     return train_set, val_set
+
+def get_dataset(cfg, split):
+  '''
+  cfg: has all params of the dataset
+  split: train/val/test
+  '''
+  is_sparse = cfg['model']['name'] in SPARSE_MODELS
+
+  if is_sparse:
+      dataset = get_sparse_dataset(cfg, split)
+  else:
+      dataset = get_dense_dataset(cfg, split)
+        
+  return dataset
 
 def get_trainval_sets(cfg):
     '''
