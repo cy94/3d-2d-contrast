@@ -421,6 +421,27 @@ class UNet3D(SemSegNet):
             
         return x
 
+    def test_scenes(self, test_loader):
+        confmat = self.create_metrics()
+
+        with torch.no_grad():
+            for batch in tqdm(test_loader):
+                preds, loss = self.common_step(batch, 'test')
+
+                # update counts
+                confmat.update(preds, batch['y'])
+
+        # get IOUs              
+        ious = confmat.ious
+        accs = confmat.accs
+        
+        print(f'mIOU {np.nanmean(ious):.3f}')
+        print(f'mAcc {np.nanmean(accs):.3f}')
+
+        print('\nClasses: ' + ' '.join(CLASS_NAMES) + '\n')
+        print('IOU: ' + ' '.join('{:.03f}'.format(i) for i in ious) + '\n')
+        print('Acc: ' + ' '.join('{:.03f}'.format(i) for i in accs) + '\n')
+
         
 
         
