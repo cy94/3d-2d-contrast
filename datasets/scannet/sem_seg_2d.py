@@ -47,6 +47,8 @@ class ScanNetSemSeg2D(Dataset):
         self.frame_skip = cfg['data'].get('frame_skip', 1)
         self.scannet_to_nyu40 = read_label_mapping(cfg['data']['label_file'])
 
+        self.num_classes = cfg['data'].get('num_classes', 20)
+
         # use a fixed set of scans
         if split:
             scans = read_list(cfg['data'][f'{split}_list'])
@@ -90,7 +92,8 @@ class ScanNetSemSeg2D(Dataset):
         # map from scannet to nyu40 labels
         label_nyu40 = map_labels(label_scannet, self.scannet_to_nyu40)
         # map from NYU40 to 0-19 + 20 (ignored) labels
-        label_selected = nyu40_to_continuous(label_nyu40, ignore_label=self.ignore_label)
+        label_selected = nyu40_to_continuous(label_nyu40, ignore_label=self.ignore_label, 
+                                            num_classes=self.num_classes)
 
         sample = {
             'img_path': img_path,
