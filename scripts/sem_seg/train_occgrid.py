@@ -1,6 +1,6 @@
 
 import argparse
-from datasets.scannet.utils import get_trainval_loaders, get_trainval_sets
+from datasets.scannet.utils import get_dataset, get_loader, get_trainval_loaders, get_trainval_sets
 
 from lib.misc import read_config
 from models.sem_seg.utils import count_parameters
@@ -9,16 +9,21 @@ from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
 from torchinfo import summary
 from torch.utils.data import Subset
 
+import mlflow.pytorch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
 
 def main(args):
+    # start mlflow tracking
+    mlflow.pytorch.autolog()
+
     cfg = read_config(args.cfg_path)
     model_name = cfg['model']['name']
     is_sparse = model_name in SPARSE_MODELS
 
-    train_set, val_set = get_trainval_sets(cfg)
+    train_set = get_dataset(cfg, 'train')
+    val_set = get_dataset(cfg, 'val')
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
@@ -27,19 +32,17 @@ def main(args):
         train_set = Subset(train_set, range(128))
         val_set = Subset(val_set, range(128))
 
-    # training on chunks
-    # only train set random, val_set not random
     if not is_sparse:
+        # training on chunks with binary feature
         in_channels = 1
-        print(f'Prepare a fixed val set')
-        val_set = [s for s in val_set]
     else:
         # sparse model always has 3 channels, with real or dummy RGB values
         in_channels = 3
 
-    train_loader, val_loader = get_trainval_loaders(train_set, val_set, cfg)
+    train_loader = get_loader(train_set, cfg, 'train', cfg['train']['train_batch_size'])
+    val_loader = get_loader(val_set, cfg, 'val', cfg['train']['val_batch_size'])
 
-    model = MODEL_MAP[model_name](in_channels=in_channels, num_classes=20, cfg=cfg)
+    model = MODEL_MAP[model_name](in_channels=in_channels, num_classes=cfg['data']['num_classes'], cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     try:
