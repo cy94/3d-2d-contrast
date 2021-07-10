@@ -29,7 +29,7 @@ if __name__ == '__main__':
     # params
     parser = argparse.ArgumentParser()
     # data paths
-    parser.add_argument('scannet_dir', help='path to sens file to read')
+    parser.add_argument('scannet_dir', help='path to scannet root dir')
     parser.add_argument('--export_depth_images', dest='export_depth_images', action='store_true')
     parser.add_argument('--export_color_images', dest='export_color_images', action='store_true')
     parser.add_argument('--export_poses', dest='export_poses', action='store_true')
