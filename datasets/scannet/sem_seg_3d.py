@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from datasets.scannet.common import nyu40_to_continuous, read_list
+from datasets.scannet.common import map_labels, nyu40_to_continuous, read_label_mapping, read_list
 from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
@@ -51,6 +51,10 @@ class ScanNetSemSegOccGrid(Dataset):
         self.subvols_per_scene = cfg.get('subvols_per_scene', None)
         self.subvol_size = np.array(cfg.get('subvol_size', None))
         self.target_padding = cfg.get('target_padding', None)
+
+        self.scannet_to_nyu40 = read_label_mapping(cfg['label_file'])
+
+        self.num_classes = cfg.get('num_classes', 20)
 
         if split:
             # read train/val/test list
@@ -133,12 +137,13 @@ class ScanNetSemSegOccGrid(Dataset):
         path = self.paths[scene_ndx]
         # load the full scene
         data = torch.load(path)
+        # labels are scannet IDs
         x, y_nyu = data['x'], data['y']
         # convert bool x to float
         x = x.astype(float)
-        # map nyu40 labels to continous labels
-        y = nyu40_to_continuous(y_nyu, ignore_label=self.target_padding).astype(np.int8)
-        
+        # dont use int8 anywhere, avoid possible overflow with more than 128 classes
+        y = nyu40_to_continuous(y_nyu, ignore_label=self.target_padding, 
+                                num_classes=self.num_classes).astype(np.int16)
         if self.full_scene:
             xval, yval = x, y
         else:
