@@ -1,15 +1,14 @@
 import torch
 from torchvision.transforms import Compose
-from torch.utils.data import Subset, DataLoader, Sampler
+from torch.utils.data import DataLoader, Sampler
 import MinkowskiEngine as ME
 
-from transforms.grid_3d import DenseToSparse, RandomTranslate, RandomRotate, \
-    MapClasses, AddChannelDim, TransposeDims
+from transforms.grid_3d import RandomRotate, AddChannelDim, TransposeDims
 from transforms.common import ComposeCustom
 from models.sem_seg.utils import SPARSE_MODELS
 from transforms.sparse_3d import ChromaticAutoContrast, ChromaticJitter, ChromaticTranslation, ElasticDistortion, RandomDropout, RandomHorizontalFlip
 from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
-from datasets.scannet.sparse_3d import ScannetVoxelization2cmDataset, ScannetVoxelizationDataset
+from datasets.scannet.sparse_3d import ScannetVoxelizationDataset
 
 
 class cfl_collate_fn_factory:
