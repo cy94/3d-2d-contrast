@@ -23,7 +23,7 @@ import pytorch_lightning as pl
 import torchmetrics as tmetrics 
 
 from eval.vis import confmat_to_fig, fig_to_arr
-from datasets.scannet.common import CLASS_NAMES, CLASS_WEIGHTS
+from datasets.scannet.common import CLASS_NAMES, CLASS_NAMES_ALL, CLASS_WEIGHTS, CLASS_WEIGHTS_ALL, VALID_CLASSES
 from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
 from models.layers_3d import Down3D, Up3D
 
@@ -36,16 +36,45 @@ class SemSegNet(pl.LightningModule):
         self.save_hyperparameters()
         self.num_classes = num_classes
         self.target_padding = cfg['data']['target_padding']
-        
-        if cfg['train']['class_weights']:
-            print('Using class weights')
-            self.class_weights = torch.Tensor(CLASS_WEIGHTS)
-        else: 
-            self.class_weights = None
+
+        self.init_class_weights(cfg)
+        self.init_class_names()
+        # subset of classes of interest to log separately
+        self.init_class_subset()
 
         # init the model layers
         self.init_model()
 
+    def init_class_subset(self):
+        self.class_subset = None
+        if self.num_classes == 40:
+            # subtract 1 because the array contains the raw class indices
+            # starting at 1
+            self.class_subset = np.array(VALID_CLASSES) - 1
+
+    def init_class_names(self):
+        names = {
+            20: CLASS_NAMES,
+            40: CLASS_NAMES_ALL
+        }
+        if self.num_classes in names:
+            self.class_names = names[self.num_classes]
+        else:
+            raise NotImplementedError(f'Add class names for {self.num_classes} classes')
+
+    def init_class_weights(self, cfg):
+        if cfg['train']['class_weights']:
+            print('Using class weights')
+            weights = {
+                20: CLASS_WEIGHTS,
+                40: CLASS_WEIGHTS_ALL
+            }
+            if self.num_classes in weights:
+                self.class_weights = torch.Tensor(weights[self.num_classes])
+            else:
+                raise NotImplementedError(f'Add class weights for {self.num_classes} classes')
+        else: 
+            self.class_weights = None
     def init_model(self):
         pass
 
@@ -121,9 +150,13 @@ class SemSegNet(pl.LightningModule):
 
     def log_accs(self, accs, split):
         for class_ndx, acc in enumerate(accs):
-            tag = f'acc/{split}/{CLASS_NAMES[class_ndx]}'
+            tag = f'acc/{split}/{self.class_names[class_ndx]}'
             self.log(tag, acc)
         self.log(f'acc/{split}/mean', accs.mean())
+
+        # using all classes -> log subset of 20 classes separately
+        if self.class_subset is not None:
+            self.log(f'acc/{split}/mean_subset', accs[self.class_subset].mean())
 
     def log_everything(self, confmat, split):
         self.log_ious(confmat.ious, split)
@@ -132,13 +165,14 @@ class SemSegNet(pl.LightningModule):
 
     def log_ious(self, ious, split):
         for class_ndx, iou in enumerate(ious):
-            if iou != -1:
-                tag = f'iou/{split}/{CLASS_NAMES[class_ndx]}'
-                self.log(tag, iou)
-        # exclude the none and padding classes while calculating miou
-        valid_ious = list(filter(lambda i: i != -1, ious))
-        if len(valid_ious) > 0:
-            self.log(f'iou/{split}/mean', torch.Tensor(valid_ious).mean())
+            tag = f'iou/{split}/{self.class_names[class_ndx]}'
+            self.log(tag, iou)
+
+        self.log(f'iou/{split}/mean', torch.Tensor(ious).mean())
+
+        # using all classes -> log subset of 20 classes separately
+        if self.class_subset is not None:
+            self.log(f'iou/{split}/mean_subset', ious[self.class_subset].mean())
 
     def create_metrics(self):
         return ConfMat(self.num_classes)                               
