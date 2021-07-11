@@ -3,7 +3,6 @@ data:
     root: /mnt/data/scannet/scans_processed/train
     # gt values are 0..19
     target_padding: 20
-    # has effect only for sparse models
     use_rgb: true
 
 model: 
@@ -14,18 +13,23 @@ train:
         name: sgd
         momentum: 0.9
         dampening: 0.1
-        lr: 0.001
+        lr: 0.1
         l2: 0.0001
     schedule: 
-        name: exp
-        gamma: 0.95
+        name: step
+        step_size: 2000
+        # step
+        gamma: 0.1
+        # adam
+        # gamma: 0.95
 
     train_batch_size: 8
     val_batch_size: 8
     epochs: 30000
     class_weights: true
     # eval every `eval_intv` batches
-    eval_intv: 4
+    eval_intv: 64
     # accumulate gradient
-    accum_grad: 4
+    accum_grad: 8
     resume: null
+    # resume: lightning_logs/version_127/checkpoints/last.ckpt
