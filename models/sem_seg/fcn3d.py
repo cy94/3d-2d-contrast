@@ -12,7 +12,6 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 
 import numpy as np
 
@@ -24,14 +23,13 @@ import torchmetrics as tmetrics
 
 from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.common import CLASS_NAMES, CLASS_NAMES_ALL, CLASS_WEIGHTS, CLASS_WEIGHTS_ALL, VALID_CLASSES
-from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, collate_func
 from models.layers_3d import Down3D, Up3D
 
 class SemSegNet(pl.LightningModule):
     '''
     Parent class for semantic segmentation on voxel grid
     '''
-    def __init__(self, num_classes, cfg=None):
+    def __init__(self, num_classes, cfg=None, log_all_classes=False):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
@@ -44,6 +42,8 @@ class SemSegNet(pl.LightningModule):
 
         # init the model layers
         self.init_model()
+
+        self.log_all_classes = log_all_classes
 
     def init_class_subset(self):
         self.class_subset = None
@@ -149,9 +149,10 @@ class SemSegNet(pl.LightningModule):
         return outputs
 
     def log_accs(self, accs, split):
-        for class_ndx, acc in enumerate(accs):
-            tag = f'acc/{split}/{self.class_names[class_ndx]}'
-            self.log(tag, acc)
+        if self.log_all_classes:
+            for class_ndx, acc in enumerate(accs):
+                tag = f'acc/{split}/{self.class_names[class_ndx]}'
+                self.log(tag, acc)
         self.log(f'acc/{split}/mean', accs.mean())
 
         # using all classes -> log subset of 20 classes separately
@@ -164,9 +165,10 @@ class SemSegNet(pl.LightningModule):
         self.log_confmat(confmat.mat, split)
 
     def log_ious(self, ious, split):
-        for class_ndx, iou in enumerate(ious):
-            tag = f'iou/{split}/{self.class_names[class_ndx]}'
-            self.log(tag, iou)
+        if self.log_all_classes:
+            for class_ndx, iou in enumerate(ious):
+                tag = f'iou/{split}/{self.class_names[class_ndx]}'
+                self.log(tag, iou)
 
         self.log(f'iou/{split}/mean', torch.Tensor(ious).mean())
 
