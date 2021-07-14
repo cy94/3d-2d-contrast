@@ -1,6 +1,7 @@
 '''
 3D semantic segmentation on ScanNet occupancy voxel grids
 '''
+from datasets.scannet.common import load_ply
 import random
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from datasets.scannet.common import map_labels, nyu40_to_continuous, read_label_mapping, read_list
+from datasets.scannet.common import nyu40_to_continuous, read_label_mapping, read_list
 from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
@@ -41,9 +42,10 @@ class ScanNetSemSegOccGrid(Dataset):
         split: name of the split, used to read the list from cfg
         full_scene: return the full scene
         '''
-        root_dir = Path(cfg['root'])
+        self.root_dir = Path(cfg['root'])
         
-        self.paths = []
+        self.use_rgb = cfg.get('use_rgb', False)
+
         self.transform = transform
         self.full_scene = full_scene
 
@@ -58,18 +60,27 @@ class ScanNetSemSegOccGrid(Dataset):
 
         if split:
             # read train/val/test list
-            scans = read_list(cfg[f'{split}_list'])
+            self.scans = read_list(cfg[f'{split}_list'])
         else:
-            scans = sorted(os.listdir(root_dir))
+            self.scans = sorted(os.listdir(self.root_dir))
 
         if cfg['limit_scans']:
-            scans = scans[:cfg['limit_scans']]
+            self.scans = self.scans[:cfg['limit_scans']]
 
-        for scan_id in scans:
-            path = root_dir / scan_id / f'{scan_id}_occ_grid.pth'
+        self.paths = self.get_paths()
+
+    def get_paths(self):
+        '''
+        Paths to files to scene files - 1 file per scene
+        '''
+        paths = []
+        for scan_id in self.scans:
+            path = self.root_dir / scan_id / f'{scan_id}_occ_grid.pth'
 
             if path.exists():
-                self.paths.append(path)
+                paths.append(path)
+
+        return paths
 
     def __len__(self):
         # vols per scene * num scenes
@@ -127,18 +138,26 @@ class ScanNetSemSegOccGrid(Dataset):
 
         return x_sub, y_sub
 
+    def get_scene_grid(self, scene_ndx):
+        path = self.paths[scene_ndx]
+        # load the full scene
+        data = torch.load(path)
+        # labels are scannet IDs
+        x, y_nyu = data['x'], data['y']
+
+        return x, y_nyu
+
     def __getitem__(self, ndx):
         if not self.full_scene:
             # get the scene ndx for this subvol 
             scene_ndx = ndx // self.subvols_per_scene
         else:
             scene_ndx = ndx
-
+        
         path = self.paths[scene_ndx]
-        # load the full scene
-        data = torch.load(path)
-        # labels are scannet IDs
-        x, y_nyu = data['x'], data['y']
+
+        x, y_nyu = self.get_scene_grid(scene_ndx)
+
         # convert bool x to float
         x = x.astype(float)
         # dont use int8 anywhere, avoid possible overflow with more than 128 classes
@@ -155,6 +174,53 @@ class ScanNetSemSegOccGrid(Dataset):
             sample = self.transform(sample)
 
         return sample
+
+class ScanNetPLYDataset(ScanNetSemSegOccGrid):
+    '''
+    Read voxelized ScanNet PLY files which contain
+    vertices, colors and labels
+
+    Create dense grid containing these voxelized vertices and labels
+    and sample subvolumes from it
+    '''
+    def get_paths(self):
+        '''
+        Paths to files to scene files - 1 file per scene
+        '''
+        paths = []
+        for scan_id in self.scans:
+            path = self.root_dir / scan_id / f'{scan_id}_voxelized.ply'
+
+            if path.exists():
+                paths.append(path)
+
+        return paths
+
+    def get_scene_grid(self, scene_ndx):
+        path = self.paths[scene_ndx]
+        # load the full scene
+        coords, rgb, labels = load_ply(path, read_label=True)
+        coords = coords.astype(np.int32)
+        # translate the points to start at 0
+        t = coords.min(axis=0)
+        coords_new = coords - t
+        # integer coordinates, get the grid size from this
+        grid_size = tuple(coords_new.max(axis=0).astype(np.int32) + 1)
+
+        if self.use_rgb:
+            # use RGB values as grid features
+            x = np.zeros(grid_size + (3,))
+            x[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = rgb
+        else:
+            # binary occupancy grid
+            x = np.zeros(grid_size)
+            x[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = 1
+
+        # fill Y with negative ints
+        y_nyu = np.ones(grid_size, dtype=np.int16) * -1
+        y_nyu[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = labels
+
+        return x, y_nyu
 
 class ScanNetGridTestSubvols:
     '''
