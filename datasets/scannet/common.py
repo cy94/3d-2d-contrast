@@ -80,7 +80,7 @@ def nyu40_to_continuous(img, ignore_label=20, num_classes=20):
     valid_classes = VALID_CLASSES if num_classes == 20 else VALID_CLASSES_ALL
     valid_to_cts = dict(zip(valid_classes, range(len(valid_classes))))
 
-    # NYU has classes 1-40
+    # map valid NYU labelsNYU has classes 1-40
     for nyu_cls in range(41):
         if nyu_cls in valid_classes:
             new_img[img == nyu_cls] = valid_to_cts[nyu_cls]
@@ -88,7 +88,8 @@ def nyu40_to_continuous(img, ignore_label=20, num_classes=20):
             new_img[img == nyu_cls] = ignore_label
 
     # bugs in labels - some labels are 50 or 149
-    new_img[(img == 50) | (img == 149)] = ignore_label            
+    # negative values could be from quantization?
+    new_img[(img < 0) | (img == 50) | (img == 149)] = ignore_label      
 
     return new_img
 
