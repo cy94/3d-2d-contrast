@@ -1,35 +1,16 @@
-from pathlib import Path
-import numpy as np
-
 import torch
 from torchvision.transforms import Compose
 from torch.utils.data import DataLoader, Sampler
 import MinkowskiEngine as ME
 
-from plyfile import PlyData
 
 from transforms.grid_3d import RandomRotate, AddChannelDim, TransposeDims
 from transforms.common import ComposeCustom
 from models.sem_seg.utils import SPARSE_MODELS
 from transforms.sparse_3d import ChromaticAutoContrast, ChromaticJitter, ChromaticTranslation, ElasticDistortion, RandomDropout, RandomHorizontalFlip
-from datasets.scannet.sem_seg_3d import ScanNetSemSegOccGrid, collate_func
+from datasets.scannet.sem_seg_3d import ScanNetPLYDataset, ScanNetSemSegOccGrid, collate_func
 from datasets.scannet.sparse_3d import ScannetVoxelizationDataset
 
-def load_ply(path, read_label=False):
-    ply_path = Path(path)
-    plydata = PlyData.read(ply_path)
-    
-    data = plydata.elements[0].data
-
-    coords = np.array([data['x'], data['y'], data['z']], dtype=np.float32).T
-    feats = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
-    
-    if read_label:  
-      labels = np.array(data['label'], dtype=np.int32)
-    else:
-      labels = None
-
-    return coords, feats, labels
 
 class cfl_collate_fn_factory:
   """Generates collate function for coords, feats, labels.
@@ -241,7 +222,7 @@ def get_dense_dataset(cfg, split):
     transform = get_transform_dense(cfg, split) if split != 'test' else None
     # testing - get whole scenes, not random chunks
     full_scene = (split == 'test')
-    dataset = ScanNetSemSegOccGrid(cfg['data'], transform=transform, split=split,
+    dataset = ScanNetPLYDataset(cfg['data'], transform=transform, split=split,
                                   full_scene=full_scene)
 
     return dataset
