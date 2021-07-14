@@ -3,9 +3,13 @@ common and internally used dataset utils
 '''
 
 import os
+from pathlib import Path
+import csv
+
 import numpy as np
 
-import csv
+from plyfile import PlyData
+
 
 # 20 valid NYU40 class IDs as present in the TSV file
 VALID_CLASSES = [1, 2, 3, 
@@ -106,6 +110,22 @@ def continous_to_nyu40(img):
         new_img[img == cts_cls] = cts_to_valid[cts_cls]
     
     return new_img
+
+def load_ply(path, read_label=False):
+    ply_path = Path(path)
+    plydata = PlyData.read(ply_path)
+    
+    data = plydata.elements[0].data
+
+    coords = np.array([data['x'], data['y'], data['z']], dtype=np.float32).T
+    feats = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
+    
+    if read_label:  
+      labels = np.array(data['label'], dtype=np.int32)
+    else:
+      labels = None
+
+    return coords, feats, labels
 
 def viz_labels(img):
     '''
