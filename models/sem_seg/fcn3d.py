@@ -83,6 +83,14 @@ class SemSegNet(pl.LightningModule):
             x = layer(x)
         return x
 
+    def display_metric(self, vals, name='metric'):
+        print(f'mean {name}: {np.nanmean(name):.3f}')
+        if self.class_subset is not None:
+            print(f'mean {name} on subset: {np.nanmean(vals[self.class_subset]):.3f}')
+
+        print('\nClasses: ' + ' '.join(CLASS_NAMES) + '\n')
+        print(f'{name}: ' + ' '.join('{:.03f}'.format(i) for i in vals) + '\n')
+
     def configure_optimizers(self):
         cfg = self.hparams['cfg']['train']['opt']
         if cfg['name'] == 'sgd':
@@ -467,17 +475,10 @@ class UNet3D(SemSegNet):
                 # update counts
                 confmat.update(preds, batch['y'])
 
-        # get IOUs              
-        ious = confmat.ious
-        accs = confmat.accs
+        self.display_metric(confmat.ious, 'iou')
+        self.display_metric(confmat.accs, 'acc')
+
         
-        print(f'mIOU {np.nanmean(ious):.3f}')
-        print(f'mAcc {np.nanmean(accs):.3f}')
-
-        print('\nClasses: ' + ' '.join(CLASS_NAMES) + '\n')
-        print('IOU: ' + ' '.join('{:.03f}'.format(i) for i in ious) + '\n')
-        print('Acc: ' + ' '.join('{:.03f}'.format(i) for i in accs) + '\n')
-
         
 
         
