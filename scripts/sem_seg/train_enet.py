@@ -46,7 +46,7 @@ def main(args):
 
     # ignored label in 2D is called target padding in 3D - use a common name 
     cfg['data']['target_padding'] = cfg['data']['ignore_label']
-    model = ENet2(num_classes=20, cfg=cfg)
+    model = ENet2(num_classes=cfg['data'].get('num_classes', 20), cfg=cfg)
 
     input_size = (cfg['train']['train_batch_size'], 3,) + tuple(cfg['data']['img_size'][::-1])
     summary(model, input_size=input_size)
