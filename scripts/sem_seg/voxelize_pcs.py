@@ -8,12 +8,11 @@ import numpy as np
 
 from tqdm import tqdm
 
-import os, os.path as osp
 from pathlib import Path
 
 from MinkowskiEngine.utils import sparse_quantize
 from plyfile import PlyData, PlyElement
-from datasets.scannet.utils import load_ply
+from datasets.scannet.common import load_ply
 
 
 def main(args):
