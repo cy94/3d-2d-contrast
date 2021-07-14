@@ -1,0 +1,27 @@
+
+data:
+    root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    train_list: /mnt/data/scannet/train.txt
+    val_list: /mnt/data/scannet/val.txt
+    # use every nth frame from a scan
+    frame_skip: 10
+    # height, width
+    img_size: [320, 240]
+    # real labels = 0 to 19
+    # ignored labels are mapped to this new label
+    ignore_label: 20
+
+train:
+    opt: 
+        name: adam
+        lr: 0.0005
+        l2: 0.0000
+    train_batch_size: 40
+    val_batch_size: 40
+    epochs: 30000
+
+    class_weights: true
+    
+    # eval every `eval_intv` batches
+    eval_intv: 256

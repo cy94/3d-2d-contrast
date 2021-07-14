@@ -1,0 +1,7 @@
+
+data:
+    root: /mnt/data/scannet/scans_processed/train
+
+test:
+    batch_size: 128
+    ckpt: lightning_logs/version_121/checkpoints/last.ckpt

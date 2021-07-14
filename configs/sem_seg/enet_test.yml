@@ -1,0 +1,4 @@
+test:
+    ckpt: runs/18-May-10.08.30/ckpt/2.pt
+    test_size: null
+    batch_size: 256

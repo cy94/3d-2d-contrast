@@ -1,0 +1,9 @@
+data:
+    root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    test_list: /mnt/data/scannet/val.txt
+    limit_scans: null
+
+test:
+    batch_size: 128
+    ckpt: lightning_logs/version_54/checkpoints/last.ckpt
