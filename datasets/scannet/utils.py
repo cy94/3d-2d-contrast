@@ -217,8 +217,11 @@ def get_sparse_dataset(cfg, split):
 def get_dense_dataset(cfg, split):
     # dont transform full scenes, the chunks get transformed later
     transform = get_transform_dense(cfg, split) if split != 'test' else None
+
     # testing - get whole scenes, not random chunks
-    full_scene = (split == 'test')
+    # TBD: full scene dataset from original files, not H5
+    # full_scene = (split == 'test')
+
     dataset = ScanNetOccGridH5(cfg['data'], transform=transform, split=split)
 
     return dataset
