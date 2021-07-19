@@ -73,7 +73,7 @@ def main(args):
                         callbacks=callbacks,
                         max_epochs=cfg['train']['epochs'],
                         val_check_interval=cfg['train']['eval_intv'],
-                        limit_val_batches=128,
+                        limit_val_batches=cfg['train']['limit_val_batches'],
                         fast_dev_run=args.fast_dev_run,
                         accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
 
