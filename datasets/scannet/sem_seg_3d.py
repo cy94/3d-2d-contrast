@@ -33,13 +33,22 @@ class ScanNetOccGridH5(Dataset):
         split: train/val/test
         transform: callable Object
         '''
-        self.data = h5py.File(cfg[f'{split}_file'], 'r')
+        self.data = None
         self.transform = transform
+        self.file_path = cfg[f'{split}_file'] 
+        
+        # get the length once
+        with h5py.File(self.file_path, 'r') as f:
+            self.length = len(f['x'])
 
     def __len__(self):
-        return len(self.data['x'])
+        return self.length
 
     def __getitem__(self, ndx):
+        # open once in each worker, allow multiproc
+        if self.data is None:
+            self.data = h5py.File(self.file_path, 'r') 
+
         x, y = self.data['x'][ndx], self.data['y'][ndx]
 
         sample = {'x': x, 'y': y}
@@ -50,7 +59,8 @@ class ScanNetOccGridH5(Dataset):
         return sample
 
     def __del__(self):
-        self.data.close()
+        if self.data is not None:
+            self.data.close()
 
 class ScanNetSemSegOccGrid(Dataset):
     '''
