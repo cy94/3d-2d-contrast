@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from collections import OrderedDict
 
+import h5py
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -16,10 +18,39 @@ from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
     return {
-        'path': [s['path'] for s in sample_list],
+        # 'path': [s['path'] for s in sample_list],
         'x': torch.Tensor([s['x'] for s in sample_list]),
         'y': torch.LongTensor([s['y'] for s in sample_list]),
     }
+
+class ScanNetOccGridH5(Dataset):
+    '''
+    Read samples from a h5 file
+    '''
+    def __init__(self, cfg, split, transform=None):
+        '''
+        cfg: train_cfg['data']
+        split: train/val/test
+        transform: callable Object
+        '''
+        self.data = h5py.File(cfg[f'{split}_file'], 'r')
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data['x'])
+
+    def __getitem__(self, ndx):
+        x, y = self.data['x'][ndx], self.data['y'][ndx]
+
+        sample = {'x': x, 'y': y}
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample
+
+    def __del__(self):
+        self.data.close()
 
 class ScanNetSemSegOccGrid(Dataset):
     '''
@@ -159,7 +190,7 @@ class ScanNetSemSegOccGrid(Dataset):
         x, y_nyu = self.get_scene_grid(scene_ndx)
 
         # convert bool x to float
-        x = x.astype(float)
+        x = x.astype(np.float32)
         # dont use int8 anywhere, avoid possible overflow with more than 128 classes
         y = nyu40_to_continuous(y_nyu, ignore_label=self.target_padding, 
                                 num_classes=self.num_classes).astype(np.int16)
@@ -209,11 +240,11 @@ class ScanNetPLYDataset(ScanNetSemSegOccGrid):
 
         if self.use_rgb:
             # use RGB values as grid features
-            x = np.zeros(grid_size + (3,))
+            x = np.zeros(grid_size + (3,), dtype=np.float32)
             x[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = rgb
         else:
             # binary occupancy grid
-            x = np.zeros(grid_size)
+            x = np.zeros(grid_size, np.float32)
             x[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = 1
 
         # fill Y with negative ints
