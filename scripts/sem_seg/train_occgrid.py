@@ -1,12 +1,11 @@
-
+import random
 import argparse
-from datasets.scannet.utils import get_dataset, get_loader, get_trainval_loaders, get_trainval_sets
+from datasets.scannet.utils import get_dataset, get_loader
 
 from lib.misc import read_config
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
 
-import torch
 from torchinfo import summary
 from torch.utils.data import Subset
 
@@ -23,6 +22,12 @@ def main(args):
     val_set = get_dataset(cfg, 'val')
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
+
+    # train set gets shuffled by the dataloader
+    # shuffle the val set once, then we can use a subset of it later
+    indices = list(range(len(val_set)))
+    random.shuffle(indices)
+    val_set = Subset(val_set, indices)
 
     if args.subset:
         print('Select a subset of data for quick run')
@@ -68,6 +73,7 @@ def main(args):
                         callbacks=callbacks,
                         max_epochs=cfg['train']['epochs'],
                         val_check_interval=cfg['train']['eval_intv'],
+                        limit_val_batches=128,
                         fast_dev_run=args.fast_dev_run,
                         accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
 
