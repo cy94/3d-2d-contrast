@@ -103,6 +103,7 @@ class SemSegNet(pl.LightningModule):
                 weight_decay=cfg['l2'])
                             
         print('Using optimizer:', optimizer)
+        self.optim = optimizer
 
         # use scheduler?
         if 'schedule' in self.hparams['cfg']['train']:
@@ -148,6 +149,9 @@ class SemSegNet(pl.LightningModule):
 
         self.train_confmat.update(preds, batch['y'])
         self.log_everything(self.train_confmat, 'train')
+
+        # log LR
+        self.log('lr', self.optim.param_groups[0]['lr'])
 
         return loss
 
