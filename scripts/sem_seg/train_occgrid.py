@@ -6,18 +6,15 @@ from lib.misc import read_config
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
 
+import torch
 from torchinfo import summary
 from torch.utils.data import Subset
 
-import mlflow.pytorch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
 
 def main(args):
-    # start mlflow tracking
-    mlflow.pytorch.autolog()
-
     cfg = read_config(args.cfg_path)
     model_name = cfg['model']['name']
     is_sparse = model_name in SPARSE_MODELS
@@ -29,8 +26,8 @@ def main(args):
 
     if args.subset:
         print('Select a subset of data for quick run')
-        train_set = Subset(train_set, range(128))
-        val_set = Subset(val_set, range(128))
+        train_set = Subset(train_set, range(1024))
+        val_set = Subset(val_set, range(1024))
 
     if not is_sparse:
         # training on chunks with binary feature
@@ -73,6 +70,7 @@ def main(args):
                         val_check_interval=cfg['train']['eval_intv'],
                         fast_dev_run=args.fast_dev_run,
                         accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
+
     trainer.fit(model, train_loader, val_loader)
 
 if __name__ == '__main__':
@@ -84,6 +82,7 @@ if __name__ == '__main__':
                     default=False, help='Train on CPU')                    
     p.add_argument('--subset', action='store_true', dest='subset', 
                     default=False, help='Use a subset of dataset')
+
     parser = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
 
