@@ -3,7 +3,6 @@ from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
 from transforms.grid_3d import RandomRotate
 from tqdm import tqdm
 import argparse
-from datasets.scannet.utils import get_dataset
 from pathlib import Path
 from lib.misc import read_config
 import h5py
