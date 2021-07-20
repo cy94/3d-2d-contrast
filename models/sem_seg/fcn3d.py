@@ -418,6 +418,8 @@ class FCN3D(SemSegNet):
             nn.ConvTranspose3d(64, num_classes, 4, 2, 1),
         ])
 
+
+
 class UNet3D(SemSegNet):
     '''
     Dense 3d convs on a volume grid
@@ -429,9 +431,10 @@ class UNet3D(SemSegNet):
         '''
         super().__init__(num_classes, cfg)
 
+    def init_model(self):
         self.layers = nn.ModuleList([
             # 1->1/2
-            Down3D(in_channels, 32),
+            Down3D(self.in_channels, 32),
             # 1/2->1/4
             Down3D(32, 64),
             # 1/4->1/8
@@ -442,7 +445,7 @@ class UNet3D(SemSegNet):
             # 1/4->1/2
             Up3D(64*2, 32),
             # 1/2->original shape
-            Up3D(32*2, num_classes, dropout=False),
+            Up3D(32*2, self.num_classes, dropout=False),
         ])
 
     def forward(self, x):
