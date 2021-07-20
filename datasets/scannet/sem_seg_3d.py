@@ -105,7 +105,7 @@ class ScanNetSemSegOccGrid(Dataset):
         else:
             self.scans = sorted(os.listdir(self.root_dir))
 
-        if cfg['limit_scans']:
+        if cfg.get('limit_scans', False):
             self.scans = self.scans[:cfg['limit_scans']]
 
         self.paths = self.get_paths()
@@ -129,9 +129,11 @@ class ScanNetSemSegOccGrid(Dataset):
             return len(self.paths)
         return self.subvols_per_scene * len(self.paths)
 
-    def sample_subvol(self, x, y):
+    def sample_subvol(self, x, y, return_start_ndx=False):
         '''
         x, y - volumes of the same size
+        return_start_ndx: return the start index of the subvol within the 
+                              whole scene grid
         '''
         # pad the input volume for these reasons
         # 1. if the volume is is smaller than the subvol size
@@ -177,16 +179,27 @@ class ScanNetSemSegOccGrid(Dataset):
             if (y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1):
                 break
 
-        return x_sub, y_sub
+        retval = (x_sub, y_sub)
+        
+        if return_start_ndx:
+            retval += (start,)
+        
+        return retval
 
     def get_scene_grid(self, scene_ndx):
+        '''
+        get the full scene at scene_ndx (1..N)
+        return 
+            x, y of same shape
+            world to grid translation of the scene / None if not available
+        '''
         path = self.paths[scene_ndx]
         # load the full scene
         data = torch.load(path)
         # labels are scannet IDs
         x, y_nyu = data['x'], data['y']
 
-        return x, y_nyu
+        return x, y_nyu, None
 
     def __getitem__(self, ndx):
         if not self.full_scene:
@@ -197,7 +210,7 @@ class ScanNetSemSegOccGrid(Dataset):
         
         path = self.paths[scene_ndx]
 
-        x, y_nyu = self.get_scene_grid(scene_ndx)
+        x, y_nyu, translation = self.get_scene_grid(scene_ndx)
 
         # convert bool x to float
         x = x.astype(np.float32)
@@ -210,7 +223,10 @@ class ScanNetSemSegOccGrid(Dataset):
             xval, yval = self.sample_subvol(x, y)
 
         sample = {'path': path, 'x': xval, 'y': yval}
-
+        
+        if translation is not None:
+            sample['translation'] = translation
+            
         if self.transform is not None:
             sample = self.transform(sample)
 
@@ -238,6 +254,12 @@ class ScanNetPLYDataset(ScanNetSemSegOccGrid):
         return paths
 
     def get_scene_grid(self, scene_ndx):
+        '''
+        get the full scene at scene_ndx (1..N)
+        return 
+            x, y of same shape
+            world to grid translation of the scene / None if not available
+        '''
         path = self.paths[scene_ndx]
         # load the full scene
         coords, rgb, labels = load_ply(path, read_label=True)
@@ -261,7 +283,9 @@ class ScanNetPLYDataset(ScanNetSemSegOccGrid):
         y_nyu = np.ones(grid_size, dtype=np.int16) * -1
         y_nyu[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = labels
 
-        return x, y_nyu
+        translation = -t
+
+        return x, y_nyu, translation 
 
 class ScanNetGridTestSubvols:
     '''
