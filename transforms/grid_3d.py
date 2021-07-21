@@ -142,6 +142,10 @@ class AddChannelDim:
     '''
     def __init__(self):
         pass
+    
+    @staticmethod
+    def apply(x):
+        return np.expand_dims(x, axis=-1) 
 
     def __call__(self, sample):
         new_sample = deepcopy(sample)
@@ -159,6 +163,12 @@ class TransposeDims:
     '''
     def __init__(self):
         pass
+
+    @staticmethod
+    def apply(x, y):
+        x_new = x.transpose((3, 2, 1, 0))
+        y_new = y.transpose((2, 1, 0))
+        return x_new, y_new
 
     def __call__(self, sample):
         new_sample = deepcopy(sample)
