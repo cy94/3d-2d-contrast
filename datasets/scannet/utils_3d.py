@@ -249,10 +249,7 @@ class ProjectionHelper():
 
         # flatten the depth image, select the depth values corresponding 
         # to the valid pixels
-        try:
-            depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
-        except:
-            breakpoint()
+        depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
         # depth > min_depth and depth < max_depth
         # and depth is within voxel_size of 3D coordinates
         depth_mask = depth_vals.ge(self.depth_min) \
