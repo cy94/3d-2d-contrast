@@ -86,6 +86,9 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
     image_dims: dims of the image used for projection 
     projector: ProjectionHelper object
     '''
+    if num_nearest_imgs != 1:
+        raise NotImplementedError
+
     root = Path(root_dir)
     scan_dir = root / scan_name
     pose_dir = scan_dir / 'pose'
@@ -114,15 +117,16 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
         ndx = Path(pose_fname).stem
         depth_path = depth_dir / f'{ndx}.png'
         # read pose and depth
-        depth = load_depth(depth_path)
-        pose = load_pose(pose_path)
+        depth = torch.Tensor(load_depth(depth_path))
+        pose = torch.Tensor(load_pose(pose_path))
 
         # store the coverage of each image
         coverage = projector.get_coverage(depth, pose, world_to_grid)
         if coverage is not None:
             coverages[file_ndx] = coverage
     
-    breakpoint()
+    if coverages.max() > 0:
+        breakpoint()
     # pick the image with max coverage
     # return its index
     return np.argmax(coverages)
@@ -197,7 +201,6 @@ def main(args):
                                                         projector)
 
             data_ndx += 1
-            break 
         break
 
     outfile.close()
