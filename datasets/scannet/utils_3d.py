@@ -114,7 +114,7 @@ class ProjectionHelper():
             # 8: 8 points
             # 4: homogenous coordinates (1 at the end)
             # 1: value
-        corner_points = camera_to_world.new(8, 4, 1).fill_(1)
+        corner_points = camera_to_world.new_empty(8, 4, 1).fill_(1)
 	    # nearest frustum corners (depth min)
         # lower left intrinsic will be used only 
         corner_points[0][:3] = self.depth_to_skeleton(0, 0, self.depth_min).unsqueeze(1)
@@ -157,8 +157,12 @@ class ProjectionHelper():
         return bbox_min, bbox_max
 
     def get_coverage(self, depth, camera_to_world, world_to_grid):
-        return self.compute_projection(depth, camera_to_world, world_to_grid, 
+        coverage = self.compute_projection(depth, camera_to_world, world_to_grid, 
                                 return_coverage=True)
+        if coverage is None:
+            return 0
+        else:
+            return coverage
 
     def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
         '''
@@ -174,22 +178,26 @@ class ProjectionHelper():
         world_to_camera = torch.inverse(camera_to_world)
         grid_to_world = torch.inverse(world_to_grid)
         
-        # lowest xyz and highest xyz seen by the camera in grid coordsmask_frustum_bounds
+        # lowest xyz and highest xyz seen by the camera in grid coords
         # ie a bounding box of the frustum created by the camera 
         # between depth_min and depth_max
         voxel_bounds_min, voxel_bounds_max = self.compute_frustum_bounds(world_to_grid, 
                                                                 camera_to_world)
         # min coords should be within the grid
+        # TODO: +ve values here can be more than the grid dim!
+        # pull them to the grid dim?
         voxel_bounds_min = np.maximum(voxel_bounds_min, 0)# .cuda()
         # max coord should be within grid dimensions
+        # TODO: -ve values here will be outside the grid
+        # pull them to 0?
         voxel_bounds_max = np.minimum(voxel_bounds_max, self.volume_dims).float() #.cuda()
 
-        # coordinates within frustum bounds
+        # XYZ coordinates within the grid
         # indices from 0,1,2 .. 31*31*62 = num_voxels
         lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()) #.cuda()
         # homogenous coordinate XYZ of each voxel 
         # (4, num_voxels)
-        coords = camera_to_world.new(4, lin_ind_volume.size(0))
+        coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
         # Z = N / (X*Y)
         coords[2] = lin_ind_volume / (self.volume_dims[0]*self.volume_dims[1])
         # similarly fill X and Y
@@ -274,8 +282,8 @@ class ProjectionHelper():
         # store the actual number of indices in the first element
         # rest of the elements are the actual indices!
 
-        lin_indices_3d = lin_ind_update.new(self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2] + 1) 
-        lin_indices_2d = lin_ind_update.new(self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2] + 1) 
+        lin_indices_3d = lin_ind_update.new_empty(self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2] + 1) 
+        lin_indices_2d = lin_ind_update.new_empty(self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2] + 1) 
 
         # 3d indices: indices of the valid voxels computed earlier
         lin_indices_3d[0] = lin_ind_update.shape[0]
