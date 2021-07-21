@@ -102,7 +102,7 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
 
     # list all the camera poses
     all_pose_files = sorted(os.listdir(pose_dir), key=lambda f: int(osp.splitext(f)[0]))
-    # indices into all poses of poses considered
+    # indices into all_pose_files of poses considered
     pose_indices = range(0, len(all_pose_files), frame_skip)
     pose_files = [all_pose_files[ndx] for ndx in pose_indices]
     # ndx of the image where the coverage came from
@@ -134,6 +134,7 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
 def main(args):
     cfg = read_config(args.cfg_path)
 
+    # get full scene grid, extract subvols later
     dataset = ScanNetPLYDataset(cfg['data'], split=args.split,
                                   full_scene=True)
     print(f'Dataset: {len(dataset)}')
@@ -151,7 +152,6 @@ def main(args):
     outfile = h5py.File(out_path, 'w')
     create_datasets(outfile, n_samples, subvol_size, num_nearest_imgs)
 
-    # iterate over each scene, read it only once
     data_ndx = 0
 
     # intrinsic of the color camera from scene0001_00
@@ -164,8 +164,11 @@ def main(args):
                                 subvol_size,
                                 cfg['data']['voxel_size'])
 
+    # iterate over each scene, read it only once
     for _, scene in enumerate(tqdm(dataset, desc='scene')):
         scene_x, scene_y, path = scene['x'], scene['y'], scene['path']
+        # translation to go from scaled world coords (original->voxelized)
+        # to scene voxel coords
         scene_T = scene['translation']
         # eg: 0000, 01 (int)
         scene_id, scan_id = get_scene_scan_ids(path)
@@ -177,8 +180,9 @@ def main(args):
         for _ in tqdm(range(subvols_per_scene), leave=False, desc='subvol'):
             subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
                                                     return_start_ndx=True)
+            # need to subtract the start index from scene coords to get grid coords                                                    
             subvol_t = - start_ndx.astype(np.int16)                                                    
-            # add the location of the grid                                                    
+            # add the additional translation to scene transform                                                    
             world_to_grid = add_translation(world_to_scene, subvol_t)
 
             # transform the volumes to the format used while training
