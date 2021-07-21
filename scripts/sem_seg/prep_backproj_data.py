@@ -35,7 +35,7 @@ def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     # world to grid transformation for this subvolume
     out_file.create_dataset('world_to_grid', (n_samples, 4, 4), dtype=np.float32)
     # indices of the corresponding frames
-    out_file.create_dataset('frames', (n_samples, num_nearest_images), dtype=np.uint16)
+    out_file.create_dataset('frames', (n_samples, num_nearest_images), dtype=np.int16)
 
 def add_translation(transform, t):
     '''
@@ -125,11 +125,15 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
         # store the coverage of each pose
         coverages[file_ndx] = projector.get_coverage(depth, pose, world_to_grid)
     
-    # pick the image with max coverage N.txt
-    nearest_pose = all_pose_files[pose_indices[np.argmax(coverages)]]
-
-    # return its index N
-    return int(osp.splitext(nearest_pose)[0])
+    # some image covers this subvol
+    if coverages.max() > 0:
+        # pick the image with max coverage N.txt
+        nearest_pose = all_pose_files[pose_indices[np.argmax(coverages)]]
+        # return its index N
+        return int(osp.splitext(nearest_pose)[0])
+    # nothing covers this subvol
+    else:
+        return None
 
 def main(args):
     cfg = read_config(args.cfg_path)
@@ -185,6 +189,20 @@ def main(args):
             # add the additional translation to scene transform                                                    
             world_to_grid = add_translation(world_to_scene, subvol_t)
 
+            nearest_images = get_nearest_images(world_to_grid, 
+                                                    num_nearest_imgs,
+                                                    scan_name, cfg['data']['root'],
+                                                    cfg['data']['frame_skip'],
+                                                    img_size,
+                                                    projector)
+            
+            if nearest_images is None:
+                # discard this subvol
+                continue
+
+            # find 1 nearest image to this grid
+            outfile['frames'][data_ndx] = nearest_images
+            
             # transform the volumes to the format used while training
             x_final = AddChannelDim.apply(subvol_x)
             x_final, y_final = TransposeDims.apply(x_final, subvol_y)
@@ -195,17 +213,8 @@ def main(args):
             outfile['scan_id'][data_ndx] = scan_id 
             outfile['world_to_grid'][data_ndx] = world_to_grid
 
-            # find 1 nearest image to this grid
-            outfile['frames'][data_ndx] = get_nearest_images(world_to_grid, 
-                                                        num_nearest_imgs,
-                                                        scan_name, cfg['data']['root'],
-                                                        cfg['data']['frame_skip'],
-                                                        img_size,
-                                                        projector)
-
             data_ndx += 1
-        break
-
+    print(f'Good subvols: {data_ndx}')
     outfile.close()
 
 if __name__ == '__main__':
