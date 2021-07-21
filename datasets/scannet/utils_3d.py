@@ -157,13 +157,15 @@ class ProjectionHelper():
         return bbox_min, bbox_max
 
     def get_coverage(self, depth, camera_to_world, world_to_grid):
-        pass
+        return self.compute_projection(depth, camera_to_world, world_to_grid, 
+                                return_coverage=True)
 
-    def compute_projection(self, depth, camera_to_world, world_to_grid):
+    def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
         '''
         depth: a single depth image
         cam2world: single transformation matrix
         world2grid: single transformation matrix
+        return_coverage: get only the coverage, or indices?
     
         TODO: make runnable on CPU as well
         '''
@@ -178,13 +180,13 @@ class ProjectionHelper():
         voxel_bounds_min, voxel_bounds_max = self.compute_frustum_bounds(world_to_grid, 
                                                                 camera_to_world)
         # min coords should be within the grid
-        voxel_bounds_min = np.maximum(voxel_bounds_min, 0).cuda()
+        voxel_bounds_min = np.maximum(voxel_bounds_min, 0)# .cuda()
         # max coord should be within grid dimensions
-        voxel_bounds_max = np.minimum(voxel_bounds_max, self.volume_dims).float().cuda()
+        voxel_bounds_max = np.minimum(voxel_bounds_max, self.volume_dims).float() #.cuda()
 
         # coordinates within frustum bounds
         # indices from 0,1,2 .. 31*31*62 = num_voxels
-        lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()).cuda()
+        lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()) #.cuda()
         # homogenous coordinate XYZ of each voxel 
         # (4, num_voxels)
         coords = camera_to_world.new(4, lin_ind_volume.size(0))
@@ -247,7 +249,10 @@ class ProjectionHelper():
 
         # flatten the depth image, select the depth values corresponding 
         # to the valid pixels
-        depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
+        try:
+            depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
+        except:
+            breakpoint()
         # depth > min_depth and depth < max_depth
         # and depth is within voxel_size of 3D coordinates
         depth_mask = depth_vals.ge(self.depth_min) \
@@ -260,6 +265,11 @@ class ProjectionHelper():
         # pick the 3D indices which have valid 2D and valid depth
         lin_ind_update = lin_ind_volume[valid_ind_mask]
         lin_ind_update = lin_ind_update[depth_mask]
+
+        # just need the coverage, not the projection
+        if return_coverage:
+            return len(lin_ind_update)
+
         # create new tensors to store the indices
         # each volume in the batch has a different number of valid voxels/pixels 
         # but tensor shape needs to be same size for all in batch

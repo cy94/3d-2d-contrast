@@ -7,11 +7,10 @@ import os, os.path as osp
 import argparse
 from pathlib import Path
 
-from torchvision.transforms import Compose
 from transforms.grid_3d import AddChannelDim, TransposeDims
 
+import torch
 from tqdm import tqdm
-import imageio
 import h5py
 import numpy as np
 
@@ -36,7 +35,7 @@ def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     # world to grid transformation for this subvolume
     out_file.create_dataset('world_to_grid', (n_samples, 4, 4), dtype=np.float32)
     # indices of the corresponding frames
-    out_file.create_dataset('frames', (n_samples, 1), dtype=np.uint16)
+    out_file.create_dataset('frames', (n_samples, num_nearest_images), dtype=np.uint16)
 
 def add_translation(transform, t):
     '''
@@ -102,7 +101,9 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
     # actual poses considered
     pose_indices = range(0, len(pose_files), frame_skip)
     # 1 coverage int for each pose
-    coverage = np.zeros(len(pose_indices), dtype=np.uint16)
+    coverages = np.zeros(len(pose_indices), dtype=np.uint16)
+
+    world_to_grid = torch.Tensor(world_to_grid)
 
     # iterate over camera pose files
     for file_ndx in tqdm(pose_indices, leave=False, desc='pose'):
@@ -116,11 +117,15 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
         depth = load_depth(depth_path)
         pose = load_pose(pose_path)
 
-        # get coverage(depth)
         # store the coverage of each image
+        coverage = projector.get_coverage(depth, pose, world_to_grid)
+        if coverage is not None:
+            coverages[file_ndx] = coverage
+    
+    breakpoint()
     # pick the image with max coverage
     # return its index
-    return 1
+    return np.argmax(coverages)
 
 def main(args):
     cfg = read_config(args.cfg_path)
@@ -184,7 +189,8 @@ def main(args):
             outfile['world_to_grid'][data_ndx] = world_to_grid
 
             # find 1 nearest image to this grid
-            outfile['frames'][data_ndx] = get_nearest_images(world_to_grid, num_nearest_imgs,
+            outfile['frames'][data_ndx] = get_nearest_images(world_to_grid, 
+                                                        num_nearest_imgs,
                                                         scan_name, cfg['data']['root'],
                                                         cfg['data']['frame_skip'],
                                                         img_size,
