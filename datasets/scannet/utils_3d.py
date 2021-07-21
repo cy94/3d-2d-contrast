@@ -164,6 +164,26 @@ class ProjectionHelper():
         else:
             return coverage
 
+    def lin_ind_to_coords(self, lin_ind, coords):
+        '''
+        Get XYZ coordinates within the grid
+        ie. homogenous coordinate XYZ of each voxel 
+
+        lin_ind: [0, 1, 2, 3 ..] tensor of integers
+        coords: empty array to fill coords, has dim (4, len(lin_ind))
+        '''
+        # Z = N / (X*Y)
+        # IMP: use a floored division here to keep only the integer coordinates!
+        coords[2] = lin_ind // (self.volume_dims[0]*self.volume_dims[1])
+        # similarly fill X and Y
+        tmp = lin_ind - (coords[2]*self.volume_dims[0]*self.volume_dims[1]).long()
+        coords[1] = tmp // self.volume_dims[0]
+        coords[0] = torch.remainder(tmp, self.volume_dims[0])
+        # last coord is just 1
+        coords[3].fill_(1)
+
+        return coords
+
     def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
         '''
         depth: a single depth image
@@ -192,21 +212,12 @@ class ProjectionHelper():
         # pull them to 0?
         voxel_bounds_max = np.minimum(voxel_bounds_max, self.volume_dims).float() #.cuda()
 
-        # XYZ coordinates within the grid
         # indices from 0,1,2 .. 31*31*62 = num_voxels
         lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()) #.cuda()
-        # homogenous coordinate XYZ of each voxel 
-        # (4, num_voxels)
+        # empty array with size (4, num_voxels)
         coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
-        # Z = N / (X*Y)
-        coords[2] = lin_ind_volume / (self.volume_dims[0]*self.volume_dims[1])
-        # similarly fill X and Y
-        tmp = lin_ind_volume - (coords[2]*self.volume_dims[0]*self.volume_dims[1]).long()
-        coords[1] = tmp / self.volume_dims[0]
-        coords[0] = torch.remainder(tmp, self.volume_dims[0])
-        # last coord is just 1
-        coords[3].fill_(1)
-       
+        coords = self.lin_ind_to_coords(lin_ind_volume, coords)
+
         # the actual voxels that the camera can see
         # based on the lower bound
         mask_frustum_bounds = torch.ge(coords[0], voxel_bounds_min[0]) \
@@ -226,11 +237,7 @@ class ProjectionHelper():
         # create new coordinates within the visible voxels (same as before)
         # why?
         coords = coords.resize_(4, lin_ind_volume.size(0))
-        coords[2] = lin_ind_volume / (self.volume_dims[0]*self.volume_dims[1])
-        tmp = lin_ind_volume - (coords[2]*self.volume_dims[0]*self.volume_dims[1]).long()
-        coords[1] = tmp / self.volume_dims[0]
-        coords[0] = torch.remainder(tmp, self.volume_dims[0])
-        coords[3].fill_(1)
+        coords = self.lin_ind_to_coords(lin_ind_volume, coords)
 
         # grid coords -> world coords -> camera coords XYZ
         p = torch.mm(world_to_camera, torch.mm(grid_to_world, coords))
