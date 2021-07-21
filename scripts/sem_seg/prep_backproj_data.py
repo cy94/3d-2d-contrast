@@ -94,24 +94,26 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
     pose_dir = scan_dir / 'pose'
     depth_dir = scan_dir / 'depth'
     intrinsic_path = root / scan_name / 'intrinsic/intrinsic_color.txt'
+
     # set the intrinsic
     intrinsic = load_intrinsic(intrinsic_path)
     intrinsic = adjust_intrinsic(intrinsic, [1296, 968], image_dims)
     projector.update_intrinsic(intrinsic)
 
     # list all the camera poses
-    pose_files = sorted(os.listdir(pose_dir), key=lambda f: int(osp.splitext(f)[0]))
-    # actual poses considered
-    pose_indices = range(0, len(pose_files), frame_skip)
+    all_pose_files = sorted(os.listdir(pose_dir), key=lambda f: int(osp.splitext(f)[0]))
+    # indices into all poses of poses considered
+    pose_indices = range(0, len(all_pose_files), frame_skip)
+    pose_files = [all_pose_files[ndx] for ndx in pose_indices]
+    # ndx of the image where the coverage came from
     # 1 coverage int for each pose
-    coverages = np.zeros(len(pose_indices), dtype=np.uint16)
+    coverages = np.zeros(len(pose_files), dtype=np.uint16)
 
     world_to_grid = torch.Tensor(world_to_grid)
 
     # iterate over camera pose files
-    for file_ndx in tqdm(pose_indices, leave=False, desc='pose'):
+    for file_ndx, pose_fname in enumerate(tqdm(pose_files, leave=False, desc='pose')):
         # N.txt
-        pose_fname = pose_files[file_ndx]
         pose_path = pose_dir / pose_fname
         # just N
         ndx = Path(pose_fname).stem
@@ -120,16 +122,14 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
         depth = torch.Tensor(load_depth(depth_path))
         pose = torch.Tensor(load_pose(pose_path))
 
-        # store the coverage of each image
-        coverage = projector.get_coverage(depth, pose, world_to_grid)
-        if coverage is not None:
-            coverages[file_ndx] = coverage
+        # store the coverage of each pose
+        coverages[file_ndx] = projector.get_coverage(depth, pose, world_to_grid)
     
-    if coverages.max() > 0:
-        breakpoint()
-    # pick the image with max coverage
-    # return its index
-    return np.argmax(coverages)
+    # pick the image with max coverage N.txt
+    nearest_pose = all_pose_files[pose_indices[np.argmax(coverages)]]
+
+    # return its index N
+    return int(osp.splitext(nearest_pose)[0])
 
 def main(args):
     cfg = read_config(args.cfg_path)
@@ -175,10 +175,9 @@ def main(args):
 
         # sample N subvols from this scene
         for _ in tqdm(range(subvols_per_scene), leave=False, desc='subvol'):
-            subvol_x, subvol_y, subvol_t = dataset.sample_subvol(scene_x, scene_y,
+            subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
                                                     return_start_ndx=True)
-            # similarly reverse the order of axes: XYZ->ZYX
-            subvol_t = subvol_t                                                               
+            subvol_t = - start_ndx.astype(np.int16)                                                    
             # add the location of the grid                                                    
             world_to_grid = add_translation(world_to_scene, subvol_t)
 
