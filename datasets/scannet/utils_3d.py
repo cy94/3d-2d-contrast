@@ -203,13 +203,11 @@ class ProjectionHelper():
         # between depth_min and depth_max
         voxel_bounds_min, voxel_bounds_max = self.compute_frustum_bounds(world_to_grid, 
                                                                 camera_to_world)
-        # min coords should be within the grid
-        # TODO: +ve values here can be more than the grid dim!
-        # pull them to the grid dim?
+        
+        # min coords that are negative are pulled up to 0, should be within the grid
         voxel_bounds_min = np.maximum(voxel_bounds_min, 0)# .cuda()
-        # max coord should be within grid dimensions
-        # TODO: -ve values here will be outside the grid
-        # pull them to 0?
+        # max coord should be within grid dimensions, any greater is pulled down 
+        # to grid dim
         voxel_bounds_max = np.minimum(voxel_bounds_max, self.volume_dims).float() #.cuda()
 
         # indices from 0,1,2 .. 31*31*62 = num_voxels
@@ -220,34 +218,37 @@ class ProjectionHelper():
 
         # the actual voxels that the camera can see
         # based on the lower bound
+        # X/Y/Z coord of the voxel > min X/Y/Z coord
         mask_frustum_bounds = torch.ge(coords[0], voxel_bounds_min[0]) \
                             * torch.ge(coords[1], voxel_bounds_min[1]) \
                             * torch.ge(coords[2], voxel_bounds_min[2])
         # based on the upper bound
+        # X/Y/Z coord of the voxel < max X/Y/Z coord
         mask_frustum_bounds = mask_frustum_bounds \
                             * torch.lt(coords[0], voxel_bounds_max[0]) \
                             * torch.lt(coords[1], voxel_bounds_max[1]) \
                             * torch.lt(coords[2], voxel_bounds_max[2])
-        # camera doesn't see any voxels                            
+        # no voxels within the frustum bounds of the camera
         if not mask_frustum_bounds.any():
             return None
         
-        # pick only these voxels
+        # pick only these voxels within the frustum bounds
         lin_ind_volume = lin_ind_volume[mask_frustum_bounds]
         # create new coordinates within the visible voxels (same as before)
-        # why?
+        # TODO: why?
         coords = coords.resize_(4, lin_ind_volume.size(0))
         coords = self.lin_ind_to_coords(lin_ind_volume, coords)
 
         # grid coords -> world coords -> camera coords XYZ
         p = torch.mm(world_to_camera, torch.mm(grid_to_world, coords))
 
-        # project into image
+        # project XYZ onto image -> XY coords
         p[0] = (p[0] * self.intrinsic[0][0]) / p[2] + self.intrinsic[0][2]
         p[1] = (p[1] * self.intrinsic[1][1]) / p[2] + self.intrinsic[1][2]
+        # convert XY coords to integers = pixel coordinates
         pi = torch.round(p).long()
 
-        # check which image coords are valid
+        # check which image coords lie within image bounds -> valid
         valid_ind_mask = torch.ge(pi[0], 0) \
                         * torch.ge(pi[1], 0) \
                         * torch.lt(pi[0], self.image_dims[0]) \
@@ -259,14 +260,16 @@ class ProjectionHelper():
         valid_image_ind_x = pi[0][valid_ind_mask]
         # valid Y coords of image
         valid_image_ind_y = pi[1][valid_ind_mask]
-        # linear index into the image = Y + width*X
+        # linear index into the image = Y + img_width*X
         valid_image_ind_lin = valid_image_ind_y * self.image_dims[0] + valid_image_ind_x
 
         # flatten the depth image, select the depth values corresponding 
         # to the valid pixels
         depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
-        # depth > min_depth and depth < max_depth
-        # and depth is within voxel_size of 3D coordinates
+        # filter depth pixels based on 3 conditions
+        # 1. depth > min_depth 
+        # 2. depth < max_depth
+        # 3. depth is within voxel_size of voxel Z coordinate
         depth_mask = depth_vals.ge(self.depth_min) \
                     * depth_vals.le(self.depth_max) \
                     * torch.abs(depth_vals - p[2][valid_ind_mask]).le(self.voxel_size)
