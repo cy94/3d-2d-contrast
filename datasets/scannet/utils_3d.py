@@ -302,7 +302,7 @@ class ProjectionHelper():
         # 2d indices: have the same shape
         lin_indices_2d[0] = lin_ind_update.shape[0]
         # values: the corresponding linear indices into the flattened image
-        # where depth values are nonzero
+        # where the depth mask was valid
         lin_indices_2d[1:1+lin_indices_2d[0]] = \
             torch.index_select(valid_image_ind_lin, 0, torch.nonzero(depth_mask)[:,0])
 
