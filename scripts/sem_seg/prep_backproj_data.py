@@ -25,7 +25,7 @@ def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     out_file: h5py.File object opened in 'w' mode
     '''
     # input subvolume
-    out_file.create_dataset('x', (n_samples, 1) + subvol_size, dtype=np.float32)
+    out_file.create_dataset('x', (n_samples,) + subvol_size, dtype=np.float32)
     # label subvolume
     out_file.create_dataset('y', (n_samples,) + subvol_size, dtype=np.int16)
     # id of the scene that the volume came from (0000, 0002 ..)
@@ -119,7 +119,7 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
         ndx = Path(pose_fname).stem
         depth_path = depth_dir / f'{ndx}.png'
         # read pose and depth
-        depth = torch.Tensor(load_depth(depth_path))
+        depth = torch.Tensor(load_depth(depth_path, image_dims))
         pose = torch.Tensor(load_pose(pose_path))
 
         # store the coverage of each pose
@@ -134,6 +134,11 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
     # nothing covers this subvol
     else:
         return None
+
+
+def inf_generator():
+  while True:
+    yield
 
 def main(args):
     cfg = read_config(args.cfg_path)
@@ -180,8 +185,9 @@ def main(args):
         scan_name = get_scan_name(path)
         world_to_scene = get_world_to_scene(cfg['data']['voxel_size'], scene_T)
 
+        good_subvols = 0
         # sample N subvols from this scene
-        for _ in tqdm(range(subvols_per_scene), leave=False, desc='subvol'):
+        for _ in tqdm(inf_generator()):
             subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
                                                     return_start_ndx=True)
             # need to subtract the start index from scene coords to get grid coords                                                    
@@ -199,21 +205,22 @@ def main(args):
             if nearest_images is None:
                 # discard this subvol
                 continue
-
-            # find 1 nearest image to this grid
+            
+            # find nearest images to this grid
             outfile['frames'][data_ndx] = nearest_images
             
-            # transform the volumes to the format used while training
-            x_final = AddChannelDim.apply(subvol_x)
-            x_final, y_final = TransposeDims.apply(x_final, subvol_y)
-
-            outfile['x'][data_ndx] = x_final
-            outfile['y'][data_ndx] = y_final
+            outfile['x'][data_ndx] = subvol_x
+            outfile['y'][data_ndx] = subvol_y
             outfile['scene_id'][data_ndx] = scene_id
             outfile['scan_id'][data_ndx] = scan_id 
             outfile['world_to_grid'][data_ndx] = world_to_grid
 
             data_ndx += 1
+            
+            good_subvols += 1
+            if good_subvols == subvols_per_scene:
+                break
+            
     print(f'Good subvols: {data_ndx}')
     outfile.close()
 
