@@ -7,8 +7,6 @@ import os, os.path as osp
 import argparse
 from pathlib import Path
 
-from transforms.grid_3d import AddChannelDim, TransposeDims
-
 import torch
 from tqdm import tqdm
 import h5py
@@ -172,6 +170,7 @@ def main(args):
                                 img_size,
                                 subvol_size,
                                 cfg['data']['voxel_size'])
+
 
     # iterate over each scene, read it only once
     for _, scene in enumerate(tqdm(dataset, desc='scene')):
