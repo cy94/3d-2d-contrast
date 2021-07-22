@@ -184,41 +184,40 @@ def main(args):
         scan_name = get_scan_name(path)
         world_to_scene = get_world_to_scene(cfg['data']['voxel_size'], scene_T)
 
-        good_subvols = 0
         # sample N subvols from this scene
-        for _ in tqdm(inf_generator()):
-            subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
-                                                    return_start_ndx=True)
-            # need to subtract the start index from scene coords to get grid coords                                                    
-            subvol_t = - start_ndx.astype(np.int16)                                                    
-            # add the additional translation to scene transform                                                    
-            world_to_grid = add_translation(world_to_scene, subvol_t)
+        for _ in tqdm(range(subvols_per_scene), desc='subvol', leave=False):
+            found_subvol = False
+            while not found_subvol:
+                subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
+                                                        return_start_ndx=True)
+                # need to subtract the start index from scene coords to get grid coords                                                    
+                subvol_t = - start_ndx.astype(np.int16)                                                    
+                # add the additional translation to scene transform                                                    
+                world_to_grid = add_translation(world_to_scene, subvol_t)
 
-            nearest_images = get_nearest_images(world_to_grid, 
-                                                    num_nearest_imgs,
-                                                    scan_name, cfg['data']['root'],
-                                                    cfg['data']['frame_skip'],
-                                                    img_size,
-                                                    projector)
-            
-            if nearest_images is None:
-                # discard this subvol
-                continue
-            
-            # find nearest images to this grid
-            outfile['frames'][data_ndx] = nearest_images
-            
-            outfile['x'][data_ndx] = subvol_x
-            outfile['y'][data_ndx] = subvol_y
-            outfile['scene_id'][data_ndx] = scene_id
-            outfile['scan_id'][data_ndx] = scan_id 
-            outfile['world_to_grid'][data_ndx] = world_to_grid
+                nearest_images = get_nearest_images(world_to_grid, 
+                                                        num_nearest_imgs,
+                                                        scan_name, cfg['data']['root'],
+                                                        cfg['data']['frame_skip'],
+                                                        img_size,
+                                                        projector)
+                
+                if nearest_images is None:
+                    # discard this subvol
+                    continue
+                
+                # find nearest images to this grid
+                outfile['frames'][data_ndx] = nearest_images
+                
+                outfile['x'][data_ndx] = subvol_x
+                outfile['y'][data_ndx] = subvol_y
+                outfile['scene_id'][data_ndx] = scene_id
+                outfile['scan_id'][data_ndx] = scan_id 
+                outfile['world_to_grid'][data_ndx] = world_to_grid
 
-            data_ndx += 1
-            
-            good_subvols += 1
-            if good_subvols == subvols_per_scene:
-                break
+                found_subvol = True
+                
+                data_ndx += 1
             
     print(f'Good subvols: {data_ndx}')
     outfile.close()
