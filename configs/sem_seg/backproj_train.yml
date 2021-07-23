@@ -1,0 +1,21 @@
+data:
+    root: /mnt/data/scannet/scans/
+    train_file: /mnt/data/scannet/backproj/train1.h5
+    val_file: /mnt/data/scannet/backproj/val1.h5
+    # 20 or 40 classes?
+    num_classes: 40
+    # padding value used in the target - usually = num_classes
+    # since targets are 0..num_classes-1
+    target_padding: 40
+    # size of each subvol
+    subvol_size: [32, 32, 32]
+    # how many rgb images for each chunk (3DMV)
+    num_nearest_images: 1
+    # size of the image that "looks" at the voxel
+    img_size: [40, 30]
+    # side of each voxel in meters
+    voxel_size: 0.05
+
+    # min and max depth considered for projection
+    depth_min: 0.4
+    depth_max: 4.0
