@@ -23,6 +23,8 @@ def collate_func(sample_list):
         'y': torch.LongTensor([s['y'] for s in sample_list]),
     }
 
+
+
 class ScanNetOccGridH5(Dataset):
     '''
     Read samples from a h5 file
@@ -61,6 +63,27 @@ class ScanNetOccGridH5(Dataset):
     def __del__(self):
         if self.data is not None:
             self.data.close()
+
+class ScanNet2D3DH5(ScanNetOccGridH5):
+    '''
+    Read 3D+2D dataset from file (like 3DMV)
+    '''
+    def __init__(self, cfg, split, transform=None):
+        super().__init__(cfg, split, transform)
+
+    def __getitem__(self, ndx):
+        # open once in each worker, allow multiproc
+        if self.data is None:
+            self.data = h5py.File(self.file_path, 'r') 
+
+        keys = 'x', 'y', 'world_to_grid', 'frames', 'scene_id', 'scan_id'
+
+        sample = {key: self.data[key][ndx] for key in keys} 
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample
 
 class ScanNetSemSegOccGrid(Dataset):
     '''
