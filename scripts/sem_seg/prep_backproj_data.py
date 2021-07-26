@@ -28,9 +28,9 @@ from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
 
 
 # number of processes to prepare data
-N_PROC = 1
+N_PROC = 8
 # number of samples handled at a time
-CHUNK_SIZE = 32
+CHUNK_SIZE = 8
 
 def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     '''
@@ -166,10 +166,12 @@ def main(args):
                                 cfg['data']['voxel_size']).to(device)
 
     # number of subvols to compute projection in parallel
-    batch_size = 10
+    batch_size = N_PROC * CHUNK_SIZE
     subvol_x_batch = np.empty((batch_size,) + subvol_size, dtype=np.float32)
     subvol_y_batch = np.empty((batch_size,) + subvol_size, dtype=np.int16)
     world_to_grid_batch = np.empty((batch_size,) + (4,4), dtype=np.float32)
+
+    bad_subvols = 0
 
     # iterate over each scene, read it only once
     for _, scene in enumerate(tqdm(dataset, desc='scene')):
@@ -256,7 +258,9 @@ def main(args):
 
             # check the valid ones and save them to file
             for ndx, nearest_imgs in enumerate(nearest_imgs_all):
-                if nearest_imgs is not None:
+                if nearest_imgs is None:
+                    bad_subvols += 1
+                else:
                     # update the number found
                     subvols_found += 1
                     pbar.update()
@@ -282,6 +286,11 @@ def main(args):
                     if subvols_found == subvols_per_scene:
                         break
         pbar.close()
+        break
+
+    print('Good subvols:', data_ndx)
+    print('Bad subvols:', bad_subvols)
+    
             
     outfile.close()
 
