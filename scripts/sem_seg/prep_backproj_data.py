@@ -9,7 +9,12 @@ import os, os.path as osp
 import argparse
 from pathlib import Path
 from functools import partial
-from multiprocessing import Pool
+
+if __name__ == '__main__':
+    from torch.multiprocessing import set_start_method
+    set_start_method('spawn')
+
+from torch.multiprocessing import Pool
 
 import torch
 from tqdm import tqdm
@@ -18,12 +23,13 @@ import numpy as np
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
-from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, load_depth, load_depth_multiple, load_intrinsic, load_pose, load_pose_multiple, make_intrinsic
+from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
+    load_depth_multiple, load_intrinsic, load_pose_multiple, make_intrinsic
 
 
 # number of processes to prepare data
-N_PROC = 8
-# number of poses handled at a time
+N_PROC = 1
+# number of samples handled at a time
 CHUNK_SIZE = 32
 
 def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
@@ -84,12 +90,11 @@ def get_scan_name(path):
     return path.stem[:12]
 
 def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector, 
-                        multi_proc):
+                        ):
     '''
     world_to_grid: location of the grid
     num_nearest_imgs: only 1 supported now
     projector: ProjectionHelper object
-    multi_proc: use multiprocessing?
     device: run on cuda/cpu
     '''
     if num_nearest_imgs != 1:
@@ -99,23 +104,10 @@ def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector
 
     inputs = zip(poses, depths)
 
-    if multi_proc:
-        task_func = partial(get_coverage_task, world_to_grid=world_to_grid, 
-                                        projector=projector) 
-
-        with Pool(processes=N_PROC) as pool:
-            # iterate over camera pose files
-            for coverage in tqdm(pool.starmap(task_func, inputs,
-                                                CHUNK_SIZE),
-                                total=len(poses),
-                                leave=False, desc='pose'
-                            ):
-                coverages.append(coverage)
-    else:
-        for pose, depth in tqdm(inputs, leave=False, desc='pose'):
-            coverage = get_coverage_task(pose, depth, world_to_grid,
-                                            projector)
-            coverages.append(coverage)
+    for pose, depth in inputs:
+        coverage = get_coverage_task(pose, depth, world_to_grid,
+                                        projector)
+        coverages.append(coverage)
 
     # some image covers this subvol
     if max(coverages) > 0:
@@ -173,6 +165,12 @@ def main(args):
                                 subvol_size,
                                 cfg['data']['voxel_size']).to(device)
 
+    # number of subvols to compute projection in parallel
+    batch_size = 10
+    subvol_x_batch = np.empty((batch_size,) + subvol_size, dtype=np.float32)
+    subvol_y_batch = np.empty((batch_size,) + subvol_size, dtype=np.int16)
+    world_to_grid_batch = np.empty((batch_size,) + (4,4), dtype=np.float32)
+
     # iterate over each scene, read it only once
     for _, scene in enumerate(tqdm(dataset, desc='scene')):
         scene_x, scene_y, path = scene['x'], scene['y'], scene['path']
@@ -215,58 +213,79 @@ def main(args):
         load_pose_multiple(pose_paths, poses)
         poses = poses.to(device)
 
-        # sample N subvols from this scene
-        for _ in tqdm(range(subvols_per_scene), desc='subvol', leave=False):
-            found_subvol = False
-            while not found_subvol:
+        subvols_found = 0
+
+        pbar = tqdm(total=subvols_per_scene, desc='subvol', leave=False)
+        while subvols_found < subvols_per_scene:
+            # sample a batch of subvols
+            for ndx in tqdm(range(batch_size), desc='sample_subvol', leave=False):
                 subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
                                                         return_start_ndx=True)
                 # need to subtract the start index from scene coords to get grid coords                                                    
                 subvol_t = - start_ndx.astype(np.int16)                                                    
                 # add the additional translation to scene transform                                                    
                 world_to_grid = add_translation(world_to_scene, subvol_t)
+                # store everything
+                subvol_x_batch[ndx] = subvol_x
+                subvol_y_batch[ndx] = subvol_y
+                world_to_grid_batch[ndx] = world_to_grid
 
-                world_to_grid = torch.Tensor(world_to_grid).to(device)
+            world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch).to(device)
 
-                nearest_images = get_nearest_images(world_to_grid, 
-                                                    poses, depths,
-                                                        num_nearest_imgs,
-                                                        projector,
-                                                        args.multiproc,
-                                                        )
+            # compute projection for the whole batch in parallel
+            task_func = partial(get_nearest_images, poses=poses, depths=depths,
+                                    num_nearest_imgs=num_nearest_imgs,
+                                    projector=projector) 
 
-                if nearest_images is None:
-                    # discard this subvol
-                    continue
-                
-                # TODO:
-                # currently returns a single index
-                # pick the image with max coverage N.txt
-                nearest_pose_file = all_pose_files[pose_indices[nearest_images]]
-                # return its index N
-                nearest_pose = int(osp.splitext(nearest_pose_file)[0])
-                
-                # find nearest images to this grid
-                outfile['frames'][data_ndx] = nearest_pose
-                
-                outfile['x'][data_ndx] = subvol_x
-                outfile['y'][data_ndx] = subvol_y
-                outfile['scene_id'][data_ndx] = scene_id
-                outfile['scan_id'][data_ndx] = scan_id 
-                outfile['world_to_grid'][data_ndx] = world_to_grid.cpu().numpy()
+            nearest_imgs_all = []
 
-                found_subvol = True
+            if args.multiproc:
+                with Pool(processes=N_PROC) as pool:
+                    for nearest_imgs in tqdm(pool.imap(task_func, world_to_grid_batch_tensor,
+                                                        CHUNK_SIZE),
+                                        total=len(world_to_grid_batch_tensor),
+                                        leave=False, desc='projection'
+                                    ):
+                        nearest_imgs_all.append(nearest_imgs)
+            else:
+                for world_to_grid_tensor in tqdm(world_to_grid_batch_tensor, 
+                            desc='projection', leave=False):
+                    nearest_imgs = get_nearest_images(world_to_grid_tensor,
+                                        poses, depths, num_nearest_imgs, projector)
+                    nearest_imgs_all.append(nearest_imgs)
+
+            # check the valid ones and save them to file
+            for ndx, nearest_imgs in enumerate(nearest_imgs_all):
+                if nearest_imgs is not None:
+                    # update the number found
+                    subvols_found += 1
+                    pbar.update()
+
+                    # TODO: currently returns a single index
+                    # pick the image with max coverage N.txt
+                    nearest_pose_file = all_pose_files[pose_indices[nearest_imgs]]
+                    # get its index N
+                    nearest_pose = int(osp.splitext(nearest_pose_file)[0])
                 
-                data_ndx += 1
-        break
+                    # find nearest images to this grid
+                    outfile['frames'][data_ndx] = nearest_pose
+                    
+                    outfile['x'][data_ndx] = subvol_x_batch[ndx]
+                    outfile['y'][data_ndx] = subvol_y_batch[ndx]
+                    outfile['scene_id'][data_ndx] = scene_id
+                    outfile['scan_id'][data_ndx] = scan_id 
+                    outfile['world_to_grid'][data_ndx] = world_to_grid_batch[ndx]
+                    # update ndx into the file
+                    data_ndx += 1
+
+                    # have enough, dont write here onwards to file
+                    if subvols_found == subvols_per_scene:
+                        break
+        pbar.close()
             
-    print(f'Good subvols: {data_ndx}')
     outfile.close()
 
 if __name__ == '__main__':
-    from torch.multiprocessing import set_start_method
-    set_start_method('spawn')
-
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to backproj_prep cfg')
     p.add_argument('split', help='Split to be used: train/val')
