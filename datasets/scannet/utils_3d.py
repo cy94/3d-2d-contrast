@@ -83,6 +83,12 @@ class ProjectionHelper():
         self.volume_dims = volume_dims
         self.voxel_size = voxel_size
 
+        self.device = torch.device('cpu')
+
+    def to(self, device):
+        self.device = device
+        return self
+
     def update_intrinsic(self, new_intrinsic):
         self.intrinsic = new_intrinsic
 
@@ -149,11 +155,11 @@ class ProjectionHelper():
         bbox_min1, _ = torch.min(pu[:, :3, 0], 0)
         # then take the minimum of those 2 cases
         # -> get a single (x, y, z) 
-        bbox_min = np.minimum(bbox_min0, bbox_min1)
+        bbox_min = torch.minimum(bbox_min0, bbox_min1)
         # repeat for maximum
         bbox_max0, _ = torch.max(pl[:, :3, 0], 0)
         bbox_max1, _ = torch.max(pu[:, :3, 0], 0) 
-        bbox_max = np.maximum(bbox_max0, bbox_max1)
+        bbox_max = torch.maximum(bbox_max0, bbox_max1)
         return bbox_min, bbox_max
 
     def get_coverage(self, depth, camera_to_world, world_to_grid):
@@ -193,6 +199,8 @@ class ProjectionHelper():
     
         TODO: make runnable on CPU as well
         '''
+        camera_to_world = camera_to_world.to(self.device)
+
         # compute projection by voxels -> image
         # camera pose is camera->world, invert it
         world_to_camera = torch.inverse(camera_to_world)
@@ -205,13 +213,13 @@ class ProjectionHelper():
                                                                 camera_to_world)
         
         # min coords that are negative are pulled up to 0, should be within the grid
-        voxel_bounds_min = np.maximum(voxel_bounds_min, 0)# .cuda()
+        voxel_bounds_min = torch.maximum(voxel_bounds_min, torch.Tensor([0, 0, 0]).to(self.device)).to(self.device)
         # max coord should be within grid dimensions, any greater is pulled down 
         # to grid dim
-        voxel_bounds_max = np.minimum(voxel_bounds_max, self.volume_dims).float() #.cuda()
+        voxel_bounds_max = torch.minimum(voxel_bounds_max, torch.Tensor(self.volume_dims).to(self.device)).float().to(self.device)
 
         # indices from 0,1,2 .. 31*31*62 = num_voxels
-        lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()) #.cuda()
+        lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()).to(self.device)
         # empty array with size (4, num_voxels)
         coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
         coords = self.lin_ind_to_coords(lin_ind_volume, coords)

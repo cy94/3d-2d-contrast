@@ -3,6 +3,8 @@ prepare 2d+3d dataset (like 3DMV)
 3d: 32^3 subvolumes x and y sampled from dense grid
 2d: indices of 5 nearest images to each subvolume
 '''
+
+
 import os, os.path as osp
 import argparse
 from pathlib import Path
@@ -18,10 +20,11 @@ from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
 from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, load_depth, load_intrinsic, load_pose, make_intrinsic
 
+
 # number of processes to prepare data
 N_PROC = 8
 # number of poses handled at a time
-CHUNK_SIZE = 16
+CHUNK_SIZE = 32
 
 def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     '''
@@ -81,7 +84,8 @@ def get_scan_name(path):
     return path.stem[:12]
 
 def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
-                        frame_skip, image_dims, projector):
+                        frame_skip, image_dims, projector, multi_proc,
+                        device):
     '''
     world_to_grid: location of the grid
     num_nearest_imgs: only 1 supported now
@@ -111,26 +115,29 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
     pose_indices = range(0, len(all_pose_files), frame_skip)
     pose_files = [all_pose_files[ndx] for ndx in pose_indices]
     # ndx of the image where the coverage came from
-    # 1 coverage int for each pose
-    coverages = np.zeros(len(pose_files), dtype=np.uint16)
-
-    world_to_grid = torch.Tensor(world_to_grid)
+    world_to_grid = torch.Tensor(world_to_grid).to(device)
 
     coverages = []
-    task_func = partial(get_coverage_task, world_to_grid=world_to_grid, 
-                                            image_dims=image_dims,
-                                            projector=projector,
-                                            pose_dir=pose_dir,
-                                            depth_dir=depth_dir)
 
-    with Pool(processes=N_PROC) as pool:
-        # iterate over camera pose files
-        for result in tqdm(pool.imap(func=task_func, iterable=pose_files,
-                                    chunksize=CHUNK_SIZE),
-                            total=len(pose_files),
-                            leave=False, desc='pose'
-                        ):
-            coverages.append(result)
+    if multi_proc:
+        task_func = partial(get_coverage_task, world_to_grid, image_dims,
+                                                projector, pose_dir, depth_dir, 
+                                                device)
+
+        with Pool(processes=N_PROC) as pool:
+            # iterate over camera pose files
+            for coverage in tqdm(pool.imap(func=task_func, iterable=pose_files,
+                                        chunksize=CHUNK_SIZE),
+                                total=len(pose_files),
+                                leave=False, desc='pose'
+                            ):
+                coverages.append(coverage)
+    else:
+        for pose_fname in tqdm(pose_files, leave=False, desc='pose'):
+            coverage = get_coverage_task(pose_fname, world_to_grid,
+                                image_dims, projector, pose_dir, depth_dir,
+                                device)
+            coverages.append(coverage)
 
     # some image covers this subvol
     if max(coverages) > 0:
@@ -143,7 +150,7 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
         return None
 
 def get_coverage_task(pose_fname, world_to_grid, image_dims, projector, pose_dir, 
-                        depth_dir):
+                        depth_dir, device):
     '''
     pose_fname: pose filename N.txt
     world_to_grid: 4x4 transform
@@ -155,7 +162,7 @@ def get_coverage_task(pose_fname, world_to_grid, image_dims, projector, pose_dir
     ndx = Path(pose_fname).stem
     depth_path = depth_dir / f'{ndx}.png'
     # read pose and depth
-    depth = torch.Tensor(load_depth(depth_path, image_dims))
+    depth = torch.Tensor(load_depth(depth_path, image_dims)).to(device)
     pose = torch.Tensor(load_pose(pose_path))
 
     coverage = projector.get_coverage(depth, pose, world_to_grid)
@@ -168,6 +175,9 @@ def inf_generator():
 
 def main(args):
     cfg = read_config(args.cfg_path)
+    
+    device = torch.device('cuda' if args.gpu else 'cpu')
+    print('Using device:', device)
 
     # get full scene grid, extract subvols later
     dataset = ScanNetPLYDataset(cfg['data'], split=args.split,
@@ -197,7 +207,7 @@ def main(args):
                                 cfg['data']['depth_min'], cfg['data']['depth_max'], 
                                 img_size,
                                 subvol_size,
-                                cfg['data']['voxel_size'])
+                                cfg['data']['voxel_size']).to(device)
 
 
     # iterate over each scene, read it only once
@@ -228,7 +238,9 @@ def main(args):
                                                         scan_name, cfg['data']['root'],
                                                         cfg['data']['frame_skip'],
                                                         img_size,
-                                                        projector)
+                                                        projector,
+                                                        args.multiproc,
+                                                        device)
                 
                 if nearest_images is None:
                     # discard this subvol
@@ -251,10 +263,17 @@ def main(args):
     outfile.close()
 
 if __name__ == '__main__':
+    from torch.multiprocessing import set_start_method
+    set_start_method('spawn')
+
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to backproj_prep cfg')
     p.add_argument('split', help='Split to be used: train/val')
     p.add_argument('out_path', help='Path to output hdf5 file')
+    p.add_argument('--multiproc', action='store_true', default=False,
+                    dest='multiproc', help='Use multiprocessing?')
+    p.add_argument('--gpu', action='store_true', default=False,
+                    dest='gpu', help='Use GPU?')
     args = p.parse_args()
 
     main(args)
