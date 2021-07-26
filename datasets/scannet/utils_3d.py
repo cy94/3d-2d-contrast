@@ -110,7 +110,7 @@ class ProjectionHelper():
         return self
 
     def update_intrinsic(self, new_intrinsic):
-        self.intrinsic = new_intrinsic
+        self.intrinsic = new_intrinsic.to(self.device)
 
     def depth_to_skeleton(self, ux, uy, depth):
         '''
@@ -200,10 +200,10 @@ class ProjectionHelper():
         '''
         # Z = N / (X*Y)
         # IMP: use a floored division here to keep only the integer coordinates!
-        coords[2] = lin_ind // (self.volume_dims[0]*self.volume_dims[1])
+        coords[2] = lin_ind.div(self.volume_dims[0]*self.volume_dims[1], rounding_mode='floor')
         # similarly fill X and Y
         tmp = lin_ind - (coords[2]*self.volume_dims[0]*self.volume_dims[1]).long()
-        coords[1] = tmp // self.volume_dims[0]
+        coords[1] = tmp.div(self.volume_dims[0], rounding_mode='floor')
         coords[0] = torch.remainder(tmp, self.volume_dims[0])
         # last coord is just 1
         coords[3].fill_(1)
@@ -216,11 +216,7 @@ class ProjectionHelper():
         cam2world: single transformation matrix
         world2grid: single transformation matrix
         return_coverage: get only the coverage, or indices?
-    
-        TODO: make runnable on CPU as well
         '''
-        camera_to_world = camera_to_world.to(self.device)
-
         # compute projection by voxels -> image
         # camera pose is camera->world, invert it
         world_to_camera = torch.inverse(camera_to_world)
@@ -262,10 +258,8 @@ class ProjectionHelper():
         
         # pick only these voxels within the frustum bounds
         lin_ind_volume = lin_ind_volume[mask_frustum_bounds]
-        # create new coordinates within the visible voxels (same as before)
-        # TODO: why?
-        coords = coords.resize_(4, lin_ind_volume.size(0))
-        coords = self.lin_ind_to_coords(lin_ind_volume, coords)
+        # and the corresponding coordinates
+        coords = coords[:, mask_frustum_bounds]
 
         # grid coords -> world coords -> camera coords XYZ
         p = torch.mm(world_to_camera, torch.mm(grid_to_world, coords))
