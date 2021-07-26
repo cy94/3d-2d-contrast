@@ -100,7 +100,8 @@ def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector
     inputs = zip(poses, depths)
 
     if multi_proc:
-        task_func = partial(get_coverage_task, world_to_grid, projector) 
+        task_func = partial(get_coverage_task, world_to_grid=world_to_grid, 
+                                        projector=projector) 
 
         with Pool(processes=N_PROC) as pool:
             # iterate over camera pose files
@@ -212,6 +213,7 @@ def main(args):
         load_depth_multiple(depth_paths, img_size, depths)
         depths = depths.to(device)
         load_pose_multiple(pose_paths, poses)
+        poses = poses.to(device)
 
         # sample N subvols from this scene
         for _ in tqdm(range(subvols_per_scene), desc='subvol', leave=False):
