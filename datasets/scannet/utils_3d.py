@@ -17,6 +17,16 @@ def resize_crop_image(image, new_image_dims):
 
     return image
 
+def load_depth_multiple(paths, image_dims, out):
+    '''
+    paths: paths to depth files
+    out: out array
+    '''
+    for ndx, path in enumerate(paths):
+        out[ndx] = torch.Tensor(load_depth(path, image_dims))
+
+    return out
+
 def load_depth(path, image_dims=(640, 480)):
     '''
     path: full path to depth file
@@ -26,6 +36,16 @@ def load_depth(path, image_dims=(640, 480)):
     depth_image = resize_crop_image(depth_image, image_dims)
     depth_image = depth_image.astype(np.float32) / 1000.0
     return depth_image
+    
+
+def load_pose_multiple(paths, out):
+    '''
+    paths: paths to pose files
+    out: out array
+    '''
+    for ndx, path in enumerate(paths):
+        out[ndx] = torch.Tensor(load_pose(path))
+    return out
     
 def load_pose(path):
     '''
