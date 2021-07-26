@@ -2,7 +2,6 @@
 3D fully conv network
 '''
 from eval.common import ConfMat
-import random
 
 import matplotlib
 matplotlib.use('agg') 
@@ -19,7 +18,6 @@ import MinkowskiEngine as ME
 import MinkowskiEngine.MinkowskiFunctional as MF
 
 import pytorch_lightning as pl
-import torchmetrics as tmetrics 
 
 from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.common import CLASS_NAMES, CLASS_NAMES_ALL, CLASS_WEIGHTS, CLASS_WEIGHTS_ALL, VALID_CLASSES
@@ -429,6 +427,7 @@ class UNet3D(SemSegNet):
         in_channels: number of channels in input
 
         '''
+        self.in_channels = in_channels
         super().__init__(num_classes, cfg)
 
     def init_model(self):
@@ -484,6 +483,91 @@ class UNet3D(SemSegNet):
 
         self.display_metric(confmat.ious, 'iou')
         self.display_metric(confmat.accs, 'acc')
+
+class UNet2D3D(UNet3D):
+    '''
+    Dense 3d convs on a volume grid
+    Uses 2D features from nearby images using a pretrained ENet
+    '''
+    def __init__(self, in_channels, num_classes, cfg, features_2d):
+        '''
+        in_channels: number of channels in input
+
+        '''
+        super().__init__(num_classes, cfg)
+        self.in_channels = in_channels
+
+        # 2D features from ENet pretrained model
+        # TODO: make sure no grad and its not saved to the checkpoint
+        self.features_2d = self.features_2d
+
+    def init_model(self):
+        self.layers = nn.ModuleList([
+            # 1->1/2
+            Down3D(self.in_channels, 32),
+            # 1/2->1/4
+            Down3D(32, 64),
+            # 1/4->1/8
+            Down3D(64, 128),
+            
+            # 1/8->1/4
+            # twice the channels - half of them come for 2D features
+            Up3D(128 * 2, 64),
+            # 1/4->1/2
+            Up3D(64*2, 32),
+            # 1/2->original shape
+            Up3D(32*2, self.num_classes, dropout=False),
+        ])  
+
+    def common_step(self, batch, mode=None):
+        '''
+        mode: train/val/None - can be used in subclasses for differing behaviour
+        '''
+        x, y, world_to_grid, frames, scene_id, scan_id = batch['x'], batch['y'], \
+            batch['world_to_grid'], batch['frames'], batch['scene_id'], batch['scan_id']
+
+        # load depth, rgb, pose into tensors
+        # repeat the w2g transform for each image
+        # compute projection mapping b/w 2d and 3d
+        # get 2d features from images
+        
+        # model forward pass 
+        # out = self(x, feat2d, proj_ind_3d, proj_ind_2d)
+        
+        loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
+                                ignore_index=self.target_padding)
+
+        preds = out.argmax(dim=1)
+        return preds, loss
+
+
+    def forward(self, x):
+        # length of the down/up path
+        L = len(self.layers)//2
+        outs = []
+
+        # down layers
+        # store the outputs of all but the last one
+        for layer in self.layers[:L]:
+            x = layer(x)
+            outs.append(x)
+
+        # remove the last output and reverse
+        outs = list(reversed(outs[:-1]))
+
+        # get 2d features
+        # project onto 3d volume
+        # concat features with 3d
+        
+        # lowest connection in the "U"
+        x = self.layers[L](x)
+
+        # up layers
+        for ndx, layer in enumerate(self.layers[L+1:]):
+            x = torch.cat([x, outs[ndx]], dim=1)
+            x = layer(x)
+            
+        return x                  
 
         
         
