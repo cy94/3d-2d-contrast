@@ -6,6 +6,8 @@ prepare 2d+3d dataset (like 3DMV)
 import os, os.path as osp
 import argparse
 from pathlib import Path
+from functools import partial
+from multiprocessing import Pool
 
 import torch
 from tqdm import tqdm
@@ -15,6 +17,11 @@ import numpy as np
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
 from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, load_depth, load_intrinsic, load_pose, make_intrinsic
+
+# number of processes to prepare data
+N_PROC = 8
+# number of poses handled at a time
+CHUNK_SIZE = 16
 
 def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     '''
@@ -109,22 +116,24 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
 
     world_to_grid = torch.Tensor(world_to_grid)
 
-    # iterate over camera pose files
-    for file_ndx, pose_fname in enumerate(tqdm(pose_files, leave=False, desc='pose')):
-        # N.txt
-        pose_path = pose_dir / pose_fname
-        # just N
-        ndx = Path(pose_fname).stem
-        depth_path = depth_dir / f'{ndx}.png'
-        # read pose and depth
-        depth = torch.Tensor(load_depth(depth_path, image_dims))
-        pose = torch.Tensor(load_pose(pose_path))
+    coverages = []
+    task_func = partial(get_coverage_task, world_to_grid=world_to_grid, 
+                                            image_dims=image_dims,
+                                            projector=projector,
+                                            pose_dir=pose_dir,
+                                            depth_dir=depth_dir)
 
-        # store the coverage of each pose
-        coverages[file_ndx] = projector.get_coverage(depth, pose, world_to_grid)
-    
+    with Pool(processes=N_PROC) as pool:
+        # iterate over camera pose files
+        for result in tqdm(pool.imap(func=task_func, iterable=pose_files,
+                                    chunksize=CHUNK_SIZE),
+                            total=len(pose_files),
+                            leave=False, desc='pose'
+                        ):
+            coverages.append(result)
+
     # some image covers this subvol
-    if coverages.max() > 0:
+    if max(coverages) > 0:
         # pick the image with max coverage N.txt
         nearest_pose = all_pose_files[pose_indices[np.argmax(coverages)]]
         # return its index N
@@ -133,6 +142,25 @@ def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
     else:
         return None
 
+def get_coverage_task(pose_fname, world_to_grid, image_dims, projector, pose_dir, 
+                        depth_dir):
+    '''
+    pose_fname: pose filename N.txt
+    world_to_grid: 4x4 transform
+    image_dims: eg (320, 240)
+    '''
+    # N.txt
+    pose_path = pose_dir / pose_fname
+    # just N
+    ndx = Path(pose_fname).stem
+    depth_path = depth_dir / f'{ndx}.png'
+    # read pose and depth
+    depth = torch.Tensor(load_depth(depth_path, image_dims))
+    pose = torch.Tensor(load_pose(pose_path))
+
+    coverage = projector.get_coverage(depth, pose, world_to_grid)
+
+    return coverage
 
 def inf_generator():
   while True:
