@@ -18,7 +18,7 @@ import numpy as np
 
 from lib.misc import read_config
 from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
-from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, load_depth, load_intrinsic, load_pose, make_intrinsic
+from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, load_depth, load_depth_multiple, load_intrinsic, load_pose, load_pose_multiple, make_intrinsic
 
 
 # number of processes to prepare data
@@ -83,91 +83,54 @@ def get_scan_name(path):
     '''
     return path.stem[:12]
 
-def get_nearest_images(world_to_grid, num_nearest_imgs, scan_name, root_dir,
-                        frame_skip, image_dims, projector, multi_proc,
-                        device):
+def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector, 
+                        multi_proc):
     '''
     world_to_grid: location of the grid
     num_nearest_imgs: only 1 supported now
-    scan_name: scene0000_00
-    root_dir: dir containing all scans with RGB and depth
-    frame_skip: number of frames to skip
-    image_dims: dims of the image used for projection 
     projector: ProjectionHelper object
+    multi_proc: use multiprocessing?
+    device: run on cuda/cpu
     '''
     if num_nearest_imgs != 1:
         raise NotImplementedError
 
-    root = Path(root_dir)
-    scan_dir = root / scan_name
-    pose_dir = scan_dir / 'pose'
-    depth_dir = scan_dir / 'depth'
-    intrinsic_path = root / scan_name / 'intrinsic/intrinsic_color.txt'
-
-    # set the intrinsic
-    intrinsic = load_intrinsic(intrinsic_path)
-    intrinsic = adjust_intrinsic(intrinsic, [1296, 968], image_dims)
-    projector.update_intrinsic(intrinsic)
-
-    # list all the camera poses
-    all_pose_files = sorted(os.listdir(pose_dir), key=lambda f: int(osp.splitext(f)[0]))
-    # indices into all_pose_files of poses considered
-    pose_indices = range(0, len(all_pose_files), frame_skip)
-    pose_files = [all_pose_files[ndx] for ndx in pose_indices]
-    # ndx of the image where the coverage came from
-    world_to_grid = torch.Tensor(world_to_grid).to(device)
-
     coverages = []
 
+    inputs = zip(poses, depths)
+
     if multi_proc:
-        task_func = partial(get_coverage_task, world_to_grid, image_dims,
-                                                projector, pose_dir, depth_dir, 
-                                                device)
+        task_func = partial(get_coverage_task, world_to_grid, projector) 
 
         with Pool(processes=N_PROC) as pool:
             # iterate over camera pose files
-            for coverage in tqdm(pool.imap(func=task_func, iterable=pose_files,
-                                        chunksize=CHUNK_SIZE),
-                                total=len(pose_files),
+            for coverage in tqdm(pool.starmap(task_func, inputs,
+                                                CHUNK_SIZE),
+                                total=len(poses),
                                 leave=False, desc='pose'
                             ):
                 coverages.append(coverage)
     else:
-        for pose_fname in tqdm(pose_files, leave=False, desc='pose'):
-            coverage = get_coverage_task(pose_fname, world_to_grid,
-                                image_dims, projector, pose_dir, depth_dir,
-                                device)
+        for pose, depth in tqdm(inputs, leave=False, desc='pose'):
+            coverage = get_coverage_task(pose, depth, world_to_grid,
+                                            projector)
             coverages.append(coverage)
 
     # some image covers this subvol
     if max(coverages) > 0:
-        # pick the image with max coverage N.txt
-        nearest_pose = all_pose_files[pose_indices[np.argmax(coverages)]]
-        # return its index N
-        return int(osp.splitext(nearest_pose)[0])
+        return np.argmax(coverages)
     # nothing covers this subvol
     else:
         return None
 
-def get_coverage_task(pose_fname, world_to_grid, image_dims, projector, pose_dir, 
-                        depth_dir, device):
+def get_coverage_task(pose, depth, world_to_grid, projector):
     '''
-    pose_fname: pose filename N.txt
+    pose: 4x4 tensor
+    depth: W, H tensor
     world_to_grid: 4x4 transform
-    image_dims: eg (320, 240)
+    projector: ProjectionHelper object
     '''
-    # N.txt
-    pose_path = pose_dir / pose_fname
-    # just N
-    ndx = Path(pose_fname).stem
-    depth_path = depth_dir / f'{ndx}.png'
-    # read pose and depth
-    depth = torch.Tensor(load_depth(depth_path, image_dims)).to(device)
-    pose = torch.Tensor(load_pose(pose_path))
-
-    coverage = projector.get_coverage(depth, pose, world_to_grid)
-
-    return coverage
+    return projector.get_coverage(depth, pose, world_to_grid)
 
 def inf_generator():
   while True:
@@ -209,7 +172,6 @@ def main(args):
                                 subvol_size,
                                 cfg['data']['voxel_size']).to(device)
 
-
     # iterate over each scene, read it only once
     for _, scene in enumerate(tqdm(dataset, desc='scene')):
         scene_x, scene_y, path = scene['x'], scene['y'], scene['path']
@@ -222,6 +184,35 @@ def main(args):
         scan_name = get_scan_name(path)
         world_to_scene = get_world_to_scene(cfg['data']['voxel_size'], scene_T)
 
+        # load poses, depths, set intrinsic 
+        root = Path(cfg['data']['root'])
+        scan_dir = root / scan_name
+        pose_dir = scan_dir / 'pose'
+        depth_dir = scan_dir / 'depth'
+        intrinsic_path = root / scan_name / 'intrinsic/intrinsic_color.txt'
+
+        # set the intrinsic -> once per scene
+        intrinsic = load_intrinsic(intrinsic_path)
+        intrinsic = adjust_intrinsic(intrinsic, [1296, 968], img_size)
+        projector.update_intrinsic(intrinsic)
+
+        # list all the camera poses
+        all_pose_files = sorted(os.listdir(pose_dir), key=lambda f: int(osp.splitext(f)[0]))
+        # indices into all_pose_files of poses considered
+        pose_indices = range(0, len(all_pose_files), cfg['data']['frame_skip'])
+        pose_files = [all_pose_files[ndx] for ndx in pose_indices]
+
+        pose_paths = (pose_dir / f for f in pose_files)
+        depth_paths = (depth_dir / f'{Path(f).stem}.png' for f in pose_files)
+
+        # load all depth images once
+        depths = torch.empty(len(pose_files), img_size[1], img_size[0])
+        poses = torch.empty(len(pose_files), 4, 4)
+
+        load_depth_multiple(depth_paths, img_size, depths)
+        depths = depths.to(device)
+        load_pose_multiple(pose_paths, poses)
+
         # sample N subvols from this scene
         for _ in tqdm(range(subvols_per_scene), desc='subvol', leave=False):
             found_subvol = False
@@ -233,31 +224,39 @@ def main(args):
                 # add the additional translation to scene transform                                                    
                 world_to_grid = add_translation(world_to_scene, subvol_t)
 
+                world_to_grid = torch.Tensor(world_to_grid).to(device)
+
                 nearest_images = get_nearest_images(world_to_grid, 
+                                                    poses, depths,
                                                         num_nearest_imgs,
-                                                        scan_name, cfg['data']['root'],
-                                                        cfg['data']['frame_skip'],
-                                                        img_size,
                                                         projector,
                                                         args.multiproc,
-                                                        device)
-                
+                                                        )
+
                 if nearest_images is None:
                     # discard this subvol
                     continue
                 
+                # TODO:
+                # currently returns a single index
+                # pick the image with max coverage N.txt
+                nearest_pose_file = all_pose_files[pose_indices[nearest_images]]
+                # return its index N
+                nearest_pose = int(osp.splitext(nearest_pose_file)[0])
+                
                 # find nearest images to this grid
-                outfile['frames'][data_ndx] = nearest_images
+                outfile['frames'][data_ndx] = nearest_pose
                 
                 outfile['x'][data_ndx] = subvol_x
                 outfile['y'][data_ndx] = subvol_y
                 outfile['scene_id'][data_ndx] = scene_id
                 outfile['scan_id'][data_ndx] = scan_id 
-                outfile['world_to_grid'][data_ndx] = world_to_grid
+                outfile['world_to_grid'][data_ndx] = world_to_grid.cpu().numpy()
 
                 found_subvol = True
                 
                 data_ndx += 1
+        break
             
     print(f'Good subvols: {data_ndx}')
     outfile.close()
