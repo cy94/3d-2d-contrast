@@ -71,6 +71,17 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
     def __init__(self, cfg, split, transform=None):
         super().__init__(cfg, split, transform)
 
+    @staticmethod
+    def collate_func(samples):
+        return {
+            'x': torch.Tensor([s['x'] for s in samples]),
+            'y': torch.LongTensor([s['y'] for s in samples]),
+            'world_to_grid': torch.Tensor([s['world_to_grid'] for s in samples]),
+            'frames': torch.LongTensor([s['frames'] for s in samples]),
+            'scene_id': torch.LongTensor([s['scene_id'] for s in samples]),
+            'scan_id': torch.LongTensor([s['scan_id'] for s in samples]),
+        }
+
     def __getitem__(self, ndx):
         # open once in each worker, allow multiproc
         if self.data is None:
