@@ -114,13 +114,12 @@ class ProjectionHelper():
 
     def depth_to_skeleton(self, ux, uy, depth):
         '''
-        ux, uy: image coordinates
+        ux, uy: image coordinates 
         depth: depth to which these image coordinates must be projected 
         '''
         x = (ux - self.intrinsic[0][2]) / self.intrinsic[0][0]
         y = (uy - self.intrinsic[1][2]) / self.intrinsic[1][1]
-        return torch.Tensor([depth*x, depth*y, depth])
-
+        return torch.vstack((depth*x, depth*y, depth)).T
 
     def skeleton_to_depth(self, p):
         '''
@@ -141,25 +140,31 @@ class ProjectionHelper():
             # 4: homogenous coordinates (1 at the end)
             # 1: value
         corner_points = camera_to_world.new_empty(8, 4, 1).fill_(1)
-	    # nearest frustum corners (depth min)
-        # lower left intrinsic will be used only 
-        corner_points[0][:3] = self.depth_to_skeleton(0, 0, self.depth_min).unsqueeze(1)
-        # lower right intrinsic will be used only 
-        corner_points[1][:3] = self.depth_to_skeleton(self.image_dims[0] - 1, 0, self.depth_min).unsqueeze(1)
-        # upper right intrinsic will be used only 
-        corner_points[2][:3] = self.depth_to_skeleton(self.image_dims[0] - 1, self.image_dims[1] - 1, self.depth_min).unsqueeze(1)
-        # upper left intrinsic will be used only 
-        corner_points[3][:3] = self.depth_to_skeleton(0, self.image_dims[1] - 1, self.depth_min).unsqueeze(1)
-        
-        # far frustum corners (depth max)
-        # lower left corner
-        corner_points[4][:3] = self.depth_to_skeleton(0, 0, self.depth_max).unsqueeze(1)
-        # lower right corner
-        corner_points[5][:3] = self.depth_to_skeleton(self.image_dims[0] - 1, 0, self.depth_max).unsqueeze(1)
-        # upper right corner
-        corner_points[6][:3] = self.depth_to_skeleton(self.image_dims[0] - 1, self.image_dims[1] - 1, self.depth_max).unsqueeze(1)
-        # upper left corner
-        corner_points[7][:3] = self.depth_to_skeleton(0, self.image_dims[1] - 1, self.depth_max).unsqueeze(1)
+
+        # put all X, Y, depths in single tensors, compute everything together
+        X, Y, depth = torch.Tensor((
+            # nearest frustum corners (depth min)
+            # lower left 
+            (0, 0, self.depth_min),
+            # lower right 
+            (self.image_dims[0] - 1, 0, self.depth_min),
+            # upper right 
+            (self.image_dims[0] - 1, self.image_dims[1] - 1, self.depth_min),
+            # upper left  
+            (0, self.image_dims[1] - 1, self.depth_min),
+            # lower left corner
+            (0, 0, self.depth_max),
+            # lower right corner
+            (self.image_dims[0] - 1, 0, self.depth_max),
+            # upper right corner
+            (self.image_dims[0] - 1, self.image_dims[1] - 1, self.depth_max),
+            # upper left corner
+            (0, self.image_dims[1] - 1, self.depth_max),
+        )).to(self.device).T
+
+        # compute all 8 points together
+        # unsqueeze (8, 3) -> (8, 3, 1)
+        corner_points[:, :3] = self.depth_to_skeleton(X, Y, depth).unsqueeze(2)
 
         # go from camera coords to world coords - use cam2world matrix
         p = torch.bmm(camera_to_world.repeat(8, 1, 1), corner_points)
