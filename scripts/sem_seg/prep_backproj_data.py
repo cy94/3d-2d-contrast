@@ -10,10 +10,6 @@ import argparse
 from pathlib import Path
 from functools import partial
 
-if __name__ == '__main__':
-    from torch.multiprocessing import set_start_method
-    set_start_method('spawn')
-
 from torch.multiprocessing import Pool
 
 import torch
@@ -30,7 +26,7 @@ from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
 # number of processes to prepare data
 N_PROC = 8
 # number of samples handled at a time
-CHUNK_SIZE = 8
+CHUNK_SIZE = 16
 
 def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     '''
@@ -166,7 +162,8 @@ def main(args):
                                 cfg['data']['voxel_size']).to(device)
 
     # number of subvols to compute projection in parallel
-    batch_size = N_PROC * CHUNK_SIZE
+    batch_size = min(N_PROC * CHUNK_SIZE, subvols_per_scene)
+    
     subvol_x_batch = np.empty((batch_size,) + subvol_size, dtype=np.float32)
     subvol_y_batch = np.empty((batch_size,) + subvol_size, dtype=np.int16)
     world_to_grid_batch = np.empty((batch_size,) + (4,4), dtype=np.float32)
@@ -294,7 +291,11 @@ def main(args):
             
     outfile.close()
 
+
 if __name__ == '__main__':
+    from torch.multiprocessing import set_start_method
+    set_start_method('spawn')
+
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to backproj_prep cfg')
     p.add_argument('split', help='Split to be used: train/val')
