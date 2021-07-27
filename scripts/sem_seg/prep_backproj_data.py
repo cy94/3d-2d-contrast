@@ -252,15 +252,16 @@ def main(args):
                     nearest_imgs = get_nearest_images(world_to_grid_tensor,
                                         poses, depths, num_nearest_imgs, projector)
                     nearest_imgs_all.append(nearest_imgs)
-
+            
+            good_in_batch = 0
             # check the valid ones and save them to file
             for ndx, nearest_imgs in enumerate(nearest_imgs_all):
                 if nearest_imgs is None:
                     bad_subvols += 1
                 else:
                     # update the number found
+                    good_in_batch += 1
                     subvols_found += 1
-                    pbar.update()
 
                     # TODO: currently returns a single index
                     # pick the image with max coverage N.txt
@@ -282,6 +283,8 @@ def main(args):
                     # have enough, dont write here onwards to file
                     if subvols_found == subvols_per_scene:
                         break
+            
+            pbar.update(good_in_batch)
         pbar.close()
         break
 
@@ -294,7 +297,7 @@ def main(args):
 
 if __name__ == '__main__':
     from torch.multiprocessing import set_start_method
-    set_start_method('spawn')
+    set_start_method('forkserver')
 
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to backproj_prep cfg')
