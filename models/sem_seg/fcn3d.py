@@ -1,6 +1,7 @@
 '''
 3D fully conv network
 '''
+from datasets.scannet.utils_3d import ProjectionHelper
 from eval.common import ConfMat
 
 import matplotlib
@@ -31,6 +32,7 @@ class SemSegNet(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
+        
         self.target_padding = cfg['data']['target_padding']
 
         self.init_class_weights(cfg)
@@ -383,7 +385,7 @@ class FCN3D(SemSegNet):
         in_channels: number of channels in input
 
         '''
-        super().__init__(num_classes, cfg)
+        super().__init__(in_channels, num_classes, cfg)
 
         self.layers = nn.ModuleList([
             # args: inchannels, outchannels, kernel, stride, padding
@@ -489,17 +491,39 @@ class UNet2D3D(UNet3D):
     Dense 3d convs on a volume grid
     Uses 2D features from nearby images using a pretrained ENet
     '''
-    def __init__(self, in_channels, num_classes, cfg, features_2d):
+    def __init__(self, in_channels, num_classes, cfg, features_2d, intrinsic):
         '''
         in_channels: number of channels in input
 
         '''
-        super().__init__(num_classes, cfg)
+        super().__init__(in_channels, num_classes, cfg)
         self.in_channels = in_channels
 
         # 2D features from ENet pretrained model
         # TODO: make sure no grad and its not saved to the checkpoint
-        self.features_2d = self.features_2d
+        self.features_2d = features_2d
+        for param in self.features_2d.parameters():
+            param.requires_grad = False
+
+        self.proj_img_dims = cfg['data']['proj_img_size']
+        self.data_dir = cfg['data']['root']
+        
+        self.projection = ProjectionHelper(
+            intrinsic, 
+            cfg['data']['depth_min'], cfg['data']['depth_max'],
+            cfg['data']['proj_img_size'],
+            cfg['data']['subvol_size'], cfg['data']['voxel_size']
+        )
+
+    def on_fit_start(self):
+        self.change_device()
+
+    def change_device(self):
+        '''
+        Change device for everything that ptL/torch doesn't handle
+        '''
+        self.features_2d.to(self.device)
+        self.projection.to(self.device)
 
     def init_model(self):
         self.layers = nn.ModuleList([
@@ -523,16 +547,38 @@ class UNet2D3D(UNet3D):
         '''
         mode: train/val/None - can be used in subclasses for differing behaviour
         '''
-        x, y, world_to_grid, frames, scene_id, scan_id = batch['x'], batch['y'], \
-            batch['world_to_grid'], batch['frames'], batch['scene_id'], batch['scan_id']
+        x, y, world_to_grid, frames = batch['x'], batch['y'], batch['world_to_grid'], \
+                                    batch['frames']
 
-        # load depth, rgb, pose into tensors
+        bsize = x.shape[0]
+        num_nearest_imgs = frames.shape[1]
+        num_imgs = bsize * num_nearest_imgs
+
+        depths, poses, rgbs = batch['depths'], batch['poses'], batch['rgbs']
+
+        # collapse batch size and "num nearest img" dims
+        depths = depths.view(num_imgs, depths.shape[2], depths.shape[3])
+        poses = poses.view(num_imgs, poses.shape[2], poses.shape[3])
+        rgbs = rgbs.view(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
+
         # repeat the w2g transform for each image
+        # add an extra dimension 
+        transforms = world_to_grid.unsqueeze(1)
+        transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
+
         # compute projection mapping b/w 2d and 3d
         # get 2d features from images
-        
+        proj_mapping = [self.projection.compute_projection(d, c, t) \
+                    for d, c, t in zip(depths, poses, transforms)]
+
+        proj_mapping = list(zip(*proj_mapping))
+        proj_ind_3d = torch.stack(proj_mapping[0])
+        proj_ind_2d = torch.stack(proj_mapping[1])
+
+        feat2d = self.features_2d(rgbs, return_features=True)
+
         # model forward pass 
-        # out = self(x, feat2d, proj_ind_3d, proj_ind_2d)
+        out = self(x, feat2d, proj_ind_3d, proj_ind_2d)
         
         loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
