@@ -73,14 +73,22 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
 
     @staticmethod
     def collate_func(samples):
-        return {
-            'x': torch.Tensor([s['x'] for s in samples]),
-            'y': torch.LongTensor([s['y'] for s in samples]),
-            'world_to_grid': torch.Tensor([s['world_to_grid'] for s in samples]),
-            'frames': torch.LongTensor([s['frames'] for s in samples]),
-            'scene_id': torch.LongTensor([s['scene_id'] for s in samples]),
-            'scan_id': torch.LongTensor([s['scan_id'] for s in samples]),
-        }
+        floats = 'x', 'world_to_grid', 
+        ints = 'y', 'frames', 'scene_id', 'scan_id'
+        stack_floats = 'depths', 'rgbs', 'poses'
+
+        batch = {}
+
+        # these are np arrays, create a tensor from the list of arrays
+        for key in floats:
+            batch[key] = torch.Tensor([s[key] for s in samples]) 
+        for key in ints:
+            batch[key] = torch.LongTensor([s[key] for s in samples])             
+        # these are already tensors, stack them
+        for key in stack_floats:
+            batch[key] = torch.stack([s[key] for s in samples])
+
+        return batch
 
     def __getitem__(self, ndx):
         # open once in each worker, allow multiproc
