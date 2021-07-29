@@ -12,10 +12,34 @@ data:
     # how many rgb images for each chunk (3DMV)
     num_nearest_images: 1
     # size of the image that "looks" at the voxel
-    img_size: [40, 30]
+    proj_img_size: [40, 30]
+    rgb_img_size: [320, 240] 
+    
     # side of each voxel in meters
     voxel_size: 0.05
 
     # min and max depth considered for projection
     depth_min: 0.4
     depth_max: 4.0
+
+model: 
+    name: UNet2D3D
+    # 2d model checkpoint
+    ckpt_2d: lightning_logs/version_138/checkpoints/last.ckpt
+
+train:
+    opt: 
+        name: adam
+        lr: 0.001
+        l2: 0.0000
+    train_batch_size: 2
+    val_batch_size: 2
+    epochs: 3000
+    class_weights: true
+    # eval every N batches
+    eval_intv: 1
+    # 1.0: whole val set
+    # integer N: N batches
+    limit_val_batches: 128
+
+    resume: null
