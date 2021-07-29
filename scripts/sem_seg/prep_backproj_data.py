@@ -215,6 +215,7 @@ def main(args):
         subvols_found = 0
 
         pbar = tqdm(total=subvols_per_scene, desc='subvol', leave=False)
+
         while subvols_found < subvols_per_scene:
             # sample a batch of subvols
             for ndx in tqdm(range(batch_size), desc='sample_subvol', leave=False):
@@ -286,18 +287,16 @@ def main(args):
             
             pbar.update(good_in_batch)
         pbar.close()
-        break
 
     print('Good subvols:', data_ndx)
     print('Bad subvols:', bad_subvols)
     
-            
     outfile.close()
 
 
 if __name__ == '__main__':
     from torch.multiprocessing import set_start_method
-    set_start_method('forkserver')
+    set_start_method('spawn')
 
     p = argparse.ArgumentParser()
     p.add_argument('cfg_path', help='Path to backproj_prep cfg')
