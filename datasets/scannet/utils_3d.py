@@ -53,6 +53,23 @@ def load_pose(path):
     '''
     return torch.from_numpy(np.genfromtxt(path).astype(np.float32))
 
+def load_rgbs_multiple(paths, image_dims, out, transform=None):
+    '''
+    paths: paths to color files
+    out: out array
+    '''
+    for ndx, path in enumerate(paths):
+        out[ndx] = torch.Tensor(load_color(path, image_dims, transform=transform))
+    return out
+
+def load_color(path, image_dims, transform=None):
+    rgb = imageio.imread(path)
+    rgb = resize_crop_image(rgb, image_dims)
+    if transform is not None:
+        rgb = transform(rgb)
+    rgb =  np.transpose(rgb, [2, 0, 1]) 
+    return rgb
+
 def load_intrinsic(path):
     '''
     path: full path to intrinsic file
