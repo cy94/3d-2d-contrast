@@ -351,3 +351,25 @@ class ProjectionHelper():
             torch.index_select(valid_image_ind_lin, 0, torch.nonzero(depth_mask)[:,0])
 
         return lin_indices_3d, lin_indices_2d
+
+def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
+    '''
+    Project 2d features to 3d features
+    '''
+    # is the 2D feature (W, H)? then C=1, else (C, W, H) -> get C
+    num_feat = 1 if len(feat2d.shape) == 2 else feat2d.shape[0]
+    # required shape is C, D, H, W, create an empty volume
+    output = feat2d.new_zeros(num_feat, volume_dims[2], volume_dims[1], volume_dims[0])
+    # number of valid voxels which can be mapped to pixels
+    num_ind = lin_indices_3d[0]
+    # if there are any voxels to be mapped
+    if num_ind > 0:
+        # reshape the 2d feature to have 2 dimensions (C, W*H)
+        # then pick the required 2d features
+        # get the features for the required pixels
+        vals = torch.index_select(feat2d.view(num_feat, -1), 1, lin_indices_2d[1:1+num_ind])
+        # reshape the output volume to (C, W*H*D), then insert the 2d features
+        # at the requires locations
+        output.view(num_feat, -1)[:, lin_indices_3d[1:1+num_ind]] = vals
+    return output
+
