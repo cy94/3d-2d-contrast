@@ -122,6 +122,19 @@ class ProjectionHelper():
 
         self.device = torch.device('cpu')
 
+        # create coords only once, clone and use next 
+        # indices from 0,1,2 .. 31*31*62 = num_voxels
+        self._lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()).to(self.device)
+        # empty array with size (4, num_voxels)
+        tmp = torch.empty(4, self._lin_ind_volume.size(0))
+        self._coords = self.lin_ind_to_coords(self._lin_ind_volume, tmp)
+
+    def get_lin_ind_volume(self):
+        return self._lin_ind_volume.clone().to(self.device)
+
+    def get_subvol_coords(self):
+        return self._coords.clone().to(self.device)
+
     def to(self, device):
         self.device = device
         return self
