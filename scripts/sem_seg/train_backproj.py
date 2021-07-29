@@ -1,4 +1,5 @@
 import argparse
+from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
 from models.sem_seg.fcn3d import UNet2D3D
 
@@ -11,15 +12,19 @@ from torch.utils.data import Subset, DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
-from datasets.scannet.sem_seg_3d import ScanNet2D3DH5, collate_func
-from transforms.grid_3d import AddChannelDim, TransposeDims
+from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
+from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
+                                LoadRGBs
 
 def main(args):
     cfg = read_config(args.cfg_path)
 
     t = Compose([
         AddChannelDim(),
-        TransposeDims()
+        TransposeDims(),
+        LoadDepths(cfg),
+        LoadPoses(cfg),
+        LoadRGBs(cfg)
     ])
 
     train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=t)
@@ -44,8 +49,14 @@ def main(args):
 
     features_2d = ENet2.load_from_checkpoint(cfg['model']['ckpt_2d'])
 
+    # intrinsic of the color camera from scene0001_00
+    intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)
+    # adjust for smaller image size
+    intrinsic = adjust_intrinsic(intrinsic, [1296, 968], cfg['data']['proj_img_size'])
+
     model = UNet2D3D(in_channels=1, num_classes=cfg['data']['num_classes'], cfg=cfg, 
-                    features_2d=features_2d)
+                    features_2d=features_2d, intrinsic=intrinsic)
+
     print(f'Num params: {count_parameters(model)}')                                                      
 
     callbacks = [LearningRateMonitor(logging_interval='step')]
