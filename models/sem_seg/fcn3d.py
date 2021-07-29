@@ -1,7 +1,7 @@
 '''
 3D fully conv network
 '''
-from datasets.scannet.utils_3d import ProjectionHelper
+from datasets.scannet.utils_3d import ProjectionHelper, project_2d_3d
 from eval.common import ConfMat
 
 import matplotlib
@@ -505,6 +505,7 @@ class UNet2D3D(UNet3D):
         for param in self.features_2d.parameters():
             param.requires_grad = False
 
+        self.subvol_size = cfg['data']['subvol_size']
         self.proj_img_dims = cfg['data']['proj_img_size']
         self.data_dir = cfg['data']['root']
         
@@ -516,6 +517,7 @@ class UNet2D3D(UNet3D):
         )
 
     def on_fit_start(self):
+        super().on_fit_start()
         self.change_device()
 
     def change_device(self):
@@ -526,6 +528,18 @@ class UNet2D3D(UNet3D):
         self.projection.to(self.device)
 
     def init_model(self):
+        self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
+        
+        # conv on feats projected from 2d
+        self.layers_2d = nn.Sequential(
+            # 1->1/2
+            Down3D(128, 64),
+            # 1/2->1/4
+            Down3D(64, 64),
+            # 1/4->1/8
+            Down3D(64, 128),
+        ) 
+
         self.layers = nn.ModuleList([
             # 1->1/2
             Down3D(self.in_channels, 32),
@@ -565,7 +579,26 @@ class UNet2D3D(UNet3D):
         # add an extra dimension 
         transforms = world_to_grid.unsqueeze(1)
         transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
+        
+        # model forward pass 
+        out = self(x, rgbs, depths, poses, transforms)
+        
+        loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
+                                ignore_index=self.target_padding)
 
+        preds = out.argmax(dim=1)
+        return preds, loss
+
+    def rgb_to_feat3d(self, rgbs, depths, poses, transforms):
+        '''
+        rgbs: N, C, H, W
+        depths: N, H, W
+        poses: N, 4, 4
+        transforms: N, 4, 4
+        N = batch_size of subvols * num_nearest_images
+
+        output: (N, 128,) + subvol_size
+        '''
         # compute projection mapping b/w 2d and 3d
         # get 2d features from images
         proj_mapping = [self.projection.compute_projection(d, c, t) \
@@ -577,17 +610,45 @@ class UNet2D3D(UNet3D):
 
         feat2d = self.features_2d(rgbs, return_features=True)
 
-        # model forward pass 
-        out = self(x, feat2d, proj_ind_3d, proj_ind_2d)
-        
-        loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
-                                ignore_index=self.target_padding)
+        feat2d_proj = [project_2d_3d(ft, ind3d, ind2d, self.subvol_size) \
+                            for ft, ind3d, ind2d in \
+                            zip(feat2d, proj_ind_3d, proj_ind_2d)]
 
-        preds = out.argmax(dim=1)
-        return preds, loss
+        N = rgbs.shape[0]
+        # N x (C, D, H, W) -> C, D, H, W, N     
+        # N = #volumes x #imgs/vol 
+        # keep the features from different images separate                      
+        feat2d_proj = torch.stack(feat2d_proj, dim=4)   
 
+        # reshape to max pool over features
+        # C, D, H, W, N
+        sz = feat2d_proj.shape
+        # C, D*H*W, N
+        feat2d_proj = feat2d_proj.view(sz[0], -1, N)
+        # pool features from images
+        # N, C, Lin -> N, C, Lout
+        # kernel_size = #imgs/vol -> pool over all the images associated with a voxel
 
-    def forward(self, x):
+        # pool over all the images that contributed to a volume
+        feat2d_proj = self.pooling(feat2d_proj)
+
+        # back to C, D, H, W, #vols
+        feat2d_proj = feat2d_proj.view(sz[0], sz[1], sz[2], sz[3], -1)
+        # back to #vols, C, D, H, W
+        feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
+
+        return feat2d_proj  
+
+    def forward(self, x, rgbs, depths, poses, transforms):
+        '''
+        All the differentiable ops here
+        '''
+        # fwd pass on rgb, then project to 3d volume and get features
+        feat2d_proj = self.rgb_to_feat3d(rgbs, depths, poses, transforms)
+        # fwd pass projected features through convs
+        feat2d_proj = self.layers_2d(feat2d_proj)
+
+        # usual 3D conv
         # length of the down/up path
         L = len(self.layers)//2
         outs = []
@@ -601,10 +662,9 @@ class UNet2D3D(UNet3D):
         # remove the last output and reverse
         outs = list(reversed(outs[:-1]))
 
-        # get 2d features
-        # project onto 3d volume
-        # concat features with 3d
-        
+        # concat features from 2d with 3d along the channel dim
+        x = torch.cat([x, feat2d_proj], dim=1)
+
         # lowest connection in the "U"
         x = self.layers[L](x)
 
@@ -612,7 +672,7 @@ class UNet2D3D(UNet3D):
         for ndx, layer in enumerate(self.layers[L+1:]):
             x = torch.cat([x, outs[ndx]], dim=1)
             x = layer(x)
-            
+
         return x                  
 
         
