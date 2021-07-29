@@ -1,6 +1,13 @@
+from transforms.image_2d import Normalize
+from datasets.scannet.utils_3d import load_depth_multiple, load_pose_multiple, load_rgbs_multiple
+from pathlib import Path
+from abc import ABC
 from copy import deepcopy
 
 import numpy as np
+
+import torch
+import torchvision.transforms as transforms
 
 def pad_volume(vol, size, pad_val=-100):
     '''
@@ -133,6 +140,73 @@ class Pad:
 
         return new_sample
 
+class LoadData(ABC):
+    '''
+    Base class for transforms that load data related to a subvolume
+    in backproj 2D+3D models
+    '''
+    def __init__(self, cfg):
+        self.data_dir = cfg['data']['root']
+
+    def get_scan_name(self, scene_id, scan_id):
+        return f'scene{str(scene_id).zfill(4)}_{str(scan_id).zfill(2)}' 
+
+class LoadDepths(LoadData):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.img_size = cfg['data']['proj_img_size']
+
+    def __call__(self, sample):
+        # create all paths for depths
+        scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
+        frames = sample['frames']
+        paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
+        # invert dims in the tensor
+        depths = torch.Tensor(len(frames), self.img_size[1], self.img_size[0])
+        load_depth_multiple(paths, self.img_size, depths)
+
+        sample['depths'] = depths
+        
+        return sample
+    
+class LoadPoses(LoadData):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
+    def __call__(self, sample):
+        # create all paths for depths
+        scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
+        frames = sample['frames']
+        paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
+
+        poses = torch.Tensor(len(frames), 4, 4)
+        load_pose_multiple(paths, poses)
+
+        sample['poses'] = poses
+
+        return sample
+    
+class LoadRGBs(LoadData):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.img_size = cfg['data']['rgb_img_size']
+        t = Normalize()
+        # transform to operate on arrays, not dicts
+        self.transform = lambda img: Normalize.apply(img.astype(np.float32), mean=t.mean, std=t.std)
+
+    def __call__(self, sample):
+        # create all paths for depths
+        scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
+        frames = sample['frames']
+        paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
+
+        rgbs = torch.Tensor(len(frames), 3, self.img_size[1], self.img_size[0])
+        load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
+
+        sample['rgbs'] = rgbs
+
+        return sample
+    
 class AddChannelDim:
     '''
     Add a "1" dimension for the channel
