@@ -144,7 +144,14 @@ class SemSegNet(pl.LightningModule):
         self.train_confmat = self.create_metrics()
 
     def training_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch, 'train')
+        out = self.common_step(batch, 'train')
+
+        # skip this batch
+        if out is None:
+            return None
+        else:
+            preds, loss = out
+
         self.log('loss/train', loss)
 
         self.train_confmat.update(preds, batch['y'])
@@ -195,7 +202,13 @@ class SemSegNet(pl.LightningModule):
         self.val_confmat = self.create_metrics()
 
     def validation_step(self, batch, batch_idx):
-        preds, loss = self.common_step(batch, 'val')
+        out = self.common_step(batch, 'val')
+
+        # skip this batch
+        if out is None:
+            return None
+        else:
+            preds, loss = out
 
         self.val_confmat.update(preds, batch['y'])
 
@@ -527,6 +540,8 @@ class UNet2D3D(UNet3D):
         self.features_2d.to(self.device)
         self.projection.to(self.device)
 
+
+
     def init_model(self):
         self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
         
@@ -583,6 +598,10 @@ class UNet2D3D(UNet3D):
         # model forward pass 
         out = self(x, rgbs, depths, poses, transforms)
         
+        # skip this batch
+        if out is None:
+            return None
+        
         loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
 
@@ -603,7 +622,8 @@ class UNet2D3D(UNet3D):
         # get 2d features from images
         proj_mapping = [self.projection.compute_projection(d, c, t) \
                     for d, c, t in zip(depths, poses, transforms)]
-
+        if None in proj_mapping:
+            return None
         proj_mapping = list(zip(*proj_mapping))
         proj_ind_3d = torch.stack(proj_mapping[0])
         proj_ind_2d = torch.stack(proj_mapping[1])
@@ -645,6 +665,9 @@ class UNet2D3D(UNet3D):
         '''
         # fwd pass on rgb, then project to 3d volume and get features
         feat2d_proj = self.rgb_to_feat3d(rgbs, depths, poses, transforms)
+        # skip this batch
+        if feat2d_proj is None:
+            return None
         # fwd pass projected features through convs
         feat2d_proj = self.layers_2d(feat2d_proj)
 
