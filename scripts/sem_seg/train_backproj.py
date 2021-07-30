@@ -1,3 +1,4 @@
+import random
 import argparse
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
@@ -31,6 +32,12 @@ def main(args):
     val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=t)
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
+
+    # train set gets shuffled by the dataloader
+    # shuffle the val set once, then we can use a subset of it later
+    indices = list(range(len(val_set)))
+    random.shuffle(indices)
+    val_set = Subset(val_set, indices)
 
     if args.subset:
         print('Select a subset of data for quick run')
