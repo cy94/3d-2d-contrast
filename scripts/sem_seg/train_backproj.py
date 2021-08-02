@@ -33,12 +33,6 @@ def main(args):
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
-    # train set gets shuffled by the dataloader
-    # shuffle the val set once, then we can use a subset of it later
-    indices = list(range(len(val_set)))
-    random.shuffle(indices)
-    val_set = Subset(val_set, indices)
-
     if args.subset:
         print('Select a subset of data for quick run')
         train_set = Subset(train_set, range(1024))
