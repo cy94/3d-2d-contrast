@@ -1,4 +1,3 @@
-import random
 import argparse
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
@@ -12,6 +11,9 @@ from torch.utils.data import Subset, DataLoader
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning import loggers as pl_loggers
+
+import wandb
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
 from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
@@ -60,10 +62,19 @@ def main(args):
 
     print(f'Num params: {count_parameters(model)}')                                                      
 
+    # log LR with schedulers
+    # without scheduler - done in model
     callbacks = [LearningRateMonitor(logging_interval='step')]
+
+    # get the next version number from this
+    tblogger = pl_loggers.TensorBoardLogger('lightning_logs', '')
+    name = f'version_{tblogger.version}'
+
+    # use for checkpoint
     if not args.no_ckpt:
         print('Saving checkpoints')
-        callbacks.append(ModelCheckpoint(save_last=True, save_top_k=5, 
+        callbacks.append(ModelCheckpoint(f'lightning_logs/{name}/checkpoints',
+                                        save_last=True, save_top_k=5, 
                                         monitor='iou/val/mean',
                                         mode='max',
                                 # put the miou in the filename
@@ -73,7 +84,16 @@ def main(args):
     if ckpt is not None:
         print(f'Resuming from checkpoint: {ckpt}')
 
+    wblogger = pl_loggers.WandbLogger(name=name,
+                                    project='thesis', 
+                                    id=name,
+                                    save_dir='lightning_logs',
+                                    version=name,
+                                    log_model=False)
+    wblogger.log_hyperparams(cfg)
+
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
+                        logger=wblogger,
                         gpus=1 if not args.cpu else None, 
                         log_every_n_steps=10,
                         callbacks=callbacks,

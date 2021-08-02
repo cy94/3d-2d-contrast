@@ -28,11 +28,14 @@ class SemSegNet(pl.LightningModule):
     '''
     Parent class for semantic segmentation on voxel grid
     '''
-    def __init__(self, num_classes, cfg=None, log_all_classes=False):
+    def __init__(self, num_classes, cfg=None, log_all_classes=False, 
+                should_log_confmat=False):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
         
+        self.should_log_confmat = should_log_confmat
+
         self.target_padding = cfg['data']['target_padding']
 
         self.init_class_weights(cfg)
@@ -181,7 +184,9 @@ class SemSegNet(pl.LightningModule):
     def log_everything(self, confmat, split):
         self.log_ious(confmat.ious, split)
         self.log_accs(confmat.accs, split)                                        
-        self.log_confmat(confmat.mat, split)
+        
+        if self.should_log_confmat:
+            self.log_confmat(confmat.mat, split)
 
     def log_ious(self, ious, split):
         if self.log_all_classes:
@@ -222,8 +227,10 @@ class SemSegNet(pl.LightningModule):
         img = fig_to_arr(fig)
         plt.close()
         tag = f'confmat/{split}'
-        self.logger.experiment.add_image(tag, img, global_step=self.global_step, 
-                                        dataformats='HWC')
+
+        # wandb                               
+        self.logger.experiment[0].log({tag: wandb.Image(img), 
+                                        'global_step': self.global_step}) 
 
 
     def validation_epoch_end(self, val_step_outputs):
