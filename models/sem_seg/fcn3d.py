@@ -218,7 +218,7 @@ class SemSegNet(pl.LightningModule):
         '''
         mat: np array
         '''
-        fig = confmat_to_fig(mat, CLASS_NAMES)
+        fig = confmat_to_fig(mat, self.class_names)
         img = fig_to_arr(fig)
         plt.close()
         tag = f'confmat/{split}'
