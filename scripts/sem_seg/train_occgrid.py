@@ -1,4 +1,4 @@
-import random
+from pathlib import Path
 import argparse
 from datasets.scannet.utils import get_dataset, get_loader
 
@@ -10,6 +10,7 @@ from torchinfo import summary
 from torch.utils.data import Subset
 
 import pytorch_lightning as pl
+from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
 
@@ -22,12 +23,6 @@ def main(args):
     val_set = get_dataset(cfg, 'val')
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
-
-    # train set gets shuffled by the dataloader
-    # shuffle the val set once, then we can use a subset of it later
-    indices = list(range(len(val_set)))
-    random.shuffle(indices)
-    val_set = Subset(val_set, indices)
 
     if args.subset:
         print('Select a subset of data for quick run')
@@ -54,20 +49,50 @@ def main(args):
         # doesn't work with sparse tensors
         pass
 
+        # log LR with schedulers
+    # without scheduler - done in model
     callbacks = [LearningRateMonitor(logging_interval='step')]
+
+    # get the next version number from this
+    ckpt = cfg['train']['resume']                                             
+    resume = ckpt is not None
+    if resume:
+        print(f'Resuming from checkpoint: {ckpt}, reuse version')
+        ckpt_version = Path(ckpt).parent.parent.stem.split('_')[1]
+        name = f'version_{ckpt_version}'
+    else:
+        print('Create a new experiment version')
+        tblogger = pl_loggers.TensorBoardLogger('lightning_logs', '')
+        name = f'version_{tblogger.version}'
+
+    # use for checkpoint
     if not args.no_ckpt:
         print('Saving checkpoints')
-        callbacks.append(ModelCheckpoint(save_last=True, save_top_k=5, 
+        ckpt_dir = f'lightning_logs/{name}/checkpoints'
+        # resuming -> ok if exists
+        # new expt -> dir should not exist
+        Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
+
+        # create the dir, version num doesn't get reused next time
+        callbacks.append(ModelCheckpoint(ckpt_dir,
+                                        save_last=True, save_top_k=5, 
                                         monitor='iou/val/mean',
                                         mode='max',
                                 # put the miou in the filename
                                 filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
                                 auto_insert_metric_name=False))
-    ckpt = cfg['train']['resume']                                             
-    if ckpt is not None:
-        print(f'Resuming from checkpoint: {ckpt}')
+
+    wblogger = pl_loggers.WandbLogger(name=name,
+                                    project='thesis', 
+                                    id=name,
+                                    save_dir='lightning_logs',
+                                    version=name,
+                                    log_model=False)
+    wblogger.log_hyperparams(cfg)
+
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
+                        logger=wblogger,
                         gpus=1 if not args.cpu else None, 
                         log_every_n_steps=10,
                         callbacks=callbacks,
