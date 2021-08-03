@@ -1,8 +1,8 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    train_list: /mnt/data/scannet/train.txt
-    val_list: /mnt/data/scannet/val.txt
+    train_list: /mnt/data/scannet/train1.txt
+    val_list: /mnt/data/scannet/val1.txt
     # 20 or 40 classes?
     num_classes: 40
     # padding value used in the target - usually = num_classes
@@ -11,11 +11,11 @@ data:
     # size of each subvol
     subvol_size: [32, 32, 32]
     # randomly sample these many subvols per scene
-    subvols_per_scene: 1
+    subvols_per_scene: 100
     # how many rgb images for each chunk (3DMV)
     num_nearest_images: 1
-    # size of the input RGB image
-    img_size: [320, 240]
+    # size of the image that "looks" at the voxel
+    img_size: [40, 30]
     # skip RGB frames
     frame_skip: 10
     # side of each voxel in meters
