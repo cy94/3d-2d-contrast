@@ -10,18 +10,21 @@ data:
     img_size: [320, 240]
     # real labels = 0 to 19
     # ignored labels are mapped to this new label
-    ignore_label: 20
+    num_classes: 40
+    ignore_label: 40
 
 train:
     opt: 
         name: adam
-        lr: 0.0005
+        lr: 0.001
         l2: 0.0000
-    train_batch_size: 40
-    val_batch_size: 40
+    train_batch_size: 32
+    val_batch_size: 32
     epochs: 30000
 
     class_weights: true
     
     # eval every `eval_intv` batches
-    eval_intv: 256
+    eval_intv: 1024
+
+    resume: null
