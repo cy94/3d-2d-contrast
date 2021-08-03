@@ -2,12 +2,10 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    train_list: /mnt/data/scannet/train.txt
-    val_list: /mnt/data/scannet/val.txt
 
     # h5 dataset
-    train_file: /mnt/data/scannet/occgrid/train.h5
-    val_file: /mnt/data/scannet/occgrid/val.h5
+    train_file: /mnt/data/scannet/backproj/train100.h5
+    val_file: /mnt/data/scannet/backproj/val50-10k.h5
 
     # 20 or 40 classes?
     num_classes: 40
@@ -41,4 +39,4 @@ train:
     # integer N: N batches
     limit_val_batches: 128
 
-    resume: null
+    resume: null 
