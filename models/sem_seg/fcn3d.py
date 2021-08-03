@@ -175,7 +175,7 @@ class SemSegNet(pl.LightningModule):
             for class_ndx, acc in enumerate(accs):
                 tag = f'acc/{split}/{self.class_names[class_ndx]}'
                 self.log(tag, acc)
-        self.log(f'acc/{split}/mean', accs.mean())
+        self.log(f'acc/{split}/mean', np.nanmean(accs))
 
         # using all classes -> log subset of 20 classes separately
         if self.class_subset is not None:
@@ -194,7 +194,7 @@ class SemSegNet(pl.LightningModule):
                 tag = f'iou/{split}/{self.class_names[class_ndx]}'
                 self.log(tag, iou)
 
-        self.log(f'iou/{split}/mean', torch.Tensor(ious).mean())
+        self.log(f'iou/{split}/mean', np.nanmean(ious))
 
         # using all classes -> log subset of 20 classes separately
         if self.class_subset is not None:
