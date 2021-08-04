@@ -553,14 +553,14 @@ class UNet2D3D(UNet3D):
         self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
         
         # conv on feats projected from 2d
-        self.layers_2d = nn.Sequential(
+        self.layers_2d = nn.ModuleList([
             # 1->1/2
             Down3D(128, 64),
             # 1/2->1/4
             Down3D(64, 64),
             # 1/4->1/8
             Down3D(64, 128),
-        ) 
+        ]) 
 
         self.layers = nn.ModuleList([
             # 1->1/2
@@ -675,8 +675,10 @@ class UNet2D3D(UNet3D):
         # skip this batch
         if feat2d_proj is None:
             return None
+
         # fwd pass projected features through convs
-        feat2d_proj = self.layers_2d(feat2d_proj)
+        for layer in self.layers_2d:
+            feat2d_proj = layer(feat2d_proj)
 
         # usual 3D conv
         # length of the down/up path
