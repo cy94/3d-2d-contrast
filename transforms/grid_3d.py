@@ -190,7 +190,7 @@ class LoadPoses(LoadData):
 class LoadRGBs(LoadData):
     def __init__(self, cfg):
         super().__init__(cfg)
-        self.img_size = cfg['data']['rgb_img_size']
+        self.img_size = tuple(cfg['data']['rgb_img_size'])
         t = Normalize()
         # transform to operate on arrays, not dicts
         self.transform = lambda img: Normalize.apply(img.astype(np.float32), mean=t.mean, std=t.std)
