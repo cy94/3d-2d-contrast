@@ -94,12 +94,17 @@ def main(args):
                                 # put the miou in the filename
                                 filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
                                 auto_insert_metric_name=False))
-
-    wblogger = pl_loggers.WandbLogger(name=name,
+    else:
+        print('Log to a temp version of WandB')                                
+    
+    # create a temp version for WB if not checkpointing
+    wbname = name + 'tmp' if args.no_ckpt else name
+    
+    wblogger = pl_loggers.WandbLogger(name=wbname,
                                     project='thesis', 
-                                    id=name,
+                                    id=wbname,
                                     save_dir='lightning_logs',
-                                    version=name,
+                                    version=wbname,
                                     log_model=False)
     wblogger.log_hyperparams(cfg)
 
