@@ -593,8 +593,11 @@ class UNet2D3D(UNet3D):
         depths, poses, rgbs = batch['depths'], batch['poses'], batch['rgbs']
 
         # collapse batch size and "num nearest img" dims
+        # N, H, W (30, 40)
         depths = depths.view(num_imgs, depths.shape[2], depths.shape[3])
+        # N, 4, 4
         poses = poses.view(num_imgs, poses.shape[2], poses.shape[3])
+        # N, H, W (240, 320)
         rgbs = rgbs.view(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
 
         # repeat the w2g transform for each image
@@ -636,7 +639,7 @@ class UNet2D3D(UNet3D):
         proj_ind_2d = torch.stack(proj_mapping[1])
 
         feat2d = self.features_2d(rgbs, return_features=True)
-
+        # get C,D,H,W for each feature map
         feat2d_proj = [project_2d_3d(ft, ind3d, ind2d, self.subvol_size) \
                             for ft, ind3d, ind2d in \
                             zip(feat2d, proj_ind_3d, proj_ind_2d)]
