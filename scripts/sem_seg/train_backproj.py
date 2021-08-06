@@ -98,7 +98,7 @@ def main(args):
         print('Log to a temp version of WandB')                                
     
     # create a temp version for WB if not checkpointing
-    wbname = name + 'tmp' if args.no_ckpt else name
+    wbname = (name + 'tmp') if args.no_ckpt else name
     
     wblogger = pl_loggers.WandbLogger(name=wbname,
                                     project='thesis', 
