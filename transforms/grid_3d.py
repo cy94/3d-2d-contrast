@@ -162,6 +162,7 @@ class LoadDepths(LoadData):
         frames = sample['frames']
         paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
         # invert dims in the tensor
+        # N, H, W -> torch nn convention
         depths = torch.Tensor(len(frames), self.img_size[1], self.img_size[0])
         load_depth_multiple(paths, self.img_size, depths)
 
@@ -199,7 +200,7 @@ class LoadRGBs(LoadData):
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
         paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
-
+        # N, C, H, W -> torch nn convention
         rgbs = torch.Tensor(len(frames), 3, self.img_size[1], self.img_size[0])
         load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
 

@@ -4,17 +4,28 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 import imageio
+import cv2
 
 def resize_crop_image(image, new_image_dims):
+    '''
+    image: H, W
+    new_image_dims: Wnew, Hnew
+    TODO: this convention is confusing?
+    '''
+    # W, H
     image_dims = [image.shape[1], image.shape[0]]
+    # old W,H = new W,H?
     if image_dims == new_image_dims:
         return image
+    # W' = (Hnew/H)*W
     resize_width = int(math.floor(new_image_dims[1] * float(image_dims[0]) / float(image_dims[1])))
+    # H,W -> H',W'
     image = transforms.Resize([new_image_dims[1], resize_width], 
                     interpolation=transforms.InterpolationMode.NEAREST)(Image.fromarray(image))
+    # H',W'-> Hnew, Wnew
     image = transforms.CenterCrop([new_image_dims[1], new_image_dims[0]])(image)
     image = np.array(image)
-
+    # return Hnew,Wnew image
     return image
 
 def load_depth_multiple(paths, image_dims, out):
@@ -32,6 +43,7 @@ def load_depth(path, image_dims=(640, 480)):
     path: full path to depth file
     image_dims: resize image to this size
     '''
+    # read 480, 640 array
     depth_image = imageio.imread(path)
     depth_image = resize_crop_image(depth_image, image_dims)
     depth_image = depth_image.astype(np.float32) / 1000.0
@@ -63,10 +75,26 @@ def load_rgbs_multiple(paths, image_dims, out, transform=None):
     return out
 
 def load_color(path, image_dims, transform=None):
+    '''
+    path: str path to file
+    image_dims: Wnew, Hnew
+    '''
+    # reads a H, W, 3 array
     rgb = imageio.imread(path)
-    rgb = resize_crop_image(rgb, image_dims)
+    # resize H, W -> Hnew, Wnew
+    # image_dims must be (W, H)
+    
+    # TODO: use resize_crop_image
+    # rgb = resize_crop_image(rgb, image_dims)
+
+    # use cv2.resize as done during enet training
+    rgb = cv2.resize(rgb, image_dims)
+    
+    # normalize the image, etc 
     if transform is not None:
         rgb = transform(rgb)
+    # no need to transpose the dims, its already H, W
+    # put channel first, get C, H, W
     rgb =  np.transpose(rgb, [2, 0, 1]) 
     return rgb
 
