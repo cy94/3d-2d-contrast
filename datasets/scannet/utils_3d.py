@@ -144,8 +144,11 @@ class ProjectionHelper():
         self.intrinsic = intrinsic
         self.depth_min = depth_min
         self.depth_max = depth_max
+        # W, H dims of the image that looks at the subvol
         self.image_dims = image_dims
+        # W, H, D dims of the subvol
         self.volume_dims = volume_dims
+        # side length of the boxel
         self.voxel_size = voxel_size
 
         self.device = torch.device('cpu')
@@ -172,6 +175,8 @@ class ProjectionHelper():
 
     def depth_to_skeleton(self, ux, uy, depth):
         '''
+        Given x,y pixel coords and depth, map to camera coords XYZ
+
         ux, uy: image coordinates 
         depth: depth to which these image coordinates must be projected 
         '''
@@ -199,9 +204,12 @@ class ProjectionHelper():
             # 1: value
         corner_points = camera_to_world.new_empty(8, 4, 1).fill_(1)
 
-        # put all X, Y, depths in single tensors, compute everything together
+        # image_dims is W,H -> 40,30
+
+        # put all pixel coords XY+depth = (X, Y, depths) in a single tensor, 
+        # map to pixel coords
         X, Y, depth = torch.Tensor((
-            # nearest frustum corners (depth min)
+            # nearest frustum corners (corresponding to depth min)
             # lower left 
             (0, 0, self.depth_min),
             # lower right 
@@ -210,6 +218,7 @@ class ProjectionHelper():
             (self.image_dims[0] - 1, self.image_dims[1] - 1, self.depth_min),
             # upper left  
             (0, self.image_dims[1] - 1, self.depth_min),
+            # farthest frustum corners (corresponding to depth max)
             # lower left corner
             (0, 0, self.depth_max),
             # lower right corner
@@ -222,6 +231,7 @@ class ProjectionHelper():
 
         # compute all 8 points together
         # unsqueeze (8, 3) -> (8, 3, 1)
+        # get camera coords
         corner_points[:, :3] = self.depth_to_skeleton(X, Y, depth).unsqueeze(2)
 
         # go from camera coords to world coords - use cam2world matrix
@@ -232,8 +242,8 @@ class ProjectionHelper():
         # p_upper: take ceil of world coords, then map to grid coords
         pu = torch.round(torch.bmm(world_to_grid.repeat(8, 1, 1), torch.ceil(p)))
 
-        # remove the last 1 from homogenous coordinates
-        # in each case (rounded up/down) find the *coordinates* closest to the origin
+        # remove the last "1" from homogenous coordinates, get grid XYZ
+        # in each case (rounded up/down) find the grid coords closest to the origin
         bbox_min0, _ = torch.min(pl[:, :3, 0], 0)
         bbox_min1, _ = torch.min(pu[:, :3, 0], 0)
         # then take the minimum of those 2 cases
@@ -275,13 +285,19 @@ class ProjectionHelper():
 
     def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
         '''
-        depth: a single depth image
-        cam2world: single transformation matrix
+        depth: a single depth image, H,W tensor
+        cam2world: single transformation matrix, pose of the camera
         world2grid: single transformation matrix
+                    world coords->grid coords (xyz -> (0-32,0-32,0-32))
         return_coverage: get only the coverage, or indices?
+
+        NOTE: treat the subvolume as XYZ = W,H,D dimensions and return indices 
+        into a W,H,D volume 
+        treat the depth image as a W,H array later according to pixel coordinates
         '''
         # compute projection by voxels -> image
         # camera pose is camera->world, invert it
+        # TODO: invert everything outside and pass it in
         world_to_camera = torch.inverse(camera_to_world)
         grid_to_world = torch.inverse(world_to_grid)
         
@@ -293,7 +309,7 @@ class ProjectionHelper():
         
         # min coords that are negative are pulled up to 0, should be within the grid
         voxel_bounds_min = torch.maximum(voxel_bounds_min, torch.Tensor([0, 0, 0]).to(self.device)).to(self.device)
-        # max coord should be within grid dimensions, any greater is pulled down 
+        # max coord should be within grid dimensions, anything larger is pulled down 
         # to grid dim
         voxel_bounds_max = torch.minimum(voxel_bounds_max, torch.Tensor(self.volume_dims).to(self.device)).float().to(self.device)
 
@@ -301,6 +317,7 @@ class ProjectionHelper():
         lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()).to(self.device)
         # empty array with size (4, num_voxels)
         coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
+        # fill the array with ((0,0,0), (1,0,0),..(2,0,0),...(N,N,N))
         coords = self.lin_ind_to_coords(lin_ind_volume, coords)
 
         # the actual voxels that the camera can see
@@ -327,13 +344,15 @@ class ProjectionHelper():
         # grid coords -> world coords -> camera coords XYZ
         p = torch.mm(world_to_camera, torch.mm(grid_to_world, coords))
 
-        # project XYZ onto image -> XY coords
+        # project camera coords XYZ onto image -> pixel XY coords
+        # x = (focal length * X / Z) + x-offset
         p[0] = (p[0] * self.intrinsic[0][0]) / p[2] + self.intrinsic[0][2]
         p[1] = (p[1] * self.intrinsic[1][1]) / p[2] + self.intrinsic[1][2]
         # convert XY coords to integers = pixel coordinates
         pi = torch.round(p).long()
 
         # check which image coords lie within image bounds -> valid
+        # image dims: (Width (x), Height (y))
         valid_ind_mask = torch.ge(pi[0], 0) \
                         * torch.ge(pi[1], 0) \
                         * torch.lt(pi[0], self.image_dims[0]) \
@@ -345,11 +364,13 @@ class ProjectionHelper():
         valid_image_ind_x = pi[0][valid_ind_mask]
         # valid Y coords of image
         valid_image_ind_y = pi[1][valid_ind_mask]
-        # linear index into the image = Y + img_width*X
+        # linear index into the image = Y*img_width + X
         valid_image_ind_lin = valid_image_ind_y * self.image_dims[0] + valid_image_ind_x
 
         # flatten the depth image, select the depth values corresponding 
         # to the valid pixels
+        # **IMP**: the depth arg is H, W but pixel coordinates are according to 
+        # a W, H array -> tranpose depth before using it
         depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
         # filter depth pixels based on 3 conditions
         # 1. depth > min_depth 
