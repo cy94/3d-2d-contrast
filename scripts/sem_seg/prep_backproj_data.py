@@ -141,17 +141,24 @@ def main(args):
     out_path.parent.mkdir(exist_ok=True)
 
     subvols_per_scene = cfg['data']['subvols_per_scene']
+    # total number of subvols
     n_samples = len(dataset) * subvols_per_scene
+    # subvol dims W, H, D
     subvol_size = tuple(cfg['data']['subvol_size'])
+    # images per subvol 
     num_nearest_imgs = cfg['data']['num_nearest_images']
+    # W, H size of the image that looks at the subvol
     img_size = cfg['data']['img_size']
 
     outfile = h5py.File(out_path, 'w')
+    # create the datasets in the h5 file
     create_datasets(outfile, n_samples, subvol_size, num_nearest_imgs)
 
     data_ndx = 0
 
     # intrinsic of the color camera from scene0001_00
+    # start with this intrinsic which can work for all scenes (approx)
+    # later adjust the instrinsic if needed
     intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)
     # adjust for smaller image size
     intrinsic = adjust_intrinsic(intrinsic, [1296, 968], cfg['data']['img_size'])
@@ -163,7 +170,8 @@ def main(args):
 
     # number of subvols to compute projection in parallel
     batch_size = min(N_PROC * CHUNK_SIZE, subvols_per_scene)
-    
+
+    # store subvols and w2g in tensors, distribute to processes    
     subvol_x_batch = np.empty((batch_size,) + subvol_size, dtype=np.float32)
     subvol_y_batch = np.empty((batch_size,) + subvol_size, dtype=np.int16)
     world_to_grid_batch = np.empty((batch_size,) + (4,4), dtype=np.float32)
