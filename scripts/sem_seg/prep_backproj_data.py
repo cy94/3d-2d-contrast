@@ -188,6 +188,7 @@ def main(args):
         scene_id, scan_id = get_scene_scan_ids(path)
         # eg: scene0000_00 (str)
         scan_name = get_scan_name(path)
+        # the scaling and translation applied during voxelization
         world_to_scene = get_world_to_scene(cfg['data']['voxel_size'], scene_T)
 
         # load poses, depths, set intrinsic 
@@ -212,6 +213,7 @@ def main(args):
         depth_paths = (depth_dir / f'{Path(f).stem}.png' for f in pose_files)
 
         # load all depth images once
+        # tensor contains H, W images -> conv2d convention
         depths = torch.empty(len(pose_files), img_size[1], img_size[0])
         poses = torch.empty(len(pose_files), 4, 4)
 
@@ -233,11 +235,12 @@ def main(args):
                 subvol_t = - start_ndx.astype(np.int16)                                                    
                 # add the additional translation to scene transform                                                    
                 world_to_grid = add_translation(world_to_scene, subvol_t)
-                # store everything
+                # store everything in the batch tensor
                 subvol_x_batch[ndx] = subvol_x
                 subvol_y_batch[ndx] = subvol_y
                 world_to_grid_batch[ndx] = world_to_grid
 
+            # make a tensor, used for projection
             world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch).to(device)
 
             # compute projection for the whole batch in parallel
@@ -273,6 +276,8 @@ def main(args):
                     subvols_found += 1
 
                     # TODO: currently returns a single index
+                    # returns an index into frame_skipped poses 
+                    # -> get the index into all the poses 
                     # pick the image with max coverage N.txt
                     nearest_pose_file = all_pose_files[pose_indices[nearest_imgs]]
                     # get its index N
