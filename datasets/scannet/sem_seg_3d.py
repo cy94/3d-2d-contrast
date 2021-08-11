@@ -27,7 +27,7 @@ def collate_func(sample_list):
 
 class ScanNetOccGridH5(Dataset):
     '''
-    Read samples from a h5 file
+    Read x,y samples from a h5 file
     '''
     def __init__(self, cfg, split, transform=None):
         '''
@@ -154,7 +154,7 @@ class ScanNetSemSegOccGrid(Dataset):
 
     def get_paths(self):
         '''
-        Paths to files to scene files - 1 file per scene
+        Paths to scene files - 1 file per scene
         '''
         paths = []
         for scan_id in self.scans:
@@ -355,11 +355,11 @@ class ScanNetGridTestSubvols:
         # mapping from ndx to subvol slices
         self.mapping = OrderedDict()
         ndx = 0
-        # height
+        # depth
         for k in range(0, self.x.shape[2], self.subvol_size[2]):
-            # width
+            # height
             for j in range(0, self.x.shape[1], self.subvol_size[1]):
-                # length
+                # width
                 for i in range(0, self.x.shape[0], self.subvol_size[0]):
                     slice = np.s_[
                         i : i+self.subvol_size[0], 
