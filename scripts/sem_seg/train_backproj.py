@@ -1,3 +1,6 @@
+from pytorch_lightning.utilities.seed import seed_everything
+seed_everything(42)
+
 from pathlib import Path
 import argparse
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
