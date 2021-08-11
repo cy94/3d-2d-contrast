@@ -1,8 +1,9 @@
 '''
 Input: ScanNet gt and label PLY files
-Output: single voxelize PLY file
+Output: single voxelized PLY file
 '''
 import argparse
+import os
 
 import numpy as np
 
