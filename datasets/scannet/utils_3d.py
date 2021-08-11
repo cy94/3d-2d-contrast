@@ -371,7 +371,8 @@ class ProjectionHelper():
         # to the valid pixels
         # **IMP**: the depth arg is H, W but pixel coordinates are according to 
         # a W, H array -> tranpose depth before using it
-        depth_vals = torch.index_select(depth.view(-1), 0, valid_image_ind_lin)
+        depth_tmp = depth.reshape(depth.shape[::-1])
+        depth_vals = torch.index_select(depth_tmp.view(-1), 0, valid_image_ind_lin)
         # filter depth pixels based on 3 conditions
         # 1. depth > min_depth 
         # 2. depth < max_depth
@@ -397,19 +398,22 @@ class ProjectionHelper():
         # hence create tensor with the max size
         # store the actual number of indices in the first element
         # rest of the elements are the actual indices!
-
+        # TODO: do this more efficiently, store a variable number of indices
+        # measure how much GPU usage this saves 
+        # (since backprojection is done 1 at a time later, no need to collate)
         lin_indices_3d = lin_ind_update.new_empty(self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2] + 1) 
         lin_indices_2d = lin_ind_update.new_empty(self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2] + 1) 
 
         # 3d indices: indices of the valid voxels computed earlier
-        lin_indices_3d[0] = lin_ind_update.shape[0]
-        lin_indices_3d[1:1+lin_indices_3d[0]] = lin_ind_update
+        num_indices = lin_ind_update.shape[0]
+        lin_indices_3d[0] = num_indices
+        lin_indices_3d[1:1+num_indices] = lin_ind_update
         
         # 2d indices: have the same shape
-        lin_indices_2d[0] = lin_ind_update.shape[0]
+        lin_indices_2d[0] = num_indices
         # values: the corresponding linear indices into the flattened image
         # where the depth mask was valid
-        lin_indices_2d[1:1+lin_indices_2d[0]] = \
+        lin_indices_2d[1:1+num_indices] = \
             torch.index_select(valid_image_ind_lin, 0, torch.nonzero(depth_mask)[:,0])
 
         return lin_indices_3d, lin_indices_2d
