@@ -1,8 +1,8 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    train_list: /mnt/data/scannet/train1.txt
-    val_list: /mnt/data/scannet/val1.txt
+    train_list: /mnt/data/scannet/splits/scannetv2_train.txt
+    val_list: /mnt/data/scannet/splits/scannetv2_val.txt
     # 20 or 40 classes?
     num_classes: 40
     # padding value used in the target - usually = num_classes
