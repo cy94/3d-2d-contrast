@@ -421,10 +421,12 @@ class ProjectionHelper():
 def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
     '''
     Project 2d features to 3d features
-    feat2d: C, H, W
+    feat2d: C, H, W output of 2D CNN 
     lin_indices_3d: size = product(volume_dims). 1st elem is the number of actual inds
     lin_indices_2d: size = product(volume_dims). 1st elem is the number of actual inds
     volume_dims: (W, H, D) of a subvol in voxels
+
+    return: C,D,H,W volume
     '''
     # is the 2D feature (W, H)? then C=1, else (C, W, H) -> get C
     num_feat = 1 if len(feat2d.shape) == 2 else feat2d.shape[0]
@@ -434,8 +436,9 @@ def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
     num_ind = lin_indices_3d[0]
     # if there are any voxels to be mapped
     if num_ind > 0:
-        # reshape the 2d feature to have 2 dimensions (C, W*H)
-        linear_feat = feat2d.view(num_feat, -1)
+        # permute C,H,W->C,W,H because the depth is used this way during projection
+        # then reshape the 2d feature to have 2 dimensions (C, W*H)
+        linear_feat = feat2d.permute(0, 2, 1).reshape(num_feat, -1)
         # then pick the required 2d features
         # get the features for the required pixels
         vals = torch.index_select(linear_feat, 1, lin_indices_2d[1:1+num_ind])
