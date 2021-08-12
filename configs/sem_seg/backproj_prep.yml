@@ -15,6 +15,7 @@ data:
     # how many rgb images for each chunk (3DMV)
     num_nearest_images: 1
     # size of the image that "looks" at the voxel
+    # width, height
     img_size: [40, 30]
     # skip RGB frames
     frame_skip: 10
