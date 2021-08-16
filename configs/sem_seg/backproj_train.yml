@@ -30,10 +30,10 @@ model:
 train:
     opt: 
         name: adam
-        lr: 0.001
+        lr: 0.0005
         l2: 0.0000
-    train_batch_size: 80
-    val_batch_size: 80
+    train_batch_size: 40
+    val_batch_size: 40
     epochs: 3000
     class_weights: true
     # eval every N batches
