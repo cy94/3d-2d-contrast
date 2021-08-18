@@ -22,7 +22,7 @@ import pytorch_lightning as pl
 
 from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.common import CLASS_NAMES, CLASS_NAMES_ALL, CLASS_WEIGHTS, CLASS_WEIGHTS_ALL, VALID_CLASSES
-from models.layers_3d import Down3D, Up3D
+from models.layers_3d import Down3D, Up3D, SameConv3D
 
 class SemSegNet(pl.LightningModule):
     '''
