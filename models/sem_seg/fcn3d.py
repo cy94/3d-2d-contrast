@@ -547,8 +547,6 @@ class UNet2D3D(UNet3D):
         self.features_2d.to(self.device)
         self.projection.to(self.device)
 
-
-
     def init_model(self):
         self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
         
@@ -605,17 +603,30 @@ class UNet2D3D(UNet3D):
         transforms = world_to_grid.unsqueeze(1)
         transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
         
+        contrastive = 'contrastive' in self.hparams['cfg']['model']
+
         # model forward pass 
-        out = self(x, rgbs, depths, poses, transforms)
+        out = self(x, rgbs, depths, poses, transforms, return_features=contrastive)
         
         # skip this batch
         if out is None:
             return None
-        
-        loss = F.cross_entropy(out, y, weight=self.get_class_weights(),
-                                ignore_index=self.target_padding)
 
-        preds = out.argmax(dim=1)
+        logits = out[-1] if contrastive else out
+        # main cross entropy loss
+        loss = F.cross_entropy(logits, y, weight=self.get_class_weights(),
+                                ignore_index=self.target_padding)
+        preds = logits.argmax(dim=1)
+
+        if contrastive:
+            feat2d, feat3d, _ = out
+            # reshape to N, C vectors
+            # sample N of these
+            # find all pair feature distances
+            # get contrastive loss
+            ct_loss = 0
+            loss = {'loss': loss, 'contrastive': ct_loss}
+
         return preds, loss
 
     def rgb_to_feat3d(self, rgbs, depths, poses, transforms):
@@ -627,6 +638,8 @@ class UNet2D3D(UNet3D):
         N = batch_size of subvols * num_nearest_images
 
         output: (N, 128,) + subvol_size
+        2d-3d projection indices (batch size, 32*32*32) 
+            = indices in the flattened 3d volume with 2d features
         '''
         # compute projection mapping b/w 2d and 3d
         # get 2d features from images
@@ -667,21 +680,25 @@ class UNet2D3D(UNet3D):
         # back to #vols, C, D, H, W
         feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
 
-        return feat2d_proj  
+        return feat2d_proj, proj_ind_3d
 
-    def forward(self, x, rgbs, depths, poses, transforms):
+    def forward(self, x, rgbs, depths, poses, transforms, return_features=False):
         '''
         All the differentiable ops here
+        return_features: return the intermediate 2d and 3d features
         '''
         # fwd pass on rgb, then project to 3d volume and get features
-        feat2d_proj = self.rgb_to_feat3d(rgbs, depths, poses, transforms)
+        
+        out = self.rgb_to_feat3d(rgbs, depths, poses, transforms)
         # skip this batch
-        if feat2d_proj is None:
+        if out is None:
             return None
 
+        feat2d_proj, proj_ind_3d = out
+        feat2d = feat2d_proj.clone()
         # fwd pass projected features through convs
         for layer in self.layers_2d:
-            feat2d_proj = layer(feat2d_proj)
+            feat2d = layer(feat2d)
 
         # usual 3D conv
         # length of the down/up path
@@ -697,8 +714,10 @@ class UNet2D3D(UNet3D):
         # remove the last output and reverse
         outs = list(reversed(outs[:-1]))
 
+        feat3d = x.clone()
+
         # concat features from 2d with 3d along the channel dim
-        x = torch.cat([x, feat2d_proj], dim=1)
+        x = torch.cat([x, feat2d], dim=1)
 
         # lowest connection in the "U"
         x = self.layers[L](x)
@@ -708,9 +727,35 @@ class UNet2D3D(UNet3D):
             x = torch.cat([x, outs[ndx]], dim=1)
             x = layer(x)
 
-        return x                  
+        if return_features:
+            # the original 2d features, intermediate 3d features
+            # pick only the ones at valid projection indices
+            feat2d_vecs = torch.cat([pick_features(vol, inds) \
+                         for (vol, inds) in zip(feat2d_proj, proj_ind_3d)], 0)
+            feat3d_vecs = torch.cat([pick_features(vol, inds) \
+                        for (vol, inds) in zip(feat3d, proj_ind_3d)], 0)
+            return feat2d_vecs, feat3d_vecs, x
+        else:
+            return x                  
 
+def pick_features(vol, inds_list):
+    '''
+    vol: CDHW
+    inds: 1 + 32*32*32 indices of projected features, first elem = num inds
+
+    pick the features from vol using the indices in inds_list
+    indices are according to WHD dims
+    '''
+    num_inds = inds_list[0]
+    if num_inds > 0:
+        inds = inds_list[1:1+num_inds]
         
+        # change CDHW -> WHDC and then pick features
+        vecs = vol.permute(3, 2, 1, 0).reshape(-1, vol.shape[0])[inds]
+    else:
+        vecs = torch.empty(0, vol.shape[0])
+
+    return vecs 
         
 
         
