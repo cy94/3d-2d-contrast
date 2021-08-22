@@ -40,8 +40,10 @@ def main(args):
 
     if args.subset:
         print('Select a subset of data for quick run')
-        train_set = Subset(train_set, range(1024))
+        train_set = Subset(train_set, range(4096))
         val_set = Subset(val_set, range(1024))
+        print(f'Train set: {len(train_set)}')
+        print(f'Val set: {len(val_set)}')
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
@@ -103,13 +105,19 @@ def main(args):
     # create a temp version for WB if not checkpointing
     wbname = (name + 'tmp') if args.no_ckpt else name
     
-    wblogger = pl_loggers.WandbLogger(name=wbname,
-                                    project='thesis', 
-                                    id=wbname,
-                                    save_dir='lightning_logs',
-                                    version=wbname,
-                                    log_model=False)
-    wblogger.log_hyperparams(cfg)
+    if args.no_log:
+        wblogger = None
+        print('Logging disabled -> Checkpoint and LR logging disabled as well')
+        # cant log LR
+        callbacks = []
+    else:
+        wblogger = pl_loggers.WandbLogger(name=wbname,
+                                        project='thesis', 
+                                        id=wbname,
+                                        save_dir='lightning_logs',
+                                        version=wbname,
+                                        log_model=False)
+        wblogger.log_hyperparams(cfg)
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
@@ -120,7 +128,7 @@ def main(args):
                         val_check_interval=cfg['train']['eval_intv'],
                         limit_val_batches=cfg['train']['limit_val_batches'],
                         fast_dev_run=args.fast_dev_run,
-                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
+                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1),)
 
     trainer.fit(model, train_loader, val_loader)
 
@@ -133,6 +141,8 @@ if __name__ == '__main__':
                     default=False, help='Train on CPU')                    
     p.add_argument('--subset', action='store_true', dest='subset', 
                     default=False, help='Use a subset of dataset')
+    p.add_argument('--no-log', action='store_true', dest='no_log', 
+                    default=False, help='Dont log to Weights and Biases')
 
     parser = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()

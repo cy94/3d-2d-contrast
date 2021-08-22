@@ -48,6 +48,9 @@ class SemSegNet(pl.LightningModule):
 
         self.log_all_classes = log_all_classes
 
+    def optimizer_zero_grad(self, epoch, batch_idx, optimizer, optimizer_idx):
+        optimizer.zero_grad(set_to_none=True)
+
     def init_class_subset(self):
         self.class_subset = None
         if self.num_classes == 40:
