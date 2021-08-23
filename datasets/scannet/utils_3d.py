@@ -263,25 +263,73 @@ class ProjectionHelper():
         else:
             return coverage
 
-    def lin_ind_to_coords(self, lin_ind, coords):
+    @staticmethod
+    def downsample_coords(coords, in_vol_dims, out_vol_dims):
+        '''
+        Map coords from the input volume to output volume dimensions
+        eg: 32^3 -> 4^3
+        this is a many-one mapping
+
+        coords: homogeous coords (4, N)
+        in_vol_dims: dims of the vol that coords refers to
+        out_vol_dims: dims of the vol that output coords refer to
+
+        return: new (4, N)
+        '''
+        # downsampling factor in each dimension
+        factor = (torch.Tensor(in_vol_dims) // torch.Tensor(out_vol_dims))
+        # make a copy
+        new_coords = coords.clone()
+        # divide by the factor
+        new_coords[:3, :] = (new_coords[:3, :].T // factor).T
+
+        return new_coords
+
+    @staticmethod
+    def coords_to_lin_inds(coords, num_inds, vol_dims):
+        '''
+        coords: (4, N homogenous coords)
+        vol_dims: dims of the volume
+
+        return: (N+1,) array
+        '''
+        lin_inds = coords.new_empty(1 + num_inds)
+        inds = coords[2, :]*vol_dims[0]*vol_dims[1] + coords[1, :]*vol_dims[0] + coords[0, :]
+        lin_inds[0] = len(inds)
+        lin_inds[1:1+len(inds)] = inds
+
+        return lin_inds
+
+    @staticmethod
+    def lin_ind_to_coords_static(lin_ind, coords, vol_dims):
         '''
         Get XYZ coordinates within the grid
         ie. homogenous coordinate XYZ of each voxel 
 
-        lin_ind: [0, 1, 2, 3 ..] tensor of integers
+        lin_ind: [0, 1, 2, 3 ..] tensor of integers - only the valid indices
         coords: empty array to fill coords, has dim (4, len(lin_ind))
+
+        Static method, does the same thing as below
+        additionally need to pass in the volume dims
         '''
         # Z = N / (X*Y)
         # IMP: use a floored division here to keep only the integer coordinates!
-        coords[2] = lin_ind.div(self.volume_dims[0]*self.volume_dims[1], rounding_mode='floor')
+        coords[2] = lin_ind.div(vol_dims[0]*vol_dims[1], rounding_mode='floor')
         # similarly fill X and Y
-        tmp = lin_ind - (coords[2]*self.volume_dims[0]*self.volume_dims[1]).long()
-        coords[1] = tmp.div(self.volume_dims[0], rounding_mode='floor')
-        coords[0] = torch.remainder(tmp, self.volume_dims[0])
+        tmp = lin_ind - (coords[2]*vol_dims[0]*vol_dims[1]).long()
+        coords[1] = tmp.div(vol_dims[0], rounding_mode='floor')
+        coords[0] = torch.remainder(tmp, vol_dims[0])
         # last coord is just 1
         coords[3].fill_(1)
 
         return coords
+        
+    def lin_ind_to_coords(self, lin_ind, coords):
+        '''
+        call the static method
+        '''
+        return self.lin_ind_to_coords_static(lin_ind, coords, self.volume_dims)
+
 
     def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
         '''
