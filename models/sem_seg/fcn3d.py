@@ -660,7 +660,7 @@ class UNet2D3D(UNet3D):
             # find all pair feature distances
             # multiple (N,C) and (C,N), get (N,N)
             scores = torch.matmul(feat2d_norm, feat3d_norm.T)
-            labels = torch.arange(self.contrast_n_points)
+            labels = torch.arange(self.contrast_n_points).to(self.device)
             # get contrastive loss
             ct_loss = F.cross_entropy(scores/self.nce_temp, labels)
 

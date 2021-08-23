@@ -277,7 +277,7 @@ class ProjectionHelper():
         return: new (4, N)
         '''
         # downsampling factor in each dimension
-        factor = (torch.Tensor(in_vol_dims) // torch.Tensor(out_vol_dims))
+        factor = (torch.Tensor(in_vol_dims) // torch.Tensor(out_vol_dims)).to(coords.device)
         # make a copy
         new_coords = coords.clone()
         # divide by the factor
