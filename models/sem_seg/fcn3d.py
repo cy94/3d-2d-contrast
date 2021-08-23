@@ -154,7 +154,8 @@ class SemSegNet(pl.LightningModule):
         if isinstance(loss, dict):
             self.log(f'loss/{split}', loss['loss'])
             for key in loss:
-                self.log(f'loss/{split}', loss[key])
+                if key != 'loss':
+                    self.log(f'loss/{split}/{key}', loss[key])
         else:
             self.log(f'loss/{split}', loss)
 
@@ -166,7 +167,6 @@ class SemSegNet(pl.LightningModule):
             return None
         else:
             preds, loss = out
-
         self.log_losses(loss, 'train') 
 
         self.train_confmat.update(preds, batch['y'])
@@ -665,7 +665,6 @@ class UNet2D3D(UNet3D):
             ct_loss = F.cross_entropy(scores/self.nce_temp, labels)
 
             loss = {'loss': loss, 'contrastive': ct_loss}
-
         return preds, loss
 
     def rgb_to_feat3d(self, rgbs, depths, poses, transforms):
