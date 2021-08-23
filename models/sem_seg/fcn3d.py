@@ -149,6 +149,15 @@ class SemSegNet(pl.LightningModule):
     def on_fit_start(self):
         self.train_confmat = self.create_metrics()
 
+    def log_losses(self, loss, split):
+        # log each loss
+        if isinstance(loss, dict):
+            self.log(f'loss/{split}', loss['loss'])
+            for key in loss:
+                self.log(f'loss/{split}', loss[key])
+        else:
+            self.log(f'loss/{split}', loss)
+
     def training_step(self, batch, batch_idx):
         out = self.common_step(batch, 'train')
 
@@ -158,7 +167,7 @@ class SemSegNet(pl.LightningModule):
         else:
             preds, loss = out
 
-        self.log('loss/train', loss)
+        self.log_losses(loss, 'train') 
 
         self.train_confmat.update(preds, batch['y'])
         self.log_everything(self.train_confmat, 'train')
@@ -166,7 +175,10 @@ class SemSegNet(pl.LightningModule):
         # log LR
         self.log('lr', self.optim.param_groups[0]['lr'])
 
-        return loss
+        if isinstance(loss, dict):
+            return loss['loss'] + loss['contrastive']
+        else:
+            return loss
 
     def training_step_end(self, outputs):
         self.train_confmat.reset()
@@ -236,13 +248,24 @@ class SemSegNet(pl.LightningModule):
                                         'global_step': self.global_step}) 
 
 
-    def validation_epoch_end(self, val_step_outputs):
-        loss = torch.Tensor(val_step_outputs).mean()
-        self.log('loss/val', loss)
+    def validation_epoch_end(self, outputs):
+        # hack because pytorch lightning gives empty outputs initially?
+        if len(outputs) == 0:
+            outputs = [0]
+
+        if isinstance(outputs[0], dict):
+            loss_mean = {
+                key: torch.Tensor([output[key] for output in outputs]).mean()
+                        for key in outputs[0]
+                        }
+            self.log("hp_metric", loss_mean['loss'])    
+        else:
+            loss_mean = torch.Tensor(outputs).mean()
+            self.log("hp_metric", loss_mean)    
+
+        self.log_losses(loss_mean, 'val')
 
         self.log_everything(self.val_confmat, 'val')
-
-        self.log("hp_metric", loss)    
 
 class SparseNet3D(SemSegNet):
     '''
@@ -539,6 +562,12 @@ class UNet2D3D(UNet3D):
             cfg['data']['subvol_size'], cfg['data']['voxel_size']
         )
 
+        self.contrastive = 'contrastive' in cfg['model']
+        print(f'Use contrastive loss? {self.contrastive}')
+        if self.contrastive:
+            self.nce_temp = cfg['model']['contrastive']['temperature']
+            self.contrast_n_points = cfg['model']['contrastive']['n_points']
+
     def on_fit_start(self):
         super().on_fit_start()
         self.change_device()
@@ -606,28 +635,35 @@ class UNet2D3D(UNet3D):
         transforms = world_to_grid.unsqueeze(1)
         transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
         
-        contrastive = 'contrastive' in self.hparams['cfg']['model']
-
         # model forward pass 
-        out = self(x, rgbs, depths, poses, transforms, return_features=contrastive)
+        out = self(x, rgbs, depths, poses, transforms, return_features=self.contrastive)
         
         # skip this batch
         if out is None:
             return None
 
-        logits = out[-1] if contrastive else out
+        logits = out[-1] if self.contrastive else out
         # main cross entropy loss
         loss = F.cross_entropy(logits, y, weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
         preds = logits.argmax(dim=1)
 
-        if contrastive:
-            feat2d, feat3d, _ = out
-            # reshape to N, C vectors
+        if self.contrastive:
+            # get N,C vectors for 2d and 3d
+            feat2d_all, feat3d_all, _ = out
             # sample N of these
+            inds = torch.randperm(self.contrast_n_points)
+            feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
+            # L2 normalize
+            feat2d_norm = feat2d / torch.norm(feat2d, p=2, dim=1, keepdim=True)
+            feat3d_norm = feat3d / torch.norm(feat3d, p=2, dim=1, keepdim=True)
             # find all pair feature distances
+            # multiple (N,C) and (C,N), get (N,N)
+            scores = torch.matmul(feat2d_norm, feat3d_norm.T)
+            labels = torch.arange(self.contrast_n_points)
             # get contrastive loss
-            ct_loss = 0
+            ct_loss = F.cross_entropy(scores/self.nce_temp, labels)
+
             loss = {'loss': loss, 'contrastive': ct_loss}
 
         return preds, loss
@@ -697,7 +733,7 @@ class UNet2D3D(UNet3D):
         if out is None:
             return None
 
-        feat2d_proj, proj_ind_3d = out
+        feat2d_proj, feat2d_ind3d = out
         feat2d = feat2d_proj.clone()
         # fwd pass projected features through convs
         for layer in self.layers_2d:
@@ -731,20 +767,44 @@ class UNet2D3D(UNet3D):
             x = layer(x)
 
         if return_features:
-            # the original 2d features, intermediate 3d features
+            # filter out the samples with num_inds=0 
+
+            # the original 2d features from 32^3 volume
             # pick only the ones at valid projection indices
             feat2d_vecs = torch.cat([pick_features(vol, inds) \
-                         for (vol, inds) in zip(feat2d_proj, proj_ind_3d)], 0)
+                         for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
+            # intermediate 3d features from 4^3 volume
+            # map the 32^3 indices to 4^3 indices and then pick
+            target_vol_size = tuple(feat3d.shape[2:])
+            feat3d_ind3d = torch.stack([map_indices(inds, self.subvol_size, target_vol_size) \
+                                        for inds in feat2d_ind3d])
             feat3d_vecs = torch.cat([pick_features(vol, inds) \
-                        for (vol, inds) in zip(feat3d, proj_ind_3d)], 0)
+                        for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
             return feat2d_vecs, feat3d_vecs, x
         else:
             return x                  
 
+def map_indices(inds_list, in_dims, out_dims):
+    '''
+    inds_list: 1 + 32*32*32 indices of projected features, first elem = num inds
+    in_dims: dims of the original volume (32^3)
+    out_dims: dims of the target volume (4^3)
+    '''
+    num_inds = inds_list[0]
+    inds = inds_list[1:1+num_inds]
+    coords = inds_list.new_empty(4, num_inds)
+    coords = ProjectionHelper.lin_ind_to_coords_static(inds, coords, in_dims)
+    
+    new_coords = ProjectionHelper.downsample_coords(coords, in_dims, out_dims)
+    max_num_inds = len(inds_list) - 1
+    new_inds = ProjectionHelper.coords_to_lin_inds(new_coords, max_num_inds, out_dims)
+
+    return new_inds
+
 def pick_features(vol, inds_list):
     '''
     vol: CDHW
-    inds: 1 + 32*32*32 indices of projected features, first elem = num inds
+    inds_list: 1 + 32*32*32 indices of projected features, first elem = num inds
 
     pick the features from vol using the indices in inds_list
     indices are according to WHD dims
