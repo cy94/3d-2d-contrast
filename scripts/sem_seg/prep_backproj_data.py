@@ -18,7 +18,7 @@ import h5py
 import numpy as np
 
 from lib.misc import read_config
-from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
+from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, ScanNetPLYDataset
 from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
     load_depth_multiple, load_intrinsic, load_pose_multiple, make_intrinsic
 
@@ -140,11 +140,23 @@ def main(args):
     out_path = Path(args.out_path)
     out_path.parent.mkdir(exist_ok=True)
 
-    subvols_per_scene = cfg['data']['subvols_per_scene']
-    # total number of subvols
-    n_samples = len(dataset) * subvols_per_scene
     # subvol dims W, H, D
     subvol_size = tuple(cfg['data']['subvol_size'])
+
+    if args.full_scene:
+        print('Get total number of subvols in val/test set')
+        # actual number of subvols in each scene
+        padval = cfg['data']['target_padding']
+        subvols_per_scene_list = [len(ScanNetGridTestSubvols(scene, subvol_size, padval)) \
+                             for scene in tqdm(dataset)]
+        n_samples = sum(subvols_per_scene_list)
+    else:
+        subvols_per_scene = cfg['data']['subvols_per_scene']
+        # total number of subvols
+        n_samples = len(dataset) * subvols_per_scene
+
+    print(f'Total subvols in output file: {n_samples}')
+
     # images per subvol 
     num_nearest_imgs = cfg['data']['num_nearest_images']
     # W, H size of the image that looks at the subvol
@@ -169,7 +181,10 @@ def main(args):
                                 cfg['data']['voxel_size']).to(device)
 
     # number of subvols to compute projection in parallel
-    batch_size = min(N_PROC * CHUNK_SIZE, subvols_per_scene)
+    if args.full_scene:
+        batch_size = N_PROC * CHUNK_SIZE
+    else:
+        batch_size = min(N_PROC * CHUNK_SIZE, subvols_per_scene)
 
     # store subvols and w2g in tensors, distribute to processes    
     subvol_x_batch = np.empty((batch_size,) + subvol_size, dtype=np.float32)
@@ -179,7 +194,7 @@ def main(args):
     bad_subvols = 0
 
     # iterate over each scene, read it only once
-    for _, scene in enumerate(tqdm(dataset, desc='scene')):
+    for scene_ndx, scene in enumerate(tqdm(dataset, desc='scene')):
         scene_x, scene_y, path = scene['x'], scene['y'], scene['path']
         # translation to go from scaled world coords (original->voxelized)
         # to scene voxel coords
@@ -224,13 +239,31 @@ def main(args):
 
         subvols_found = 0
 
+        # actual number of subvols in this scene, need to get all of them
+        if args.full_scene:
+            # create the test subvols dataset once
+            subvols_dataset = iter(ScanNetGridTestSubvols(scene, subvol_size, padval))
+            subvols_per_scene = subvols_per_scene_list[scene_ndx]
+
         pbar = tqdm(total=subvols_per_scene, desc='subvol', leave=False)
 
         while subvols_found < subvols_per_scene:
             # sample a batch of subvols
-            for ndx in tqdm(range(batch_size), desc='sample_subvol', leave=False):
-                subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
-                                                        return_start_ndx=True)
+            if args.full_scene and subvols_per_scene_list[scene_ndx] < batch_size:
+                num_in_batch = subvols_per_scene_list[scene_ndx]
+            else:
+                num_in_batch = batch_size
+            
+            for ndx in tqdm(range(num_in_batch), desc='sample_subvol', leave=False):
+                if args.full_scene:
+                    # full scene dataset? take the next subvol
+                    sample = next(subvols_dataset)
+                    subvol_x, subvol_y, start_ndx = sample['x'], sample['y'], \
+                                                    sample['start_ndx']
+                else:
+                    # randomly sample a subvol
+                    subvol_x, subvol_y, start_ndx = dataset.sample_subvol(scene_x, scene_y,
+                                                            return_start_ndx=True)
                 # need to subtract the start index from scene coords to get grid coords                                                    
                 subvol_t = - start_ndx.astype(np.int16)                                                    
                 # add the additional translation to scene transform                                                    
@@ -241,7 +274,8 @@ def main(args):
                 world_to_grid_batch[ndx] = world_to_grid
 
             # make a tensor, used for projection
-            world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch).to(device)
+            # handle the case when actual subvols < batch_size, take only a subset
+            world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch[:num_in_batch]).to(device)
 
             # compute projection for the whole batch in parallel
             task_func = partial(get_nearest_images, poses=poses, depths=depths,
@@ -266,22 +300,29 @@ def main(args):
                     nearest_imgs_all.append(nearest_imgs)
             
             good_in_batch = 0
+
             # check the valid ones and save them to file
+            # full scene - save all to file, -1 as nearest image
             for ndx, nearest_imgs in enumerate(nearest_imgs_all):
-                if nearest_imgs is None:
+                if (nearest_imgs is None) and (not args.full_scene):
                     bad_subvols += 1
                 else:
                     # update the number found
+                    # full_scene -> every subvol is a "good" one
                     good_in_batch += 1
                     subvols_found += 1
-
-                    # TODO: currently returns a single index
-                    # returns an index into frame_skipped poses 
-                    # -> get the index into all the poses 
-                    # pick the image with max coverage N.txt
-                    nearest_pose_file = all_pose_files[pose_indices[nearest_imgs]]
-                    # get its index N
-                    nearest_pose = int(osp.splitext(nearest_pose_file)[0])
+                    
+                    # full scene: insert -1 as the pose
+                    if nearest_imgs is None:
+                        nearest_pose = -1
+                    else:
+                        # TODO: currently returns a single index
+                        # returns an index into frame_skipped poses 
+                        # -> get the index into all the poses 
+                        # pick the image with max coverage N.txt
+                        nearest_pose_file = all_pose_files[pose_indices[nearest_imgs]]
+                        # get its index N
+                        nearest_pose = int(osp.splitext(nearest_pose_file)[0])
                 
                     # find nearest images to this grid
                     outfile['frames'][data_ndx] = nearest_pose
@@ -306,7 +347,6 @@ def main(args):
     
     outfile.close()
 
-
 if __name__ == '__main__':
     from torch.multiprocessing import set_start_method
     set_start_method('spawn')
@@ -319,6 +359,8 @@ if __name__ == '__main__':
                     dest='multiproc', help='Use multiprocessing?')
     p.add_argument('--gpu', action='store_true', default=False,
                     dest='gpu', help='Use GPU?')
+    p.add_argument('--full-scene', action='store_true', default=False,
+                    dest='full_scene', help='Sliding window of subvols over the whole scene')
     args = p.parse_args()
 
     main(args)
