@@ -23,6 +23,8 @@ def main(args):
     if cfg['data']['img_size'] is not None:
         transforms.append(Resize(cfg['data']['img_size']))
     transforms.append(Normalize())
+    # image is already H, W, C
+    # only move channels to the front -> C, H, W
     transforms.append(TransposeChannels())
 
     t = Compose(transforms)

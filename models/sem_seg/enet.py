@@ -1174,7 +1174,7 @@ class ENet2(SemSegNet):
             padding=1,
             bias=False)
 
-    def forward(self, x):
+    def forward(self, x, return_features=False):
         # Initial block
         input_size = x.size()
         x = self.initial_block(x)
@@ -1208,6 +1208,9 @@ class ENet2(SemSegNet):
         x = self.dilated3_5(x)
         x = self.asymmetric3_6(x)
         x = self.dilated3_7(x)
+
+        if return_features:
+            return x
 
         # Stage 4 - Decoder
         x = self.upsample4_0(x, max_indices2_0, output_size=stage2_input_size)

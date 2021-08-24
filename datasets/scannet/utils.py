@@ -8,7 +8,7 @@ from transforms.grid_3d import RandomRotate, AddChannelDim, TransposeDims
 from transforms.common import ComposeCustom
 from models.sem_seg.utils import SPARSE_MODELS
 from transforms.sparse_3d import ChromaticAutoContrast, ChromaticJitter, ChromaticTranslation, ElasticDistortion, RandomDropout, RandomHorizontalFlip
-from datasets.scannet.sem_seg_3d import ScanNetPLYDataset, ScanNetSemSegOccGrid, collate_func
+from datasets.scannet.sem_seg_3d import ScanNetOccGridH5, ScanNetPLYDataset, ScanNetSemSegOccGrid, collate_func
 from datasets.scannet.sparse_3d import ScannetVoxelizationDataset
 
 
@@ -69,9 +69,6 @@ def get_transform_dense(cfg, mode):
     # create transforms list
     transforms = []
 
-    if mode == 'train': 
-      transforms.append(RandomRotate())
-    
     transforms.append(AddChannelDim())
     transforms.append(TransposeDims())
 
@@ -220,10 +217,12 @@ def get_sparse_dataset(cfg, split):
 def get_dense_dataset(cfg, split):
     # dont transform full scenes, the chunks get transformed later
     transform = get_transform_dense(cfg, split) if split != 'test' else None
+
     # testing - get whole scenes, not random chunks
-    full_scene = (split == 'test')
-    dataset = ScanNetPLYDataset(cfg['data'], transform=transform, split=split,
-                                  full_scene=full_scene)
+    # TBD: full scene dataset from original files, not H5
+    # full_scene = (split == 'test')
+
+    dataset = ScanNetOccGridH5(cfg['data'], transform=transform, split=split)
 
     return dataset
 

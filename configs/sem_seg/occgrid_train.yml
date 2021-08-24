@@ -1,34 +1,39 @@
 
 data:
-    root: /mnt/data/scannet/scans/
-    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    train_list: /mnt/data/scannet/train.txt
-    val_list: /mnt/data/scannet/val.txt
+    # h5 dataset
+    train_file: /mnt/data/scannet/backproj/train100.h5
+    val_file: /mnt/data/scannet/backproj/val50-10k.h5
+
+    # 20 or 40 classes?
+    num_classes: 40
+    # padding value used in the target - usually = num_classes
+    # since targets are 0..num_classes-1
+    target_padding: 40
+    # use only the first N scans
     limit_scans: null
     # size of each subvol
     subvol_size: [32, 32, 32]
     # randomly sample these many subvols per scene
-    subvols_per_scene: 100
-    # padding value used in the target
-    # gt values are 0..20
-    target_padding: 21
+    subvols_per_scene: 1000
+
+    use_rgb: false
 
 model: 
     name: UNet3D
 
 train:
-    # takes preference, set to null to use a fixed size below
-    train_split: null #0.8
-    train_size: null #1000
-    val_size: null #1000
-
-    train_batch_size: 128
-    val_batch_size: 128
-    lr: 0.0003
-    l2: 0.0000
-    epochs: 30000
+    opt: 
+        name: adam
+        lr: 0.001
+        l2: 0.0000
+    train_batch_size: 80
+    val_batch_size: 80
+    epochs: 3000
     class_weights: true
-    # eval every `eval_intv` batches
-    eval_intv: 128
+    # eval every N batches
+    eval_intv: 256
+    # 1.0: whole val set
+    # integer N: N batches
+    limit_val_batches: 1.0
 
-    resume: null
+    resume: null 

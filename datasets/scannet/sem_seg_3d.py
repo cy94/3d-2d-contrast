@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from collections import OrderedDict
 
+import h5py
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -16,10 +18,91 @@ from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
     return {
-        'path': [s['path'] for s in sample_list],
+        # 'path': [s['path'] for s in sample_list],
         'x': torch.Tensor([s['x'] for s in sample_list]),
         'y': torch.LongTensor([s['y'] for s in sample_list]),
     }
+
+
+
+class ScanNetOccGridH5(Dataset):
+    '''
+    Read x,y samples from a h5 file
+    '''
+    def __init__(self, cfg, split, transform=None):
+        '''
+        cfg: train_cfg['data']
+        split: train/val/test
+        transform: callable Object
+        '''
+        self.data = None
+        self.transform = transform
+        self.file_path = cfg[f'{split}_file'] 
+        
+        # get the length once
+        with h5py.File(self.file_path, 'r') as f:
+            self.length = len(f['x'])
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, ndx):
+        # open once in each worker, allow multiproc
+        if self.data is None:
+            self.data = h5py.File(self.file_path, 'r') 
+
+        x, y = self.data['x'][ndx], self.data['y'][ndx]
+
+        sample = {'x': x, 'y': y}
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample
+
+    def __del__(self):
+        if self.data is not None:
+            self.data.close()
+
+class ScanNet2D3DH5(ScanNetOccGridH5):
+    '''
+    Read 3D+2D dataset from file (like 3DMV)
+    '''
+    def __init__(self, cfg, split, transform=None):
+        super().__init__(cfg, split, transform)
+
+    @staticmethod
+    def collate_func(samples):
+        floats = 'x', 'world_to_grid', 
+        ints = 'y', 'frames', 'scene_id', 'scan_id'
+        stack_floats = 'depths', 'rgbs', 'poses'
+
+        batch = {}
+
+        # these are np arrays, create a tensor from the list of arrays
+        for key in floats:
+            batch[key] = torch.Tensor([s[key] for s in samples]) 
+        for key in ints:
+            batch[key] = torch.LongTensor([s[key] for s in samples])             
+        # these are already tensors, stack them
+        for key in stack_floats:
+            batch[key] = torch.stack([s[key] for s in samples])
+
+        return batch
+
+    def __getitem__(self, ndx):
+        # open once in each worker, allow multiproc
+        if self.data is None:
+            self.data = h5py.File(self.file_path, 'r') 
+
+        keys = 'x', 'y', 'world_to_grid', 'frames', 'scene_id', 'scan_id'
+
+        sample = {key: self.data[key][ndx] for key in keys} 
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample
 
 class ScanNetSemSegOccGrid(Dataset):
     '''
@@ -64,14 +147,14 @@ class ScanNetSemSegOccGrid(Dataset):
         else:
             self.scans = sorted(os.listdir(self.root_dir))
 
-        if cfg['limit_scans']:
+        if cfg.get('limit_scans', False):
             self.scans = self.scans[:cfg['limit_scans']]
 
         self.paths = self.get_paths()
 
     def get_paths(self):
         '''
-        Paths to files to scene files - 1 file per scene
+        Paths to scene files - 1 file per scene
         '''
         paths = []
         for scan_id in self.scans:
@@ -88,9 +171,11 @@ class ScanNetSemSegOccGrid(Dataset):
             return len(self.paths)
         return self.subvols_per_scene * len(self.paths)
 
-    def sample_subvol(self, x, y):
+    def sample_subvol(self, x, y, return_start_ndx=False):
         '''
         x, y - volumes of the same size
+        return_start_ndx: return the start index of the subvol within the 
+                              whole scene grid
         '''
         # pad the input volume for these reasons
         # 1. if the volume is is smaller than the subvol size
@@ -136,16 +221,27 @@ class ScanNetSemSegOccGrid(Dataset):
             if (y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1):
                 break
 
-        return x_sub, y_sub
+        retval = (x_sub, y_sub)
+        
+        if return_start_ndx:
+            retval += (start,)
+        
+        return retval
 
     def get_scene_grid(self, scene_ndx):
+        '''
+        get the full scene at scene_ndx (1..N)
+        return 
+            x, y of same shape
+            world to grid translation of the scene / None if not available
+        '''
         path = self.paths[scene_ndx]
         # load the full scene
         data = torch.load(path)
         # labels are scannet IDs
         x, y_nyu = data['x'], data['y']
 
-        return x, y_nyu
+        return x, y_nyu, None
 
     def __getitem__(self, ndx):
         if not self.full_scene:
@@ -156,10 +252,10 @@ class ScanNetSemSegOccGrid(Dataset):
         
         path = self.paths[scene_ndx]
 
-        x, y_nyu = self.get_scene_grid(scene_ndx)
+        x, y_nyu, translation = self.get_scene_grid(scene_ndx)
 
         # convert bool x to float
-        x = x.astype(float)
+        x = x.astype(np.float32)
         # dont use int8 anywhere, avoid possible overflow with more than 128 classes
         y = nyu40_to_continuous(y_nyu, ignore_label=self.target_padding, 
                                 num_classes=self.num_classes).astype(np.int16)
@@ -169,7 +265,10 @@ class ScanNetSemSegOccGrid(Dataset):
             xval, yval = self.sample_subvol(x, y)
 
         sample = {'path': path, 'x': xval, 'y': yval}
-
+        
+        if translation is not None:
+            sample['translation'] = translation
+            
         if self.transform is not None:
             sample = self.transform(sample)
 
@@ -197,6 +296,12 @@ class ScanNetPLYDataset(ScanNetSemSegOccGrid):
         return paths
 
     def get_scene_grid(self, scene_ndx):
+        '''
+        get the full scene at scene_ndx (1..N)
+        return 
+            x, y of same shape
+            world to grid translation of the scene / None if not available
+        '''
         path = self.paths[scene_ndx]
         # load the full scene
         coords, rgb, labels = load_ply(path, read_label=True)
@@ -209,18 +314,20 @@ class ScanNetPLYDataset(ScanNetSemSegOccGrid):
 
         if self.use_rgb:
             # use RGB values as grid features
-            x = np.zeros(grid_size + (3,))
+            x = np.zeros(grid_size + (3,), dtype=np.float32)
             x[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = rgb
         else:
             # binary occupancy grid
-            x = np.zeros(grid_size)
+            x = np.zeros(grid_size, np.float32)
             x[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = 1
 
         # fill Y with negative ints
         y_nyu = np.ones(grid_size, dtype=np.int16) * -1
         y_nyu[coords_new[:, 0], coords_new[:, 1], coords_new[:, 2]] = labels
 
-        return x, y_nyu
+        translation = -t
+
+        return x, y_nyu, translation 
 
 class ScanNetGridTestSubvols:
     '''
@@ -247,12 +354,14 @@ class ScanNetGridTestSubvols:
 
         # mapping from ndx to subvol slices
         self.mapping = OrderedDict()
+        # TODO: find a way to get this from the np.s_ slice
+        self.start_ndx = OrderedDict()
         ndx = 0
-        # height
+        # depth
         for k in range(0, self.x.shape[2], self.subvol_size[2]):
-            # width
+            # height
             for j in range(0, self.x.shape[1], self.subvol_size[1]):
-                # length
+                # width
                 for i in range(0, self.x.shape[0], self.subvol_size[0]):
                     slice = np.s_[
                         i : i+self.subvol_size[0], 
@@ -260,6 +369,7 @@ class ScanNetGridTestSubvols:
                         k : k+self.subvol_size[2], 
                     ]
                     self.mapping[ndx] = slice
+                    self.start_ndx[ndx] = (i, j, k)
                     ndx += 1
 
     def __len__(self):
@@ -267,10 +377,13 @@ class ScanNetGridTestSubvols:
 
     def __getitem__(self, ndx):
         slice = self.mapping[ndx]
+        # index where the subvol starts
+        start_ndx = np.array(self.start_ndx[ndx], dtype=np.uint16)
+        
         sub_x = self.x[slice]
         sub_y = self.y[slice]
 
-        sample = {'x': sub_x, 'y': sub_y, 'path': self.path}
+        sample = {'x': sub_x, 'y': sub_y, 'path': self.path, 'start_ndx': start_ndx}
 
         if self.transform is not None:
             sample = self.transform(sample)

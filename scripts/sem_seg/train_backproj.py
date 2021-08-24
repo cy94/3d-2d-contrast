@@ -3,56 +3,71 @@ seed_everything(42)
 
 from pathlib import Path
 import argparse
-from datasets.scannet.utils import get_dataset, get_loader
+from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
+from models.sem_seg.enet import ENet2
+from models.sem_seg.fcn3d import UNet2D3D
 
 from lib.misc import read_config
 from models.sem_seg.utils import count_parameters
-from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
 
-from torchinfo import summary
-from torch.utils.data import Subset
+from torchvision.transforms import Compose
+from torch.utils.data import Subset, DataLoader
 
 import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning import loggers as pl_loggers
 
+
+from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
+from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
+                                LoadRGBs
 
 def main(args):
     cfg = read_config(args.cfg_path)
-    model_name = cfg['model']['name']
-    is_sparse = model_name in SPARSE_MODELS
 
-    train_set = get_dataset(cfg, 'train')
-    val_set = get_dataset(cfg, 'val')
+    t = Compose([
+        AddChannelDim(),
+        TransposeDims(),
+        LoadDepths(cfg),
+        LoadPoses(cfg),
+        LoadRGBs(cfg)
+    ])
+
+    train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=t)
+    val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=t)
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
     if args.subset:
         print('Select a subset of data for quick run')
-        train_set = Subset(train_set, range(1024))
+        train_set = Subset(train_set, range(4096))
         val_set = Subset(val_set, range(1024))
+        print(f'Train set: {len(train_set)}')
+        print(f'Val set: {len(val_set)}')
 
-    if not is_sparse:
-        # training on chunks with binary feature
-        in_channels = 1
-    else:
-        # sparse model always has 3 channels, with real or dummy RGB values
-        in_channels = 3
+    train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
+                            collate_fn=ScanNet2D3DH5.collate_func,
+                            shuffle=True, num_workers=8,
+                            pin_memory=True)  
 
-    train_loader = get_loader(train_set, cfg, 'train', cfg['train']['train_batch_size'])
-    val_loader = get_loader(val_set, cfg, 'val', cfg['train']['val_batch_size'])
+    val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
+                            collate_fn=ScanNet2D3DH5.collate_func,
+                            shuffle=False, num_workers=8,
+                            pin_memory=True) 
 
-    model = MODEL_MAP[model_name](in_channels=in_channels, num_classes=cfg['data']['num_classes'], cfg=cfg)
-    print(f'Num params: {count_parameters(model)}')
+    features_2d = ENet2.load_from_checkpoint(cfg['model']['ckpt_2d'])
 
-    try:
-        input_size = (cfg['train']['train_batch_size'], 1,) + tuple(cfg['data']['subvol_size'])
-        summary(model, input_size=input_size)
-    except:
-        # doesn't work with sparse tensors
-        pass
+    # intrinsic of the color camera from scene0001_00
+    intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)
+    # adjust for smaller image size
+    intrinsic = adjust_intrinsic(intrinsic, [1296, 968], cfg['data']['proj_img_size'])
 
-        # log LR with schedulers
+    model = UNet2D3D(in_channels=1, num_classes=cfg['data']['num_classes'], cfg=cfg, 
+                    features_2d=features_2d, intrinsic=intrinsic)
+
+    print(f'Num params: {count_parameters(model)}')                                                      
+
+    # log LR with schedulers
     # without scheduler - done in model
     callbacks = [LearningRateMonitor(logging_interval='step')]
 
@@ -84,14 +99,12 @@ def main(args):
                                 # put the miou in the filename
                                 filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
                                 auto_insert_metric_name=False))
-
     else:
         print('Log to a temp version of WandB')                                
     
     # create a temp version for WB if not checkpointing
-    name += 'b'
     wbname = (name + 'tmp') if args.no_ckpt else name
-
+    
     if args.no_log:
         wblogger = None
         print('Logging disabled -> Checkpoint and LR logging disabled as well')
@@ -115,7 +128,7 @@ def main(args):
                         val_check_interval=cfg['train']['eval_intv'],
                         limit_val_batches=cfg['train']['limit_val_batches'],
                         fast_dev_run=args.fast_dev_run,
-                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
+                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1),)
 
     trainer.fit(model, train_loader, val_loader)
 
@@ -129,7 +142,7 @@ if __name__ == '__main__':
     p.add_argument('--subset', action='store_true', dest='subset', 
                     default=False, help='Use a subset of dataset')
     p.add_argument('--no-log', action='store_true', dest='no_log', 
-                default=False, help='Dont log to Weights and Biases')                    
+                    default=False, help='Dont log to Weights and Biases')
 
     parser = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()

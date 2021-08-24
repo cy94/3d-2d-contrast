@@ -33,6 +33,13 @@ class Normalize:
         self.mean = np.array(mean)
         self.std = np.array(std)
 
+    @staticmethod
+    def apply(img, mean, std):
+        img /= 255.0
+        img = (img - mean) / std
+
+        return img
+
     def __call__(self, sample):
         '''
         input: rgb in (0,255)
