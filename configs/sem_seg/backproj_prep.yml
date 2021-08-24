@@ -11,6 +11,7 @@ data:
     # size of each subvol
     subvol_size: [32, 32, 32]
     # randomly sample these many subvols per scene
+    # has no effect when doing full scene data prep
     subvols_per_scene: 100
     # how many rgb images for each chunk (3DMV)
     num_nearest_images: 1
