@@ -354,6 +354,8 @@ class ScanNetGridTestSubvols:
 
         # mapping from ndx to subvol slices
         self.mapping = OrderedDict()
+        # TODO: find a way to get this from the np.s_ slice
+        self.start_ndx = OrderedDict()
         ndx = 0
         # depth
         for k in range(0, self.x.shape[2], self.subvol_size[2]):
@@ -367,6 +369,7 @@ class ScanNetGridTestSubvols:
                         k : k+self.subvol_size[2], 
                     ]
                     self.mapping[ndx] = slice
+                    self.start_ndx[ndx] = (i, j, k)
                     ndx += 1
 
     def __len__(self):
@@ -374,10 +377,13 @@ class ScanNetGridTestSubvols:
 
     def __getitem__(self, ndx):
         slice = self.mapping[ndx]
+        # index where the subvol starts
+        start_ndx = np.array(self.start_ndx[ndx], dtype=np.uint16)
+        
         sub_x = self.x[slice]
         sub_y = self.y[slice]
 
-        sample = {'x': sub_x, 'y': sub_y, 'path': self.path}
+        sample = {'x': sub_x, 'y': sub_y, 'path': self.path, 'start_ndx': start_ndx}
 
         if self.transform is not None:
             sample = self.transform(sample)
