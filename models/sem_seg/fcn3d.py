@@ -176,7 +176,8 @@ class SemSegNet(pl.LightningModule):
         self.log('lr', self.optim.param_groups[0]['lr'])
 
         if isinstance(loss, dict):
-            return loss['loss'] + loss['contrastive']
+            # backprop with sum of all losses
+            return sum(loss.values())
         else:
             return loss
 
