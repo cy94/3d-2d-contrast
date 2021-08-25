@@ -83,26 +83,14 @@ def main(args):
         tblogger = pl_loggers.TensorBoardLogger('lightning_logs', '')
         name = f'version_{tblogger.version}'
 
-    # use for checkpoint
-    if not args.no_ckpt:
-        print('Saving checkpoints')
-        ckpt_dir = f'lightning_logs/{name}/checkpoints'
-        # resuming -> ok if exists
-        # new expt -> dir should not exist
-        Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
+    # always create a version folder so that tmp versions can get upgraded
+    # no versioning issues
+    # resuming -> ok if exists
+    # new expt -> dir should not exist
+    ckpt_dir = f'lightning_logs/{name}/checkpoints'
+    Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
 
-        # create the dir, version num doesn't get reused next time
-        callbacks.append(ModelCheckpoint(ckpt_dir,
-                                        save_last=True, save_top_k=5, 
-                                        monitor='iou/val/mean',
-                                        mode='max',
-                                # put the miou in the filename
-                                filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
-                                auto_insert_metric_name=False))
-    else:
-        print('Log to a temp version of WandB')                                
-    
-    # create a temp version for WB if not checkpointing
+        # create a temp version for WB if not checkpointing
     wbname = (name + 'tmp') if args.no_ckpt else name
     
     if args.no_log:
@@ -115,9 +103,26 @@ def main(args):
                                         project='thesis', 
                                         id=wbname,
                                         save_dir='lightning_logs',
+          
                                         version=wbname,
                                         log_model=False)
         wblogger.log_hyperparams(cfg)
+
+    # use for checkpoint
+    if not args.no_ckpt:
+        print('Saving checkpoints')
+        # create the dir, version num doesn't get reused next time
+        callbacks.append(ModelCheckpoint(ckpt_dir,
+                                        save_last=True, save_top_k=5, 
+                                        monitor='iou/val/mean',
+                                        mode='max',
+                                # put the miou in the filename
+                                filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
+                                auto_insert_metric_name=False))
+    else:
+        print('Log to a temp version of WandB')                                
+    
+
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
