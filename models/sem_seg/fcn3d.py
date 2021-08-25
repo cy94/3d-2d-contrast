@@ -653,7 +653,8 @@ class UNet2D3D(UNet3D):
             # get N,C vectors for 2d and 3d
             feat2d_all, feat3d_all, _ = out
             # sample N of these
-            inds = torch.randperm(self.contrast_n_points)
+            inds = torch.randperm(min(self.contrast_n_points, len(feat2d_all)))
+
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
             # L2 normalize
             feat2d_norm = feat2d / torch.norm(feat2d, p=2, dim=1, keepdim=True)
