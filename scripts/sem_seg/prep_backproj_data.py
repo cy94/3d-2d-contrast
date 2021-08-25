@@ -248,16 +248,25 @@ def main(args):
         pbar = tqdm(total=subvols_per_scene, desc='subvol', leave=False)
 
         while subvols_found < subvols_per_scene:
-            # sample a batch of subvols
-            if args.full_scene and subvols_per_scene_list[scene_ndx] < batch_size:
-                num_in_batch = subvols_per_scene_list[scene_ndx]
+            # full scene -> pick all the subvols
+            if args.full_scene:
+                if subvols_per_scene_list[scene_ndx] < batch_size:
+                    # only 1 small batch
+                    num_in_batch = subvols_per_scene_list[scene_ndx]
+                else:
+                    # not the first batch - min(bsize, whatever is left)
+                    num_in_batch = min(batch_size, subvols_per_scene_list[scene_ndx] - subvols_found)
+            # randomly sample a batch of subvols
             else:
                 num_in_batch = batch_size
             
             for ndx in tqdm(range(num_in_batch), desc='sample_subvol', leave=False):
                 if args.full_scene:
                     # full scene dataset? take the next subvol
-                    sample = next(subvols_dataset)
+                    try:
+                        sample = next(subvols_dataset)
+                    except:
+                        breakpoint()
                     subvol_x, subvol_y, start_ndx = sample['x'], sample['y'], \
                                                     sample['start_ndx']
                 else:
