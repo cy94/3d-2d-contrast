@@ -8,9 +8,6 @@ class SameConv3D(nn.Module):
             # same conv
             nn.Conv3d(in_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
-            # same conv
-            nn.Conv3d(out_channels, out_channels, 3, 1, 1),
-            nn.ReLU(),
             nn.Dropout3d(0.1)
         )
 
