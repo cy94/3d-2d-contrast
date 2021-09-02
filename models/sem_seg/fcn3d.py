@@ -685,6 +685,9 @@ class UNet2D3D(UNet3D):
         output: (N, 128,) + subvol_size
         2d-3d projection indices (batch size, 32*32*32) 
             = indices in the flattened 3d volume with 2d features
+
+        TODO: during inference, if there are no corresponding RGBs, 
+            just use 0 features. no need to do projection
         '''
         # compute projection mapping b/w 2d and 3d
         # get 2d features from images
@@ -698,6 +701,7 @@ class UNet2D3D(UNet3D):
 
         feat2d = self.features_2d(rgbs, return_features=True)
         # get C,D,H,W for each feature map
+        # pass empty ind3d -> get zero features
         feat2d_proj = [project_2d_3d(ft, ind3d, ind2d, self.subvol_size) \
                             for ft, ind3d, ind2d in \
                             zip(feat2d, proj_ind_3d, proj_ind_2d)]
