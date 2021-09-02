@@ -594,8 +594,12 @@ class UNet2D3D(UNet3D):
         ]) 
 
         self.layers = nn.ModuleList([
+            SameConv3D(self.in_channels, 32),
+            SameConv3D(32, 64),
+            SameConv3D(64, 128),
+
             # 1->1/2
-            Down3D(self.in_channels, 32),
+            Down3D(128, 32),
             # 1/2->1/4
             Down3D(32, 64),
             # 1/4->1/8
@@ -605,9 +609,9 @@ class UNet2D3D(UNet3D):
             # twice the channels - half of them come for 2D features
             Up3D(128 * 2, 64),
             # 1/4->1/2
-            Up3D(64*2, 32),
+            Up3D(64, 32),
             # 1/2->original shape
-            Up3D(32*2, self.num_classes, dropout=False),
+            Up3D(32, self.num_classes, dropout=False),
         ])  
 
     def common_step(self, batch, mode=None):
@@ -657,8 +661,8 @@ class UNet2D3D(UNet3D):
 
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
             # L2 normalize
-            feat2d_norm = feat2d / torch.norm(feat2d, p=2, dim=1, keepdim=True)
-            feat3d_norm = feat3d / torch.norm(feat3d, p=2, dim=1, keepdim=True)
+            feat2d_norm = F.normalize(feat2d)
+            feat3d_norm = F.normalize(feat3d)
             # find all pair feature distances
             # multiple (N,C) and (C,N), get (N,N)
             scores = torch.matmul(feat2d_norm, feat3d_norm.T)
@@ -740,9 +744,8 @@ class UNet2D3D(UNet3D):
         for layer in self.layers_2d:
             feat2d = layer(feat2d)
 
-        # usual 3D conv
-        # length of the down/up path
-        L = len(self.layers)//2
+        # same+down conv layers of the 3d branch
+        L = 6
         outs = []
 
         # down layers
@@ -751,10 +754,7 @@ class UNet2D3D(UNet3D):
             x = layer(x)
             outs.append(x)
 
-        # remove the last output and reverse
-        outs = list(reversed(outs[:-1]))
-
-        feat3d = x.clone()
+        feat3d = outs[2]
 
         # concat features from 2d with 3d along the channel dim
         x = torch.cat([x, feat2d], dim=1)
@@ -763,22 +763,19 @@ class UNet2D3D(UNet3D):
         x = self.layers[L](x)
 
         # up layers
-        for ndx, layer in enumerate(self.layers[L+1:]):
-            x = torch.cat([x, outs[ndx]], dim=1)
+        for _, layer in enumerate(self.layers[L+1:]):
             x = layer(x)
 
         if return_features:
             # filter out the samples with num_inds=0 
-
             # the original 2d features from 32^3 volume
             # pick only the ones at valid projection indices
             feat2d_vecs = torch.cat([pick_features(vol, inds) \
                          for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
-            # intermediate 3d features from 4^3 volume
-            # map the 32^3 indices to 4^3 indices and then pick
-            target_vol_size = tuple(feat3d.shape[2:])
-            feat3d_ind3d = torch.stack([map_indices(inds, self.subvol_size, target_vol_size) \
-                                        for inds in feat2d_ind3d])
+            # intermediate 3d features from some volume
+            # map the 32^3 indices to these indices and then pick
+            # no mapping if both volumes are the same size -> preferred
+            feat3d_ind3d = feat2d_ind3d
             feat3d_vecs = torch.cat([pick_features(vol, inds) \
                         for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
             return feat2d_vecs, feat3d_vecs, x
