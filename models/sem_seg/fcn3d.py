@@ -177,7 +177,8 @@ class SemSegNet(pl.LightningModule):
 
         if isinstance(loss, dict):
             # backprop with sum of all losses
-            return sum(loss.values())
+            # return sum(loss.values())
+            return loss['contrastive']
         else:
             return loss
 
@@ -664,7 +665,7 @@ class UNet2D3D(UNet3D):
             feat2d_norm = F.normalize(feat2d)
             feat3d_norm = F.normalize(feat3d)
             # find all pair feature distances
-            # multiple (N,C) and (C,N), get (N,N)
+            # multiply (N,C) and (C,N), get (N,N)
             scores = torch.matmul(feat2d_norm, feat3d_norm.T)
             labels = torch.arange(self.contrast_n_points).to(self.device)
             # get contrastive loss
