@@ -607,7 +607,7 @@ class UNet2D3D(UNet3D):
             Down3D(64, 128),
             
             # 1/8->1/4
-            # twice the channels - half of them come for 2D features
+            # twice the channels - half of them come from 2D features
             Up3D(128 * 2, 64),
             # 1/4->1/2
             Up3D(64, 32),
