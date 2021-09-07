@@ -301,6 +301,26 @@ class ProjectionHelper():
         return lin_inds
 
     @staticmethod
+    def lin_ind2d_to_coords2d_static(lin_ind, coords, img_dims):
+        '''
+        Get XY coordinates within the image grid
+
+        lin_ind: [0, 1, 2, 3 ..] tensor of integers - only the valid indices
+        coords: empty array to fill coords, (2, len(lin_ind))
+        img_dims: W, H of the depth image into which the coords are used
+
+        Static method, does the same thing as below
+        additionally need to pass in the volume dims
+        '''
+        # IMP: use a floored division here to keep only the integer coordinates!
+        # Y = N / width = number of filled widths
+        coords[1] = lin_ind.div(img_dims[0], rounding_mode='floor')
+        # position within the row is X -> remove full widths to get X
+        coords[0] = lin_ind - (coords[1]*img_dims[0]).long()
+
+        return coords
+
+    @staticmethod
     def lin_ind_to_coords_static(lin_ind, coords, vol_dims):
         '''
         Get XYZ coordinates within the grid
