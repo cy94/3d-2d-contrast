@@ -177,8 +177,7 @@ class SemSegNet(pl.LightningModule):
 
         if isinstance(loss, dict):
             # backprop with sum of all losses
-            # return sum(loss.values())
-            return loss['contrastive']
+            return sum(loss.values())
         else:
             return loss
 
@@ -596,8 +595,7 @@ class UNet2D3D(UNet3D):
 
         self.layers = nn.ModuleList([
             SameConv3D(self.in_channels, 32),
-            SameConv3D(32, 64),
-            SameConv3D(64, 128),
+            SameConv3D(32, 128),
 
             # 1->1/2
             Down3D(128, 32),
@@ -750,7 +748,7 @@ class UNet2D3D(UNet3D):
             feat2d = layer(feat2d)
 
         # same+down conv layers of the 3d branch
-        L = 6
+        L = 5
         outs = []
 
         # down layers
@@ -758,8 +756,6 @@ class UNet2D3D(UNet3D):
         for layer in self.layers[:L]:
             x = layer(x)
             outs.append(x)
-
-        feat3d = outs[2]
 
         # concat features from 2d with 3d along the channel dim
         x = torch.cat([x, feat2d], dim=1)
@@ -781,6 +777,8 @@ class UNet2D3D(UNet3D):
             # map the 32^3 indices to these indices and then pick
             # no mapping if both volumes are the same size -> preferred
             feat3d_ind3d = feat2d_ind3d
+            # IMP: change this index to pick the correct 3d features
+            feat3d = outs[1]
             feat3d_vecs = torch.cat([pick_features(vol, inds) \
                         for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
             return feat2d_vecs, feat3d_vecs, x
