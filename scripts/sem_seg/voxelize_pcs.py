@@ -32,7 +32,8 @@ def main(args):
         coords, _, labels = load_ply(scan_dir / gt_file, read_label=True)
 
         coords_vox, rgb_vox, labels_vox = sparse_quantize(coords, rgb, labels, 
-                                                quantization_size=voxel_size)
+                                                quantization_size=voxel_size,
+                                                device='cuda')
         arr = np.array([tuple(coords_vox[i]) + tuple(rgb_vox[i]) + (labels_vox[i],) \
                         for i in range(len(coords_vox))], 
                         dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), 
