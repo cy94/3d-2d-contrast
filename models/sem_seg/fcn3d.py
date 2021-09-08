@@ -617,7 +617,7 @@ class UNet2D3D(UNet3D):
         '''
         mode: train/val/None - can be used in subclasses for differing behaviour
         '''
-        x, y, world_to_grid, frames = batch['x'], batch['y'], batch['world_to_grid'], \
+        x, world_to_grid, frames = batch['x'], batch['world_to_grid'], \
                                     batch['frames']
 
         bsize = x.shape[0]
@@ -634,6 +634,7 @@ class UNet2D3D(UNet3D):
         # N, H, W (240, 320)
         rgbs = rgbs.view(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
 
+        
         # repeat the w2g transform for each image
         # add an extra dimension 
         transforms = world_to_grid.unsqueeze(1)
@@ -644,24 +645,28 @@ class UNet2D3D(UNet3D):
         
         # skip this batch
         if out is None:
+            print('skip batch')
             return None
+        
+        valid_samples, logits = out[-2], out[-1]
+        batch['y'] = batch['y'][valid_samples]
 
-        logits = out[-1] if self.contrastive else out
         # main cross entropy loss
-        loss = F.cross_entropy(logits, y, weight=self.get_class_weights(),
+        loss = F.cross_entropy(logits, batch['y'], weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
         preds = logits.argmax(dim=1)
 
         if self.contrastive:
             # get N,C vectors for 2d and 3d
-            feat2d_all, feat3d_all, _ = out
+            feat2d_all, feat3d_all = out[0], out[1]
             # sample N of these
             inds = torch.randperm(min(self.contrast_n_points, len(feat2d_all)))
 
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
             # L2 normalize
-            feat2d_norm = F.normalize(feat2d)
-            feat3d_norm = F.normalize(feat3d)
+            eps = 1e-6
+            feat2d_norm = feat2d / (torch.norm(feat2d, p=2, dim=1, keepdim=True).detach() + eps)
+            feat3d_norm = feat3d / (torch.norm(feat3d, p=2, dim=1, keepdim=True).detach() + eps)    
             # find all pair feature distances
             # multiply (N,C) and (C,N), get (N,N)
             scores = torch.matmul(feat2d_norm, feat3d_norm.T)
@@ -671,6 +676,7 @@ class UNet2D3D(UNet3D):
 
             loss = {'loss': loss, 'contrastive': ct_loss}
         return preds, loss
+
 
     def rgb_to_feat3d(self, rgbs, depths, poses, transforms):
         '''
@@ -691,8 +697,18 @@ class UNet2D3D(UNet3D):
         # get 2d features from images
         proj_mapping = [self.projection.compute_projection(d, c, t) \
                     for d, c, t in zip(depths, poses, transforms)]
-        if None in proj_mapping:
+        valid_samples = [ndx for (ndx, m) in enumerate(proj_mapping) if m is not None]
+
+        # if None in proj_mapping:
+        if len(valid_samples) == 0:
             return None
+
+        proj_mapping = [proj_mapping[ndx] for ndx in valid_samples]
+        rgbs = rgbs[valid_samples]
+        poses = poses[valid_samples]
+        depths = depths[valid_samples]
+        transforms = transforms[valid_samples]
+
         proj_mapping = list(zip(*proj_mapping))
         proj_ind_3d = torch.stack(proj_mapping[0])
         proj_ind_2d = torch.stack(proj_mapping[1])
@@ -727,7 +743,7 @@ class UNet2D3D(UNet3D):
         # back to #vols, C, D, H, W
         feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
 
-        return feat2d_proj, proj_ind_3d
+        return feat2d_proj, proj_ind_3d, valid_samples
 
     def forward(self, x, rgbs, depths, poses, transforms, return_features=False):
         '''
@@ -741,7 +757,10 @@ class UNet2D3D(UNet3D):
         if out is None:
             return None
 
-        feat2d_proj, feat2d_ind3d = out
+        # not all samples are valid, keep only the valid ones
+        feat2d_proj, feat2d_ind3d, valid_samples = out
+        x = x[valid_samples]
+
         feat2d = feat2d_proj.clone()
         # fwd pass projected features through convs
         for layer in self.layers_2d:
@@ -781,9 +800,9 @@ class UNet2D3D(UNet3D):
             feat3d = outs[1]
             feat3d_vecs = torch.cat([pick_features(vol, inds) \
                         for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
-            return feat2d_vecs, feat3d_vecs, x
+            return feat2d_vecs, feat3d_vecs, valid_samples, x
         else:
-            return x                  
+            return  valid_samples, x
 
 def map_indices(inds_list, in_dims, out_dims):
     '''
