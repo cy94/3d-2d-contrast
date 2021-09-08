@@ -224,7 +224,7 @@ class ScanNetSemSegOccGrid(Dataset):
             # classes 0,1 = wall, floor
             # if: the subvol has only these 2 classes -> keep only 5% of such subvols
             # or: other classes with index >2? keep the subvol
-            if (occupied >= 0.05) and \
+            if (occupied >= 0.04) and \
                 ((y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1)):
                 break
 
