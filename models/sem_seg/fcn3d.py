@@ -818,7 +818,7 @@ def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
     feat2_norm = l2_norm_vecs(feat2).unsqueeze(0)
     dists = torch.cdist(feat1_norm, feat2_norm).squeeze()
     # loss from positive pairs
-    loss_pos = ((dists.diagonal() - margin_pos)**2).mean()
+    loss_pos = ((dists.diagonal() - margin_pos).clamp(min=0)**2).mean()
 
     # set diagonal to inf, then find the closest negatives
     ind = torch.arange(dists.shape[0])  
@@ -826,8 +826,8 @@ def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
     dists_tmp[ind, ind] = float('inf')
 
     loss_neg = 0.5*(
-          (margin_neg - dists_tmp.min(axis=1)[0])**2 \
-        + (margin_neg - dists_tmp.min(axis=0)[0])**2).mean()
+          (margin_neg - dists_tmp.min(axis=1)[0]).clamp(min=0)**2 \
+        + (margin_neg - dists_tmp.min(axis=0)[0]).clamp(min=0)**2).mean()
 
     loss = loss_pos + loss_neg
 
