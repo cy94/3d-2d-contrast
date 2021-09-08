@@ -565,9 +565,7 @@ class UNet2D3D(UNet3D):
 
         self.contrastive = 'contrastive' in cfg['model']
         print(f'Use contrastive loss? {self.contrastive}')
-        if self.contrastive:
-            self.nce_temp = cfg['model']['contrastive']['temperature']
-            self.contrast_n_points = cfg['model']['contrastive']['n_points']
+
 
     def on_fit_start(self):
         super().on_fit_start()
@@ -662,22 +660,23 @@ class UNet2D3D(UNet3D):
         preds = logits.argmax(dim=1)
 
         if self.contrastive:
+            loss_cfg = self.hparams['cfg']['model']['contrastive']
+            n_points = loss_cfg['n_points']
+
             # get N,C vectors for 2d and 3d
             feat2d_all, feat3d_all = out[0], out[1]
-            # sample N of these
-            inds = torch.randperm(min(self.contrast_n_points, len(feat2d_all)))
 
+            # sample N of these
+            inds = torch.randperm(min(n_points, len(feat2d_all)))
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
-            # L2 normalize
-            eps = 1e-6
-            feat2d_norm = feat2d / (torch.norm(feat2d, p=2, dim=1, keepdim=True).detach() + eps)
-            feat3d_norm = feat3d / (torch.norm(feat3d, p=2, dim=1, keepdim=True).detach() + eps)    
-            # find all pair feature distances
-            # multiply (N,C) and (C,N), get (N,N)
-            scores = torch.matmul(feat2d_norm, feat3d_norm.T)
-            labels = torch.arange(len(inds)).to(self.device)
-            # get contrastive loss
-            ct_loss = F.cross_entropy(scores/self.nce_temp, labels)
+
+            loss_type = loss_cfg['type']
+
+            if loss_type == 'nce':
+                ct_loss = pointinfoNCE_loss(feat2d, feat3d, loss_cfg['temperature'])
+            elif loss_type == 'hardest':
+                ct_loss = hardest_contrastive_loss(feat2d, feat3d, 
+                                loss_cfg['margin_pos'], loss_cfg['margin_neg'])
 
             loss = {'loss': loss, 'contrastive': ct_loss}
         return preds, loss
@@ -808,6 +807,45 @@ class UNet2D3D(UNet3D):
             return feat2d_vecs, feat3d_vecs, valid_samples, x
         else:
             return  valid_samples, x
+
+def l2_norm_vecs(vecs, eps=1e-6):
+    vecs_norm = vecs / (torch.norm(vecs, p=2, dim=1, keepdim=True).detach() + eps)
+    return vecs_norm
+
+def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
+    # L2 normalize
+    feat1_norm = l2_norm_vecs(feat1).unsqueeze(0)
+    feat2_norm = l2_norm_vecs(feat2).unsqueeze(0)
+    dists = torch.cdist(feat1_norm, feat2_norm).squeeze()
+    # loss from positive pairs
+    loss_pos = ((dists.diagonal() - margin_pos)**2).mean()
+
+    # set diagonal to inf, then find the closest negatives
+    ind = torch.arange(dists.shape[0])  
+    dists_tmp = dists.clone()
+    dists_tmp[ind, ind] = float('inf')
+
+    loss_neg = 0.5*(
+          (margin_neg - dists_tmp.min(axis=1)[0])**2 \
+        + (margin_neg - dists_tmp.min(axis=0)[0])**2).mean()
+
+    loss = loss_pos + loss_neg
+
+    return loss
+
+def pointinfoNCE_loss(feat1, feat2, temp):
+    # L2 normalize
+    feat1_norm = l2_norm_vecs(feat1)
+    feat2_norm = l2_norm_vecs(feat2)
+
+    # find all pair feature distances
+    # multiply (N,C) and (C,N), get (N,N)
+    scores = torch.matmul(feat1_norm, feat2_norm.T)
+    labels = torch.arange(len(feat1)).to(feat1.device)
+    # get contrastive loss
+    ct_loss = F.cross_entropy(scores/temp, labels)
+
+    return ct_loss
 
 def map_indices(inds_list, in_dims, out_dims):
     '''
