@@ -640,6 +640,11 @@ class UNet2D3D(UNet3D):
         transforms = world_to_grid.unsqueeze(1)
         transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
         
+        # TODO: HACK! why add extra transform here?
+        t = torch.eye(4).to(self.device)
+        t[:3, -1] = 16 
+        transforms = t @ transforms
+
         # model forward pass 
         out = self(x, rgbs, depths, poses, transforms, return_features=self.contrastive)
         
