@@ -263,10 +263,7 @@ def main(args):
             for ndx in tqdm(range(num_in_batch), desc='sample_subvol', leave=False):
                 if args.full_scene:
                     # full scene dataset? take the next subvol
-                    try:
-                        sample = next(subvols_dataset)
-                    except:
-                        breakpoint()
+                    sample = next(subvols_dataset)
                     subvol_x, subvol_y, start_ndx = sample['x'], sample['y'], \
                                                     sample['start_ndx']
                 else:
