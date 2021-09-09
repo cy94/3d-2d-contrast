@@ -644,9 +644,13 @@ class UNet2D3D(UNet3D):
         transforms = world_to_grid.unsqueeze(1)
         transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
         
-        # TODO: HACK! why add extra transform here?
+        # projection expects origin of chunk in a corner
+        # but w2g is wrt center of the chunk -> add 16 to its "grid coords" 
+        # to get the required grid indices
+        # ie 0,0,0 becomes 16,16,16
+        # add an additional translation to existing one 
         t = torch.eye(4).to(self.device)
-        t[:3, -1] = 16 
+        t[:3, -1] = torch.Tensor(self.subvol_size) 
         transforms = t @ transforms
 
         # model forward pass 
