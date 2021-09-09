@@ -590,26 +590,32 @@ class UNet2D3D(UNet3D):
             # 1/4->1/8
             Down3D(64, 128),
         ]) 
-
-        self.layers = nn.ModuleList([
+        
+        # initial same conv layers, if any - need to get high res features
+        # for contrasting
+        self.layers3d_same = nn.ModuleList([
             SameConv3D(self.in_channels, 32),
             SameConv3D(32, 128),
+        ])
 
+        self.layers3d_down = nn.ModuleList([
             # 1->1/2
             Down3D(128, 32),
             # 1/2->1/4
             Down3D(32, 64),
             # 1/4->1/8
             Down3D(64, 128),
-            
+        ])
+
+        self.layers3d_up = nn.ModuleList([
             # 1/8->1/4
             # twice the channels - half of them come from 2D features
-            Up3D(128 * 2, 64),
-            # 1/4->1/2
-            Up3D(64, 32),
+            Up3D(128*2, 64),
+            # 1/4->1/2, skip connection
+            Up3D(64*2, 32),
             # 1/2->original shape
-            Up3D(32, self.num_classes, dropout=False),
-        ])  
+            Up3D(32*2, self.num_classes, dropout=False),
+        ])
 
     def common_step(self, batch, mode=None):
         '''
@@ -770,24 +776,32 @@ class UNet2D3D(UNet3D):
         for layer in self.layers_2d:
             feat2d = layer(feat2d)
 
-        # same+down conv layers of the 3d branch
-        L = 5
-        outs = []
+        # same layers of the 3d branch
+        for layer in self.layers3d_same:
+            x = layer(x)
+        
+        # store the original res 3d features
+        feat3d = x
 
+        outs = []
         # down layers
         # store the outputs of all but the last one
-        for layer in self.layers[:L]:
+        for layer in self.layers3d_down:
             x = layer(x)
             outs.append(x)
+
+        # reverse the outputs, remove the last (lowest one)
+        outs = outs[::-1][1:]
 
         # concat features from 2d with 3d along the channel dim
         x = torch.cat([x, feat2d], dim=1)
 
-        # lowest connection in the "U"
-        x = self.layers[L](x)
+        # first up layer, input is 2d+3d
+        x = self.layers3d_up[0](x)
 
         # up layers
-        for _, layer in enumerate(self.layers[L+1:]):
+        for ndx, layer in enumerate(self.layers3d_up[1:]):
+            x = torch.cat([x, outs[ndx]], dim=1)
             x = layer(x)
 
         if return_features:
@@ -800,8 +814,6 @@ class UNet2D3D(UNet3D):
             # map the 32^3 indices to these indices and then pick
             # no mapping if both volumes are the same size -> preferred
             feat3d_ind3d = feat2d_ind3d
-            # IMP: change this index to pick the correct 3d features
-            feat3d = outs[1]
             feat3d_vecs = torch.cat([pick_features(vol, inds) \
                         for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
             return feat2d_vecs, feat3d_vecs, valid_samples, x
