@@ -594,8 +594,7 @@ class UNet2D3D(UNet3D):
         # initial same conv layers, if any - need to get high res features
         # for contrasting
         self.layers3d_same = nn.ModuleList([
-            SameConv3D(self.in_channels, 32),
-            SameConv3D(32, 128),
+            SameConv3D(self.in_channels, 128),
         ])
 
         self.layers3d_down = nn.ModuleList([
