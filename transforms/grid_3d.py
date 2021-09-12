@@ -160,11 +160,14 @@ class LoadDepths(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
-        # invert dims in the tensor
-        # N, H, W -> torch nn convention
         depths = torch.Tensor(len(frames), self.img_size[1], self.img_size[0])
-        load_depth_multiple(paths, self.img_size, depths)
+        
+        # check if this sample has frames
+        if -1 not in frames:
+            paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
+            # invert dims in the tensor
+            # N, H, W -> torch nn convention
+            load_depth_multiple(paths, self.img_size, depths)
 
         sample['depths'] = depths
         
@@ -178,10 +181,11 @@ class LoadPoses(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
-
         poses = torch.Tensor(len(frames), 4, 4)
-        load_pose_multiple(paths, poses)
+
+        if -1 not in frames:
+            paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
+            load_pose_multiple(paths, poses)
 
         sample['poses'] = poses
 
@@ -199,10 +203,12 @@ class LoadRGBs(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
         # N, C, H, W -> torch nn convention
         rgbs = torch.Tensor(len(frames), 3, self.img_size[1], self.img_size[0])
-        load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
+
+        if -1 not in frames:
+            paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
+            load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
 
         sample['rgbs'] = rgbs
 

@@ -653,7 +653,7 @@ class UNet2D3D(UNet3D):
         transforms = t @ transforms
 
         # model forward pass 
-        out = self(x, rgbs, depths, poses, transforms, return_features=self.contrastive)
+        out = self(x, rgbs, depths, poses, transforms, frames, return_features=self.contrastive)
         
         # skip this batch
         if out is None:
@@ -691,7 +691,7 @@ class UNet2D3D(UNet3D):
         return preds, loss
 
 
-    def rgb_to_feat3d(self, rgbs, depths, poses, transforms):
+    def rgb_to_feat3d(self, rgbs, depths, poses, transforms, frames):
         '''
         rgbs: N, C, H, W
         depths: N, H, W
@@ -708,8 +708,22 @@ class UNet2D3D(UNet3D):
         '''
         # compute projection mapping b/w 2d and 3d
         # get 2d features from images
-        proj_mapping = [self.projection.compute_projection(d, c, t) \
-                    for d, c, t in zip(depths, poses, transforms)]
+        proj_mapping = []
+        # number of proj indices for each sample
+        num_inds = torch.prod(torch.Tensor(self.subvol_size)).long().item()
+
+        for d, c, t, f in zip(depths, poses, transforms, frames):
+            # if sample has frames
+            if -1 not in f:
+                proj = self.projection.compute_projection(d, c, t)
+            # set projection indices to zero, use 0 features
+            else:
+                # first element is the number of inds, zero -> no mapping
+                ind3d_zero = torch.zeros(num_inds + 1, dtype=int).to(self.device)
+                proj = (ind3d_zero, ind3d_zero.clone())
+            proj_mapping.append(proj)
+
+        # None -> sample had a frame, but no pixels map to the chunk                    
         valid_samples = [ndx for (ndx, m) in enumerate(proj_mapping) if m is not None]
 
         # if None in proj_mapping:
@@ -758,14 +772,14 @@ class UNet2D3D(UNet3D):
 
         return feat2d_proj, proj_ind_3d, valid_samples
 
-    def forward(self, x, rgbs, depths, poses, transforms, return_features=False):
+    def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
         All the differentiable ops here
         return_features: return the intermediate 2d and 3d features
         '''
         # fwd pass on rgb, then project to 3d volume and get features
         
-        out = self.rgb_to_feat3d(rgbs, depths, poses, transforms)
+        out = self.rgb_to_feat3d(rgbs, depths, poses, transforms, frames)
         # skip this batch
         if out is None:
             return None
