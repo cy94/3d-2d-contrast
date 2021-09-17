@@ -283,6 +283,15 @@ def main(args):
             # handle the case when actual subvols < batch_size, take only a subset
             world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch[:num_in_batch]).to(device)
 
+            # projection expects origin of chunk in a corner
+            # but w2g is wrt center of the chunk -> add 16 to its "grid coords" 
+            # to get the required grid indices
+            # ie 0,0,0 becomes 16,16,16
+            # add an additional translation to existing one 
+            t = torch.eye(4).to(device)
+            t[:3, -1] = torch.Tensor(subvol_size) 
+            world_to_grid_batch_tensor = t @ world_to_grid_batch_tensor
+
             # compute projection for the whole batch in parallel
             task_func = partial(get_nearest_images, poses=poses, depths=depths,
                                     num_nearest_imgs=num_nearest_imgs,
