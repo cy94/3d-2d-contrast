@@ -289,7 +289,7 @@ def main(args):
             # ie 0,0,0 becomes 16,16,16
             # add an additional translation to existing one 
             t = torch.eye(4).to(device)
-            t[:3, -1] = torch.Tensor(subvol_size) 
+            t[:3, -1] = torch.Tensor(subvol_size) / 2
             world_to_grid_batch_tensor = t @ world_to_grid_batch_tensor
 
             # compute projection for the whole batch in parallel
