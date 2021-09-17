@@ -581,10 +581,14 @@ class UNet2D3D(UNet3D):
     def init_model(self):
         self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
         
+        self.feat2d_same = nn.ModuleList([
+            SameConv3D(128, 32)
+        ])
+
         # conv on feats projected from 2d
         self.layers_2d = nn.ModuleList([
             # 1->1/2
-            Down3D(128, 64),
+            Down3D(32, 64),
             # 1/2->1/4
             Down3D(64, 64),
             # 1/4->1/8
@@ -594,12 +598,12 @@ class UNet2D3D(UNet3D):
         # initial same conv layers, if any - need to get high res features
         # for contrasting
         self.layers3d_same = nn.ModuleList([
-            SameConv3D(self.in_channels, 128),
+            SameConv3D(self.in_channels, 32),
         ])
 
         self.layers3d_down = nn.ModuleList([
             # 1->1/2
-            Down3D(128, 32),
+            Down3D(32, 32),
             # 1/2->1/4
             Down3D(32, 64),
             # 1/4->1/8
@@ -786,6 +790,8 @@ class UNet2D3D(UNet3D):
 
         # not all samples are valid, keep only the valid ones
         feat2d_proj, feat2d_ind3d, valid_samples = out
+        # reduce 2d feat dim once, then contrast
+        feat2d_proj = self.feat2d_same[0](feat2d_proj)
         x = x[valid_samples]
 
         feat2d = feat2d_proj.clone()
@@ -825,13 +831,13 @@ class UNet2D3D(UNet3D):
             # filter out the samples with num_inds=0 
             # the original 2d features from 32^3 volume
             # pick only the ones at valid projection indices
-            feat2d_vecs = torch.cat([pick_features(vol, inds) \
+            feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
                          for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
             # intermediate 3d features from some volume
             # map the 32^3 indices to these indices and then pick
             # no mapping if both volumes are the same size -> preferred
             feat3d_ind3d = feat2d_ind3d
-            feat3d_vecs = torch.cat([pick_features(vol, inds) \
+            feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
                         for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
             return feat2d_vecs, feat3d_vecs, valid_samples, x
         else:
