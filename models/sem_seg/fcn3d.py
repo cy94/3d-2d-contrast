@@ -701,10 +701,10 @@ class UNet2D3D(UNet3D):
 
         output: (N, 128,) + subvol_size
         2d-3d projection indices (batch size, 32*32*32) 
-            = indices in the flattened 3d volume with 2d features
+            = indices into the flattened 3d volume with 2d features
 
-        TODO: during inference, if there are no corresponding RGBs, 
-            just use 0 features. no need to do projection
+        NOTE: during inference, if there are no corresponding RGBs, 
+             0 features are created. no need to do projection
         '''
         # compute projection mapping b/w 2d and 3d
         # get 2d features from images
