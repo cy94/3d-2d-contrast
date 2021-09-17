@@ -21,13 +21,7 @@ def get_rot_mat(num_rots, subvol_size):
     num_rots: number of rotations by np.rot90 in the direction X->Y axis, about the Z axis
     subvol_size: (W, H, D) size
     '''
-    # translate the center of the subvol in the XY plane to the origin
-    # dont change Z
-    center_to_orig = np.eye(4)
-    center_to_orig[0, -1] = -(subvol_size[0]/2)
-    center_to_orig[1, -1] = -(subvol_size[1]/2)
-
-    # now rotate about the Z axis num_rots times
+    # rotate about the Z axis num_rots times
     rot90 = np.eye(4)
     rot90[0, 0] = 0
     rot90[1, 1] = 0
@@ -36,13 +30,7 @@ def get_rot_mat(num_rots, subvol_size):
 
     rot_n = np.linalg.matrix_power(rot90, num_rots)
 
-    # move the origin back to the center of the subvol in the XY plane
-    # dont change Z
-    orig_to_center = np.eye(4)
-    orig_to_center[0, -1] = (subvol_size[0]/2)
-    orig_to_center[1, -1] = (subvol_size[1]/2)
-
-    return orig_to_center @ rot_n @ center_to_orig
+    return rot_n 
 
 def main(args):
     assert args.in_path != args.out_path
