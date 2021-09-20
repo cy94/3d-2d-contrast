@@ -9,6 +9,8 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+import wandb
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,6 +34,7 @@ class SemSegNet(pl.LightningModule):
                 should_log_confmat=False):
         super().__init__()
         self.save_hyperparameters()
+        
         self.num_classes = num_classes
         
         self.should_log_confmat = should_log_confmat
@@ -148,6 +151,8 @@ class SemSegNet(pl.LightningModule):
 
     def on_fit_start(self):
         self.train_confmat = self.create_metrics()
+        # init the best val loss with inf value
+        self.best_val_loss = torch.Tensor([float('inf')])
 
     def log_losses(self, loss, split):
         # log each loss
@@ -195,7 +200,7 @@ class SemSegNet(pl.LightningModule):
 
         # using all classes -> log subset of 20 classes separately
         if self.class_subset is not None:
-            self.log(f'acc/{split}/mean_subset', accs[self.class_subset].mean())
+            self.log(f'acc/{split}/mean_subset', np.nanmean(accs[self.class_subset]))
 
     def log_everything(self, confmat, split):
         self.log_ious(confmat.ious, split)
@@ -203,7 +208,7 @@ class SemSegNet(pl.LightningModule):
         
         if self.should_log_confmat:
             self.log_confmat(confmat.mat, split)
-
+        
     def log_ious(self, ious, split):
         if self.log_all_classes:
             for class_ndx, iou in enumerate(ious):
@@ -214,7 +219,7 @@ class SemSegNet(pl.LightningModule):
 
         # using all classes -> log subset of 20 classes separately
         if self.class_subset is not None:
-            self.log(f'iou/{split}/mean_subset', ious[self.class_subset].mean())
+            self.log(f'iou/{split}/mean_subset', np.nanmean(ious[self.class_subset]))
 
     def create_metrics(self):
         return ConfMat(self.num_classes)                               
@@ -245,9 +250,8 @@ class SemSegNet(pl.LightningModule):
         tag = f'confmat/{split}'
 
         # wandb                               
-        self.logger.experiment[0].log({tag: wandb.Image(img), 
+        self.logger.experiment.log({tag: wandb.Image(img), 
                                         'global_step': self.global_step}) 
-
 
     def validation_epoch_end(self, outputs):
         # hack because pytorch lightning gives empty outputs initially?
@@ -268,6 +272,37 @@ class SemSegNet(pl.LightningModule):
 
         self.log_everything(self.val_confmat, 'val')
 
+        self.update_summaries(loss_mean)
+
+    def update_summaries(self, val_loss):
+        '''
+        loss: single tensor or dict
+        # update summary metrics - if val loss decreased, set these in wandb
+        # best val loss
+        # best val iou, acc metrics
+        # corresponding step
+        '''
+        current_val_loss = val_loss['loss'] if isinstance(val_loss, dict) else val_loss
+
+        if current_val_loss < self.best_val_loss:
+            self.best_val_loss = current_val_loss
+            expt = self.logger.experiment
+            expt.summary["best_val_loss"] = current_val_loss
+
+            # get iou and acc            
+            ious, accs = self.val_confmat.ious, self.val_confmat.accs
+
+            # log for all classes
+            expt.summary["best_iou"] = np.nanmean(ious)
+            expt.summary["best_acc"] = np.nanmean(accs)
+
+            expt.summary['best_step'] = self.global_step
+
+            # log for subset of classes
+            if self.class_subset is not None:
+                expt.summary["best_iou_subset"] = np.nanmean(ious[self.class_subset])
+                expt.summary["best_acc_subset"] = np.nanmean(accs[self.class_subset])
+
 class SparseNet3D(SemSegNet):
     '''
     Sparse convs on 3D grid using Minkowski Engine
@@ -286,7 +321,7 @@ class SparseNet3D(SemSegNet):
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 coords, feats, y = batch['coords'], batch['feats'], batch['y']
-                # normalize colors
+                # normalize 
                 feats[:, :3] = feats[:, :3] / 255. - 0.5
                 sinput = ME.SparseTensor(feats, coords)
                 # sparse output
