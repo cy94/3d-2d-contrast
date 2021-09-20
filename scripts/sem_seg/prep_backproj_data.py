@@ -119,13 +119,14 @@ def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector
         
         # find the current best pose
         best_pose = np.argmax(current_coverages)
-        # add to frames
-        frames.append(best_pose)
-        # update voxels covered so far
-        ind3d, _ = projections[best_pose]
-        num_ind = ind3d[0]
-        covered_by_this_pose = set(ind3d[1:1+num_ind].tolist())
-        covered_voxels = covered_voxels.union(covered_by_this_pose)
+        if projections[best_pose] is not None:
+            # add to frames
+            frames.append(best_pose)
+            # update voxels covered so far
+            ind3d, _ = projections[best_pose]
+            num_ind = ind3d[0]
+            covered_by_this_pose = set(ind3d[1:1+num_ind].tolist())
+            covered_voxels = covered_voxels.union(covered_by_this_pose)
 
     # some image covers this subvol
     if len(frames) > 0:
