@@ -119,7 +119,7 @@ def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector
         
         # find the current best pose
         best_pose = np.argmax(current_coverages)
-        if projections[best_pose] is not None:
+        if (projections[best_pose] is not None) and (current_coverages[best_pose] > 0):
             # add to frames
             frames.append(best_pose)
             # update voxels covered so far
@@ -345,9 +345,11 @@ def main(args):
                     if -1 in nearest_imgs:
                         nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
                     else:
-                        # nearest imgs is a list of num_nearest_imgs ints
+                        # nearest imgs is a list of ints
+                        # its length is not necessarily num_nearest_imgs
+                        # -> rest should be -1
                         # get the corresponding pose for each of these 
-                        nearest_poses = np.empty(num_nearest_imgs, dtype=np.int16)
+                        nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
                         for i, pose_ndx in enumerate(nearest_imgs):
                             # get the "N".txt number
                             nearest_poses[i] = pose_file_ndxs[pose_ndx]
