@@ -617,7 +617,7 @@ class UNet2D3D(UNet3D):
         self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
         
         self.feat2d_same = nn.ModuleList([
-            SameConv3D(128, 32)
+            SameConv3D(128, 32),
         ])
 
         # conv on feats projected from 2d
@@ -663,10 +663,19 @@ class UNet2D3D(UNet3D):
                                     batch['frames']
 
         bsize = x.shape[0]
-        num_nearest_imgs = frames.shape[1]
+
+        # dataset should have atleast num_nearest_images frames per chunk
+        # use only the number that is specified in the cfg
+        num_nearest_imgs = self.hparams['cfg']['data']['num_nearest_images']
+        # total number of frames (num chunks * num frames per chunk)
         num_imgs = bsize * num_nearest_imgs
 
         depths, poses, rgbs = batch['depths'], batch['poses'], batch['rgbs']
+        # keep only the number of frames required
+        depths = depths[:, :num_nearest_imgs, :, :]
+        poses = poses[:, :num_nearest_imgs, :, :]
+        rgbs = rgbs[:, :num_nearest_imgs, :, :, :]
+        frames = frames[:, :num_nearest_imgs]
 
         # collapse batch size and "num nearest img" dims
         # N, H, W (30, 40)
@@ -675,8 +684,9 @@ class UNet2D3D(UNet3D):
         poses = poses.view(num_imgs, poses.shape[2], poses.shape[3])
         # N, H, W (240, 320)
         rgbs = rgbs.view(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
+        # N, 1
+        frames = frames.view(num_imgs, 1)
 
-        
         # repeat the w2g transform for each image
         # add an extra dimension 
         transforms = world_to_grid.unsqueeze(1)
@@ -699,8 +709,8 @@ class UNet2D3D(UNet3D):
             print('skip batch')
             return None
         
-        valid_samples, logits = out[-2], out[-1]
-        batch['y'] = batch['y'][valid_samples]
+        # always returns a tuple
+        logits = out[-1]
 
         # main cross entropy loss
         loss = F.cross_entropy(logits, batch['y'], weight=self.get_class_weights(),
@@ -739,7 +749,7 @@ class UNet2D3D(UNet3D):
         N = batch_size of subvols * num_nearest_images
 
         output: (N, 128,) + subvol_size
-        2d-3d projection indices (batch size, 32*32*32) 
+        2d-3d projection indices (batch size, 1+32*32*32) 
             = indices into the flattened 3d volume with 2d features
 
         NOTE: during inference, if there are no corresponding RGBs, 
@@ -752,28 +762,22 @@ class UNet2D3D(UNet3D):
         num_inds = torch.prod(torch.Tensor(self.subvol_size)).long().item()
 
         for d, c, t, f in zip(depths, poses, transforms, frames):
-            # if sample has frames
-            if -1 not in f:
+            # if sample has frames, pose is invertible
+            if (-1 not in f) and torch.det(c) != 0:
                 proj = self.projection.compute_projection(d, c, t)
+            # no frame or no projection -> 
             # set projection indices to zero, use 0 features
-            else:
+            if (proj is None) or (-1 in f):
                 # first element is the number of inds, zero -> no mapping
                 ind3d_zero = torch.zeros(num_inds + 1, dtype=int).to(self.device)
                 proj = (ind3d_zero, ind3d_zero.clone())
             proj_mapping.append(proj)
 
         # None -> sample had a frame, but no pixels map to the chunk                    
-        valid_samples = [ndx for (ndx, m) in enumerate(proj_mapping) if m is not None]
+        valid_frames = [ndx for (ndx, m) in enumerate(proj_mapping) if m is not None]
 
-        # if None in proj_mapping:
-        if len(valid_samples) == 0:
+        if len(valid_frames) == 0:
             return None
-
-        proj_mapping = [proj_mapping[ndx] for ndx in valid_samples]
-        rgbs = rgbs[valid_samples]
-        poses = poses[valid_samples]
-        depths = depths[valid_samples]
-        transforms = transforms[valid_samples]
 
         proj_mapping = list(zip(*proj_mapping))
         proj_ind_3d = torch.stack(proj_mapping[0])
@@ -809,7 +813,7 @@ class UNet2D3D(UNet3D):
         # back to #vols, C, D, H, W
         feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
 
-        return feat2d_proj, proj_ind_3d, valid_samples
+        return feat2d_proj, proj_ind_3d #, valid_samples
 
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
@@ -824,10 +828,10 @@ class UNet2D3D(UNet3D):
             return None
 
         # not all samples are valid, keep only the valid ones
-        feat2d_proj, feat2d_ind3d, valid_samples = out
+        feat2d_proj, feat2d_ind3d = out 
         # reduce 2d feat dim once, then contrast
-        feat2d_proj = self.feat2d_same[0](feat2d_proj)
-        x = x[valid_samples]
+        for layer in self.feat2d_same:
+            feat2d_proj = layer(feat2d_proj)
 
         feat2d = feat2d_proj.clone()
         # fwd pass projected features through convs
@@ -874,9 +878,10 @@ class UNet2D3D(UNet3D):
             feat3d_ind3d = feat2d_ind3d
             feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
                         for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
-            return feat2d_vecs, feat3d_vecs, valid_samples, x
+            return feat2d_vecs, feat3d_vecs, x 
         else:
-            return  valid_samples, x
+            # tuple with one element
+            return (x,) 
 
 def l2_norm_vecs(vecs, eps=1e-6):
     vecs_norm = vecs / (torch.norm(vecs, p=2, dim=1, keepdim=True).detach() + eps)
