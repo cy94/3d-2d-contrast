@@ -34,7 +34,8 @@ def load_depth_multiple(paths, image_dims, out):
     out: out array
     '''
     for ndx, path in enumerate(paths):
-        out[ndx] = torch.Tensor(load_depth(path, image_dims))
+        if path.exists():
+            out[ndx] = torch.Tensor(load_depth(path, image_dims))
 
     return out
 
@@ -56,7 +57,8 @@ def load_pose_multiple(paths, out):
     out: out array
     '''
     for ndx, path in enumerate(paths):
-        out[ndx] = torch.Tensor(load_pose(path))
+        if path.exists():
+            out[ndx] = torch.Tensor(load_pose(path))
     return out
     
 def load_pose(path):
@@ -71,7 +73,8 @@ def load_rgbs_multiple(paths, image_dims, out, transform=None):
     out: out array
     '''
     for ndx, path in enumerate(paths):
-        out[ndx] = torch.Tensor(load_color(path, image_dims, transform=transform))
+        if path.exists():
+            out[ndx] = torch.Tensor(load_color(path, image_dims, transform=transform))
     return out
 
 def load_color(path, image_dims, transform=None):
