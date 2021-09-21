@@ -763,6 +763,7 @@ class UNet2D3D(UNet3D):
 
         for d, c, t, f in zip(depths, poses, transforms, frames):
             # if sample has frames, pose is invertible
+            proj = None
             if (-1 not in f) and torch.det(c) != 0:
                 proj = self.projection.compute_projection(d, c, t)
             # no frame or no projection -> 
