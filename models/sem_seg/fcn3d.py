@@ -260,12 +260,12 @@ class SemSegNet(pl.LightningModule):
 
         if isinstance(outputs[0], dict):
             loss_mean = {
-                key: torch.Tensor([output[key] for output in outputs]).mean()
+                key: np.nanmean(torch.Tensor([output[key] for output in outputs]))
                         for key in outputs[0]
                         }
             self.log("hp_metric", loss_mean['loss'])    
         else:
-            loss_mean = torch.Tensor(outputs).mean()
+            loss_mean = np.nanmean(torch.Tensor(outputs))
             self.log("hp_metric", loss_mean)    
 
         self.log_losses(loss_mean, 'val')
