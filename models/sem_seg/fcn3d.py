@@ -274,6 +274,8 @@ class SemSegNet(pl.LightningModule):
 
         self.update_summaries(loss_mean)
 
+        
+
     def update_summaries(self, val_loss):
         '''
         loss: single tensor or dict
@@ -764,7 +766,9 @@ class UNet2D3D(UNet3D):
         for d, c, t, f in zip(depths, poses, transforms, frames):
             # if sample has frames, pose is invertible
             proj = None
-            if (-1 not in f) and torch.det(c) != 0:
+            # check if the pose is valid and invertible
+            det_c = torch.det(c)
+            if (-1 not in f) and (det_c != 0) and (not torch.isnan(det_c)):
                 proj = self.projection.compute_projection(d, c, t)
             # no frame or no projection -> 
             # set projection indices to zero, use 0 features
