@@ -623,13 +623,16 @@ class UNet2D3D(UNet3D):
         self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
         
         self.feat2d_same = nn.ModuleList([
-            SameConv3D(128, 32),
+            nn.Identity()
+            # SameConv3D(128, 32),
+            # SameConv3D(32, 16),
         ])
 
         # conv on feats projected from 2d
         self.layers_2d = nn.ModuleList([
+            nn.Identity(),
             # 1->1/2
-            Down3D(32, 64),
+            Down3D(128, 64),
             # 1/2->1/4
             Down3D(64, 64),
             # 1/4->1/8
@@ -639,12 +642,14 @@ class UNet2D3D(UNet3D):
         # initial same conv layers, if any - need to get high res features
         # for contrasting
         self.layers3d_same = nn.ModuleList([
-            SameConv3D(self.in_channels, 32),
+            nn.Identity()
+            # SameConv3D(self.in_channels, 32),
+            # SameConv3D(32, 16),
         ])
 
         self.layers3d_down = nn.ModuleList([
             # 1->1/2
-            Down3D(32, 32),
+            Down3D(self.in_channels, 32),
             # 1/2->1/4
             Down3D(32, 64),
             # 1/4->1/8
@@ -658,7 +663,11 @@ class UNet2D3D(UNet3D):
             # 1/4->1/2, skip connection
             Up3D(64*2, 32),
             # 1/2->original shape
-            Up3D(32*2, self.num_classes, dropout=False),
+            Up3D(32*2, 128),
+        ])
+
+        self.pred3d = nn.ModuleList([
+            SameConv3D(128, self.num_classes),
         ])
 
     def common_step(self, batch, mode=None):
@@ -729,9 +738,14 @@ class UNet2D3D(UNet3D):
 
             # get N,C vectors for 2d and 3d
             feat2d_all, feat3d_all = out[0], out[1]
-
             # sample N of these
-            inds = torch.randperm(min(n_points, len(feat2d_all)))
+            n_feats = len(feat2d_all)
+            # actual number of points to compute loss over
+            n_points_actual = min(n_points, n_feats)
+            # shuffle all the feats, then pick the required number
+            inds = torch.randperm(n_feats)[:n_points_actual]
+            # inds = torch.arange(n_points_actual)
+
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
 
             loss_type = loss_cfg['type']
@@ -838,7 +852,7 @@ class UNet2D3D(UNet3D):
 
         # not all samples are valid, keep only the valid ones
         feat2d_proj, feat2d_ind3d = out 
-        # reduce 2d feat dim once, then contrast
+        # reduce 2d feat dim with same conv layers, then contrast
         for layer in self.feat2d_same:
             feat2d_proj = layer(feat2d_proj)
 
@@ -852,7 +866,7 @@ class UNet2D3D(UNet3D):
             x = layer(x)
         
         # store the original res 3d features
-        feat3d = x
+        # feat3d = x
 
         outs = []
         # down layers
@@ -875,18 +889,19 @@ class UNet2D3D(UNet3D):
             x = torch.cat([x, outs[ndx]], dim=1)
             x = layer(x)
 
+        feat3d = x
+
+        x = self.pred3d[0](x)
+
         if return_features:
             # filter out the samples with num_inds=0 
             # the original 2d features from 32^3 volume
             # pick only the ones at valid projection indices
             feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
                          for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
-            # intermediate 3d features from some volume
-            # map the 32^3 indices to these indices and then pick
-            # no mapping if both volumes are the same size -> preferred
-            feat3d_ind3d = feat2d_ind3d
+            # intermediate 3d features from the same-sized volume
             feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                        for (vol, inds) in zip(feat3d, feat3d_ind3d)], 0)
+                        for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
             return feat2d_vecs, feat3d_vecs, x 
         else:
             # tuple with one element
@@ -957,13 +972,15 @@ def pick_features(vol, inds_list):
     indices are according to WHD dims
     '''
     num_inds = inds_list[0]
+    n_channels = vol.shape[0]
+
     if num_inds > 0:
         inds = inds_list[1:1+num_inds]
         
         # change CDHW -> WHDC and then pick features
-        vecs = vol.permute(3, 2, 1, 0).reshape(-1, vol.shape[0])[inds]
+        vecs = vol.permute(3, 2, 1, 0).reshape(-1, n_channels)[inds]
     else:
-        vecs = torch.empty(0, vol.shape[0])
+        vecs = torch.empty(0, n_channels)
 
     return vecs 
         
