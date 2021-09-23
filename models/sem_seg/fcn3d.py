@@ -284,6 +284,10 @@ class SemSegNet(pl.LightningModule):
         # best val iou, acc metrics
         # corresponding step
         '''
+        # check if we have a logger
+        if self.logger is None:
+            return
+
         current_val_loss = val_loss['loss'] if isinstance(val_loss, dict) else val_loss
 
         if current_val_loss < self.best_val_loss:
