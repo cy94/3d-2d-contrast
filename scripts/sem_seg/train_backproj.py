@@ -83,14 +83,16 @@ def main(args):
         tblogger = pl_loggers.TensorBoardLogger('lightning_logs', '')
         name = f'version_{tblogger.version}'
 
-    # always create a version folder so that tmp versions can get upgraded
-    # no versioning issues
+    if (not args.no_log) or (not args.no_ckpt): 
+    # create a version folder if 
+    # we are logging -> so that even tmp versions can get upgraded
+    # or if we are checkpointing
     # resuming -> ok if exists
     # new expt -> dir should not exist
-    ckpt_dir = f'lightning_logs/{name}/checkpoints'
-    Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
+        ckpt_dir = f'lightning_logs/{name}/checkpoints'
+        Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
 
-        # create a temp version for WB if not checkpointing
+    # create a temp version for WB if not checkpointing
     wbname = (name + 'tmp') if args.no_ckpt else name
     
     if args.no_log:
