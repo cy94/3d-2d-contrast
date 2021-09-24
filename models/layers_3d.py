@@ -1,13 +1,13 @@
 import torch.nn as nn
 
 class SameConv3D(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout=True):
+    def __init__(self, in_channels, out_channels, dropout=True, relu=True):
         super().__init__()
         self.layers = nn.Sequential(
             # args: inchannels, outchannels, kernel, stride, padding
             # same conv
             nn.Conv3d(in_channels, out_channels, 3, 1, 1),
-            nn.ReLU(),
+            nn.ReLU() if relu else nn.Identity(),
             nn.Dropout3d(0.1) if dropout else nn.Identity()
         )
 
