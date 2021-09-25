@@ -669,6 +669,9 @@ class UNet2D3D(UNet3D):
         self.pred3d = nn.ModuleList([
             SameConv3D(128, self.num_classes),
         ])
+        # map feats to lower dim and then contrast
+        self.map_feat2d = nn.Linear(128, 32)
+        self.map_feat3d = nn.Linear(128, 32)
 
     def common_step(self, batch, mode=None):
         '''
@@ -747,6 +750,9 @@ class UNet2D3D(UNet3D):
             # inds = torch.arange(n_points_actual)
 
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
+
+            feat2d = self.map_feat2d(feat2d)
+            feat3d = self.map_feat3d(feat3d)
 
             loss_type = loss_cfg['type']
 
@@ -843,8 +849,8 @@ class UNet2D3D(UNet3D):
         All the differentiable ops here
         return_features: return the intermediate 2d and 3d features
         '''
+        input_x = x
         # fwd pass on rgb, then project to 3d volume and get features
-        
         out = self.rgb_to_feat3d(rgbs, depths, poses, transforms, frames)
         # skip this batch
         if out is None:
@@ -894,6 +900,11 @@ class UNet2D3D(UNet3D):
         x = self.pred3d[0](x)
 
         if return_features:
+            # find the locations in the input that are occupied
+            input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                         for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
+            occupied = (input_vecs.view(-1) > 0) 
+
             # filter out the samples with num_inds=0 
             # the original 2d features from 32^3 volume
             # pick only the ones at valid projection indices
@@ -902,6 +913,10 @@ class UNet2D3D(UNet3D):
             # intermediate 3d features from the same-sized volume
             feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
                         for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
+
+            feat2d_vecs = feat2d_vecs[occupied]
+            feat3d_vecs = feat3d_vecs[occupied]
+
             return feat2d_vecs, feat3d_vecs, x 
         else:
             # tuple with one element
