@@ -1,7 +1,8 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    train_list: /mnt/data/scannet/splits/scannetv2_train.txt
+    # train_list: /mnt/data/scannet/splits/scannetv2_train.txt
+    train_list: /mnt/data/scannet/splits/train1.txt
     val_list: /mnt/data/scannet/splits/scannetv2_val.txt
     # 20 or 40 classes?
     num_classes: 40
@@ -14,7 +15,7 @@ data:
     # has no effect when doing full scene data prep
     subvols_per_scene: 100
     # how many rgb images for each chunk (3DMV)
-    num_nearest_images: 1
+    num_nearest_images: 5
     # size of the image that "looks" at the voxel
     # width, height
     img_size: [40, 30]
