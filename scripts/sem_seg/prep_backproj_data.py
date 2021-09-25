@@ -3,7 +3,7 @@ prepare 2d+3d dataset (like 3DMV)
 3d: 32^3 subvolumes x and y sampled from dense grid
 2d: indices of 5 nearest images to each subvolume
 '''
-
+import wandb
 
 import os, os.path as osp
 import argparse
@@ -138,6 +138,7 @@ def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector
 
 def main(args):
     cfg = read_config(args.cfg_path)
+    wandb.init(project='prep-backproj', config=cfg)
     
     device = torch.device('cuda' if args.gpu else 'cpu')
     print('Using device:', device)
