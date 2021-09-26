@@ -389,7 +389,8 @@ class ProjectionHelper():
         # empty array with size (4, num_voxels)
         coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
         # fill the array with ((0,0,0), (1,0,0),..(2,0,0),...(N,N,N))
-        coords = self.lin_ind_to_coords(lin_ind_volume, coords)
+        # actual coord is the center of the voxel
+        coords = self.lin_ind_to_coords(lin_ind_volume, coords) + self.voxel_size/2
 
         # the actual voxels that the camera can see
         # based on the lower bound
