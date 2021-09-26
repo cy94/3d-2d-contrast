@@ -1,7 +1,7 @@
 data:
     root: /mnt/data/scannet/scans/
-    train_file: /mnt/data/scannet/backproj/train100-v4.h5
-    val_file: /mnt/data/scannet/backproj/val-v2.h5
+    train_file: /mnt/data/scannet/backproj/train100-v5.h5
+    val_file: /mnt/data/scannet/backproj/val-v3.h5
     # 20 or 40 classes?
     num_classes: 40
     # padding value used in the target - usually = num_classes
