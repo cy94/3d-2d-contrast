@@ -160,7 +160,7 @@ class LoadDepths(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        depths = torch.Tensor(len(frames), self.img_size[1], self.img_size[0])
+        depths = torch.zeros(len(frames), self.img_size[1], self.img_size[0])
         
         # check if this sample has frames
         if -1 not in frames:
@@ -172,7 +172,8 @@ class LoadDepths(LoadData):
                 load_depth_multiple(paths, self.img_size, depths)
             else:
                 sample['frames'][:] = -1
-            
+        else:
+            sample['frames'][:] = -1
 
         sample['depths'] = depths
         
@@ -186,7 +187,7 @@ class LoadPoses(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        poses = torch.Tensor(len(frames), 4, 4)
+        poses = torch.zeros(len(frames), 4, 4)
 
         if -1 not in frames:
             paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
@@ -195,6 +196,8 @@ class LoadPoses(LoadData):
                 load_pose_multiple(paths, poses)
             else:
                 sample['frames'][:] = -1
+        else:
+            sample['frames'][:] = -1
 
         sample['poses'] = poses
 
@@ -213,7 +216,7 @@ class LoadRGBs(LoadData):
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
         # N, C, H, W -> torch nn convention
-        rgbs = torch.Tensor(len(frames), 3, self.img_size[1], self.img_size[0])
+        rgbs = torch.zeros(len(frames), 3, self.img_size[1], self.img_size[0])
 
         if -1 not in frames:
             paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
@@ -222,6 +225,8 @@ class LoadRGBs(LoadData):
                 load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
             else:
                 sample['frames'][:] = -1
+        else:
+            sample['frames'][:] = -1
 
         sample['rgbs'] = rgbs
 
