@@ -167,7 +167,12 @@ class LoadDepths(LoadData):
             paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
             # invert dims in the tensor
             # N, H, W -> torch nn convention
-            load_depth_multiple(paths, self.img_size, depths)
+            # all the paths should exist
+            if all([path.exists() for path in paths]):
+                load_depth_multiple(paths, self.img_size, depths)
+            else:
+                sample['frames'][:] = -1
+            
 
         sample['depths'] = depths
         
@@ -185,7 +190,11 @@ class LoadPoses(LoadData):
 
         if -1 not in frames:
             paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
-            load_pose_multiple(paths, poses)
+            # all the paths should exist
+            if all([path.exists() for path in paths]):
+                load_pose_multiple(paths, poses)
+            else:
+                sample['frames'][:] = -1
 
         sample['poses'] = poses
 
@@ -208,7 +217,11 @@ class LoadRGBs(LoadData):
 
         if -1 not in frames:
             paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
-            load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
+            # all the paths should exist
+            if all([path.exists() for path in paths]):
+                load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
+            else:
+                sample['frames'][:] = -1
 
         sample['rgbs'] = rgbs
 
