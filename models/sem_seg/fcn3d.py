@@ -682,6 +682,7 @@ class UNet2D3D(UNet3D):
         num_imgs = bsize * num_nearest_imgs
 
         depths, poses, rgbs = batch['depths'], batch['poses'], batch['rgbs']
+
         # keep only the number of frames required
         depths = depths[:, :num_nearest_imgs, :, :]
         poses = poses[:, :num_nearest_imgs, :, :]
@@ -795,12 +796,6 @@ class UNet2D3D(UNet3D):
                 proj = (ind3d_zero, ind3d_zero.clone())
             proj_mapping.append(proj)
 
-        # None -> sample had a frame, but no pixels map to the chunk                    
-        valid_frames = [ndx for (ndx, m) in enumerate(proj_mapping) if m is not None]
-
-        if len(valid_frames) == 0:
-            return None
-
         proj_mapping = list(zip(*proj_mapping))
         proj_ind_3d = torch.stack(proj_mapping[0])
         proj_ind_2d = torch.stack(proj_mapping[1])
@@ -811,7 +806,6 @@ class UNet2D3D(UNet3D):
         feat2d_proj = [project_2d_3d(ft, ind3d, ind2d, self.subvol_size) \
                             for ft, ind3d, ind2d in \
                             zip(feat2d, proj_ind_3d, proj_ind_2d)]
-
         N = rgbs.shape[0]
         # N x (C, D, H, W) -> C, D, H, W, N     
         # N = #volumes x #imgs/vol 
