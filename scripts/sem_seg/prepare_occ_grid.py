@@ -80,17 +80,6 @@ def main(args):
 
         label_grid, rgb_grid, center_colors = get_label_grid(input_grid, coords, labels, rgb)
         
-        centers = input_grid.points
-        
-        alpha = np.ones((len(centers), 1), dtype=np.uint8) * 255
-        pc_colors = np.concatenate((center_colors, alpha), axis=-1)
-
-        pc = trimesh.points.PointCloud(vertices=centers, colors=pc_colors)
-        out_file = f'{scan_id}_gt_voxelcenters.ply'
-        print(f'Saving to: {out_file}')
-
-        _ = pc.export(scan_dir / out_file)
-
         x, y = input_grid.matrix, label_grid
         out_file = f'{scan_id}_occ_grid.pth'
 
