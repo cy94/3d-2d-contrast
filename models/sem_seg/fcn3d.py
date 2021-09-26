@@ -624,8 +624,6 @@ class UNet2D3D(UNet3D):
         
         self.feat2d_same = nn.ModuleList([
             nn.Identity()
-            # SameConv3D(128, 32),
-            # SameConv3D(32, 16),
         ])
 
         # conv on feats projected from 2d
@@ -643,8 +641,6 @@ class UNet2D3D(UNet3D):
         # for contrasting
         self.layers3d_same = nn.ModuleList([
             nn.Identity()
-            # SameConv3D(self.in_channels, 32),
-            # SameConv3D(32, 16),
         ])
 
         self.layers3d_down = nn.ModuleList([
@@ -663,12 +659,9 @@ class UNet2D3D(UNet3D):
             # 1/4->1/2, skip connection
             Up3D(64*2, 32),
             # 1/2->original shape
-            Up3D(32*2, 128),
+            Up3D(32*2, self.num_classes, dropout=False, relu=False),
         ])
 
-        self.pred3d = nn.ModuleList([
-            SameConv3D(128, self.num_classes),
-        ])
         # map feats to lower dim and then contrast
         self.map_feat2d = nn.Linear(128, 32)
         self.map_feat3d = nn.Linear(128, 32)
@@ -896,8 +889,6 @@ class UNet2D3D(UNet3D):
             x = layer(x)
 
         feat3d = x
-
-        x = self.pred3d[0](x)
 
         if return_features:
             # find the locations in the input that are occupied
