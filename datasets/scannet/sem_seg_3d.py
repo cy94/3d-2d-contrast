@@ -246,9 +246,10 @@ class ScanNetSemSegOccGrid(Dataset):
         # load the full scene
         data = torch.load(path)
         # labels are scannet IDs
-        x, y_nyu, t = data['x'], data['y'], data['translation']
+        x, y_nyu = data['x'], data['y']
+        t = -data['translation']
 
-        return x, y_nyu, -t
+        return x, y_nyu, t
 
     def __getitem__(self, ndx):
         if not self.full_scene:
