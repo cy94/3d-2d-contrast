@@ -247,7 +247,9 @@ class ScanNetSemSegOccGrid(Dataset):
         data = torch.load(path)
         # labels are scannet IDs
         x, y_nyu = data['x'], data['y']
-        t = -data['translation']
+        # the translation to be applied to 0,0,0 
+        # to get the center of the origin voxel
+        t = -data['start_ndx']
 
         return x, y_nyu, t
 
