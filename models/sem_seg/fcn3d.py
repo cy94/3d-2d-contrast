@@ -691,13 +691,13 @@ class UNet2D3D(UNet3D):
 
         # collapse batch size and "num nearest img" dims
         # N, H, W (30, 40)
-        depths = depths.view(num_imgs, depths.shape[2], depths.shape[3])
+        depths = depths.reshape(num_imgs, depths.shape[2], depths.shape[3])
         # N, 4, 4
-        poses = poses.view(num_imgs, poses.shape[2], poses.shape[3])
+        poses = poses.reshape(num_imgs, poses.shape[2], poses.shape[3])
         # N, H, W (240, 320)
-        rgbs = rgbs.view(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
+        rgbs = rgbs.reshape(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
         # N, 1
-        frames = frames.view(num_imgs, 1)
+        frames = frames.reshape(num_imgs, 1)
 
         # repeat the w2g transform for each image
         # add an extra dimension 
