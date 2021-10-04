@@ -27,7 +27,7 @@ def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, rgb, voxel_size=None,
     centers = input_grid.points
     indices = input_grid.points_to_indices(centers)
     pairs = list(zip(centers, indices))
-    label_grid = -np.ones_like(input_grid.matrix, dtype=np.uint16)
+    label_grid = -np.ones_like(input_grid.matrix, dtype=np.int16)
     rgb_grid = np.zeros(input_grid.matrix.shape + (3,), dtype=np.uint8)
 
     for center, ndx in tqdm(pairs, leave=False, desc='nearest_point'):
