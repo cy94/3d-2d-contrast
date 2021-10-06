@@ -678,6 +678,7 @@ class UNet2D3D(UNet3D):
         x, world_to_grid, frames = batch['x'], batch['world_to_grid'], \
                                     batch['frames']
 
+        # x is 
         bsize = x.shape[0]
 
         # dataset should have atleast num_nearest_images frames per chunk
@@ -830,7 +831,8 @@ class UNet2D3D(UNet3D):
         # back to #vols, C, D, H, W
         feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
 
-        return feat2d_proj, proj_ind_3d #, valid_samples
+        # TODO: retain the un-pooled feat2d_proj to be used later for contrasting
+        return feat2d_proj, proj_ind_3d 
 
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
@@ -890,23 +892,56 @@ class UNet2D3D(UNet3D):
             
             # positives are the location common to 2d and 3d
             if self.positives_method == 'common':
-                # pick the 3d inputs at the 2d projected locations
-                input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                            for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
-                # filter locations that are occupied in the input
-                occupied = (input_vecs.view(-1) == 1) 
+                # # pick the 3d inputs at the 2d projected locations
+                # input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                #             for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
+                # # filter locations that are occupied in the input
+                # occupied = (input_vecs.view(-1) == 1) 
 
-                # filter out the samples with num_inds=0 
-                # the original 2d features from 32^3 volume
-                # pick only the ones at valid projection indices
-                feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                            for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
-                # intermediate 3d features from the same-sized volume
-                feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                            for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
+                # # the original 2d features from 32^3 volume
+                # # pick only the ones at valid projection indices
+                # feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                #             for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
+                # # intermediate 3d features from the same-sized volume
+                # feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                #             for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
+                # NCDHW -> NWHD, C=1
+                input_x_vals = input_x.squeeze(dim=1).permute(0, 3, 2, 1)   
 
-                feat2d_vecs = feat2d_vecs[occupied]
-                feat3d_vecs = feat3d_vecs[occupied]
+                feat2d_vecs, feat3d_vecs = [], []                    
+                # overlap, projected, occupied = [], [], []
+                feat3d_whd = feat3d.permute(0, 4, 3, 2, 1)
+                feat2d_whd = feat2d_proj.permute(0, 4, 3, 2, 1)
+
+                for ndx in range(input_x.shape[0]):
+                    proj3d = feat2d_ind3d[ndx]
+                    num_inds = proj3d[0]
+                    ind3d = proj3d[1:1+num_inds]
+                    coords_3d = torch.empty(4, num_inds).to(self.device)
+                    coords_3d = ProjectionHelper.lin_ind_to_coords_static(ind3d, 
+                                    coords_3d, self.subvol_size).T[:, :-1].long()
+                    i,j,k = coords_3d.T
+                    # out of all projected locations, which projected ijk are also occupied
+                    occupied_mask = (input_x_vals[ndx][i, j, k] == 1)
+                    # keep only these ijk
+                    i,j,k = coords_3d[occupied_mask].T
+                    # pick 3d feats at these locations
+                    feat3d_vecs.append(feat3d_whd[ndx][i, j, k])
+                    # pick 2d feats at these locations
+                    feat2d_vecs.append(feat2d_whd[ndx][i, j, k])
+
+                    # overlap.append((input_x_vals[ndx][i, j, k] == 1).sum())
+                    # occupied.append((input_x_vals[ndx] == 1).sum())
+                    # projected.append(num_inds)
+                feat3d_vecs = torch.cat(feat3d_vecs, 0)
+                feat2d_vecs = torch.cat(feat2d_vecs, 0)
+
+                # print('Avg occupied per sample', torch.Tensor(occupied).mean())
+                # print('Avg 2dfeats per sample', torch.Tensor(projected).mean())
+                # print('Avg overlap per sample', torch.Tensor(overlap).mean())
+                # feat2d_vecs = feat2d_vecs[occupied]
+                # feat3d_vecs = feat3d_vecs[occupied]
+
             # for each 3d location, take the feature of the nearest 2d-projected 
             # location in 3d
             elif self.positives_method == 'nearest':
