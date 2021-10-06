@@ -894,7 +894,7 @@ class UNet2D3D(UNet3D):
                 input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
                             for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
                 # filter locations that are occupied in the input
-                occupied = (input_vecs.view(-1) > 0) 
+                occupied = (input_vecs.view(-1) == 1) 
 
                 # filter out the samples with num_inds=0 
                 # the original 2d features from 32^3 volume
