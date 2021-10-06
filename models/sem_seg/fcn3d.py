@@ -606,7 +606,9 @@ class UNet2D3D(UNet3D):
 
         self.contrastive = 'contrastive' in cfg['model']
         print(f'Use contrastive loss? {self.contrastive}')
-
+        if self.contrastive:
+            self.contr_cfg = cfg['model']['contrastive']
+            self.positives_method = self.contr_cfg['positives']
 
     def on_fit_start(self):
         super().on_fit_start()
@@ -662,9 +664,12 @@ class UNet2D3D(UNet3D):
             Up3D(32*2, self.num_classes, dropout=False, relu=False),
         ])
 
-        # map feats to lower dim and then contrast
-        self.map_feat2d = nn.Linear(128, 32)
-        self.map_feat3d = nn.Linear(128, 32)
+        contrastive = 'contrastive' in self.hparams['cfg']['model']
+
+        if contrastive:
+            # parallel to the last up layer, project to 128 dim instead of num classes
+            # and then contrast the features
+            self.up3d_contr = Up3D(32*2, 128)
 
     def common_step(self, batch, mode=None):
         '''
@@ -730,8 +735,7 @@ class UNet2D3D(UNet3D):
         preds = logits.argmax(dim=1)
 
         if self.contrastive:
-            loss_cfg = self.hparams['cfg']['model']['contrastive']
-            n_points = loss_cfg['n_points']
+            n_points = self.contr_cfg['n_points']
 
             # get N,C vectors for 2d and 3d
             feat2d_all, feat3d_all = out[0], out[1]
@@ -745,16 +749,13 @@ class UNet2D3D(UNet3D):
 
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
 
-            feat2d = self.map_feat2d(feat2d)
-            feat3d = self.map_feat3d(feat3d)
-
-            loss_type = loss_cfg['type']
+            loss_type = self.contr_cfg['type']
 
             if loss_type == 'nce':
-                ct_loss = pointinfoNCE_loss(feat2d, feat3d, loss_cfg['temperature'])
+                ct_loss = pointinfoNCE_loss(feat2d, feat3d, self.contr_cfg['temperature'])
             elif loss_type == 'hardest':
                 ct_loss = hardest_contrastive_loss(feat2d, feat3d, 
-                                loss_cfg['margin_pos'], loss_cfg['margin_neg'])
+                                self.contr_cfg['margin_pos'], self.contr_cfg['margin_neg'])
 
             loss = {'loss': loss, 'contrastive': ct_loss}
         return preds, loss
@@ -878,29 +879,38 @@ class UNet2D3D(UNet3D):
         x = self.layers3d_up[0](x)
 
         # up layers
+        up_inputs = []
         for ndx, layer in enumerate(self.layers3d_up[1:]):
             x = torch.cat([x, outs[ndx]], dim=1)
+            up_inputs.append(x)
             x = layer(x)
 
-        feat3d = x
+        if return_features and self.contrastive:
+            feat3d = self.up3d_contr(up_inputs[1])
+            
+            # positives are the location common to 2d and 3d
+            if self.positives_method == 'common':
+                # pick the 3d inputs at the 2d projected locations
+                input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                            for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
+                # filter locations that are occupied in the input
+                occupied = (input_vecs.view(-1) > 0) 
 
-        if return_features:
-            # find the locations in the input that are occupied
-            input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                         for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
-            occupied = (input_vecs.view(-1) > 0) 
+                # filter out the samples with num_inds=0 
+                # the original 2d features from 32^3 volume
+                # pick only the ones at valid projection indices
+                feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                            for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
+                # intermediate 3d features from the same-sized volume
+                feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
+                            for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
 
-            # filter out the samples with num_inds=0 
-            # the original 2d features from 32^3 volume
-            # pick only the ones at valid projection indices
-            feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                         for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
-            # intermediate 3d features from the same-sized volume
-            feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                        for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
-
-            feat2d_vecs = feat2d_vecs[occupied]
-            feat3d_vecs = feat3d_vecs[occupied]
+                feat2d_vecs = feat2d_vecs[occupied]
+                feat3d_vecs = feat3d_vecs[occupied]
+            # for each 3d location, take the feature of the nearest project 
+            # 2d location
+            elif self.positives_method == 'nearest':
+                raise NotImplementedError
 
             return feat2d_vecs, feat3d_vecs, x 
         else:
