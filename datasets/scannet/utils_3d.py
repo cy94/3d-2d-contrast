@@ -323,8 +323,9 @@ class ProjectionHelper():
 
         return coords
 
+
     @staticmethod
-    def lin_ind_to_coords_static(lin_ind, coords, vol_dims):
+    def lin_ind_to_coords_static(lin_ind, vol_dims, coords=None):
         '''
         Get XYZ coordinates within the grid
         ie. homogenous coordinate XYZ of each voxel 
@@ -335,6 +336,9 @@ class ProjectionHelper():
         Static method, does the same thing as below
         additionally need to pass in the volume dims
         '''
+        if coords is None:
+            coords = torch.empty(4, len(lin_ind)).to(lin_ind.device)
+
         # Z = N / (X*Y)
         # IMP: use a floored division here to keep only the integer coordinates!
         coords[2] = lin_ind.div(vol_dims[0]*vol_dims[1], rounding_mode='floor')
@@ -351,7 +355,7 @@ class ProjectionHelper():
         '''
         call the static method
         '''
-        return self.lin_ind_to_coords_static(lin_ind, coords, self.volume_dims)
+        return self.lin_ind_to_coords_static(lin_ind, self.volume_dims, coords)
 
 
     def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
