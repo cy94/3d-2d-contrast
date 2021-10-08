@@ -304,7 +304,7 @@ class ProjectionHelper():
         return lin_inds
 
     @staticmethod
-    def lin_ind2d_to_coords2d_static(lin_ind, coords, img_dims):
+    def lin_ind2d_to_coords2d_static(lin_ind, img_dims, coords=None):
         '''
         Get XY coordinates within the image grid
 
@@ -315,6 +315,9 @@ class ProjectionHelper():
         Static method, does the same thing as below
         additionally need to pass in the volume dims
         '''
+        if coords is None:
+            coords = torch.empty(2, len(lin_ind), dtype=torch.long).to(lin_ind.device)
+
         # IMP: use a floored division here to keep only the integer coordinates!
         # Y = N / width = number of filled widths
         coords[1] = lin_ind.div(img_dims[0], rounding_mode='floor')
