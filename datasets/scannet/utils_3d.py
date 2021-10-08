@@ -509,7 +509,7 @@ def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
     '''
     # is the 2D feature (W, H)? then C=1, else (C, W, H) -> get C
     num_feat = 1 if len(feat2d.shape) == 2 else feat2d.shape[0]
-    # required shape is C, D, H, W, create an empty volume
+    # required shape is C, W, H, D create an empty volume
     output = feat2d.new_zeros(num_feat, volume_dims[0], volume_dims[1], volume_dims[2])
     # number of valid voxels which can be mapped to pixels
     num_ind = lin_indices_3d[0]
@@ -517,13 +517,22 @@ def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
     if num_ind > 0:
         # permute C,H,W->C,W,H because the depth is used this way during projection
         # then reshape the 2d feature to have 2 dimensions (C, W*H)
-        linear_feat = feat2d.permute(0, 2, 1).reshape(num_feat, -1)
+        feat2d = feat2d.permute(0, 2, 1)
+        # W,H
+        img_size = feat2d.shape[1:]
+        inds2d = lin_indices_2d[1:1+num_ind]
+        coords_2d = ProjectionHelper.lin_ind2d_to_coords2d_static(inds2d, img_size)
+        # indices into W,H tensor
+        i, j = coords_2d
         # then pick the required 2d features
-        # get the features for the required pixels
-        vals = torch.index_select(linear_feat, 1, lin_indices_2d[1:1+num_ind])
+        feats = feat2d[:, i, j]
         # reshape the output volume to (C, W*H*D), then insert the 2d features
         # at the requires locations
-        output.view(num_feat, -1)[:, lin_indices_3d[1:1+num_ind]] = vals
+        inds3d = lin_indices_3d[1:1+num_ind]
+        coords_3d = ProjectionHelper.lin_ind_to_coords_static(inds3d, volume_dims).T[:, :-1].long()
+        # indices into WHD tensor
+        i, j, k = coords_3d.T
+        output[:, i, j, k] = feats
 
     # change CWHD -> CDHW
     output = output.permute(0, 3, 2, 1)   
