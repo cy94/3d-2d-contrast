@@ -527,7 +527,7 @@ def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
         # then pick the required 2d features
         feats = feat2d[:, i, j]
         # reshape the output volume to (C, W*H*D), then insert the 2d features
-        # at the requires locations
+        # at the required locations
         inds3d = lin_indices_3d[1:1+num_ind]
         coords_3d = ProjectionHelper.lin_ind_to_coords_static(inds3d, volume_dims).T[:, :-1].long()
         # indices into WHD tensor
