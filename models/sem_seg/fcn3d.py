@@ -895,26 +895,6 @@ class UNet2D3D(UNet3D):
             
             # positives are the location common to 2d and 3d
             if self.positives_method == 'common':
-                # pick the 3d inputs at the 2d projected locations
-                # input_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                #             for (vol, inds) in zip(input_x, feat2d_ind3d)], 0)
-                # # filter locations that are occupied in the input
-                # occupied = (input_vecs.view(-1) == 1) 
-
-                # # the original 2d features from 32^3 volume
-                # # pick only the ones at valid projection indices
-                # feat2d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                #             for (vol, inds) in zip(feat2d_proj, feat2d_ind3d)], 0)
-                # # intermediate 3d features from the same-sized volume
-                # feat3d_vecs = torch.cat([pick_features(vol, inds).to(self.device) \
-                #             for (vol, inds) in zip(feat3d, feat2d_ind3d)], 0)
-                # print('Avg occupied per sample', (input_x == 1).sum() / len(input_x))
-                # print('Avg 2dfeats per sample', len(feat2d_vecs) / len(input_x))
-                # print('Avg overlap per sample', occupied.sum() / len(input_x))
-
-                # feat2d_vecs = feat2d_vecs[occupied]
-                # feat3d_vecs = feat3d_vecs[occupied]
-
                 # NCDHW -> NWHD, C=1
                 input_x_vals = input_x.squeeze(dim=1).permute(0, 3, 2, 1)   
 
