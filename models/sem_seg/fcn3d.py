@@ -669,7 +669,7 @@ class UNet2D3D(UNet3D):
         if contrastive:
             # parallel to the last up layer, project to 128 dim instead of num classes
             # and then contrast the features
-            self.up3d_contr = Up3D(32*2, 128)
+            self.up3d_contr = Up3D(32*2, 128, dropout=False, relu=False)
 
     def common_step(self, batch, mode=None):
         '''
