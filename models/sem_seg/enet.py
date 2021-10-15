@@ -788,7 +788,7 @@ class RegularBottleneck(nn.Module):
         # PReLU layer to apply after adding the branches
         self.out_activation = activation()
 
-    def forward(self, x, no_relu=False):
+    def forward(self, x, no_relu=False, no_dropout=False):
         # Main branch shortcut
         main = x
 
@@ -796,7 +796,7 @@ class RegularBottleneck(nn.Module):
         ext = self.ext_conv1(x)
         ext = self.ext_conv2(ext)
         ext = self.ext_conv3(ext)
-        ext = self.ext_regul(ext)
+        ext = ext if no_dropout else self.ext_regul(ext)
 
         # Add main and extension branches
         out = main + ext
@@ -1210,7 +1210,7 @@ class ENet2(SemSegNet):
         x = self.dilated3_5(x)
         x = self.asymmetric3_6(x)
         # if we need features, dont use last relu
-        x = self.dilated3_7(x, no_relu=return_features)
+        x = self.dilated3_7(x, no_relu=return_features, no_dropout=return_features)
 
         if return_features:
             return x
