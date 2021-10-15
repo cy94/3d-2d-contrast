@@ -849,7 +849,6 @@ class UNet2D3D(UNet3D):
         if out is None:
             return None
 
-        # not all samples are valid, keep only the valid ones
         feat2d_proj, feat2d_ind3d = out 
         # reduce 2d feat dim with same conv layers, then contrast
         for layer in self.feat2d_same:
@@ -900,12 +899,28 @@ class UNet2D3D(UNet3D):
 
                 feat2d_vecs, feat3d_vecs = [], []                    
                 # overlap, projected, occupied = [], [], []
+                # NCDHW -> NWHDC
                 feat3d_whd = feat3d.permute(0, 4, 3, 2, 1)
+                # NCDHW -> NWHDC
                 feat2d_whd = feat2d_proj.permute(0, 4, 3, 2, 1)
 
                 for ndx in range(input_x.shape[0]):
+                    # input_x = input_x_vals[ndx]
+                    # ijk_x = []
+
+                    # for i in range(input_x.shape[0]):
+                    #     for j in range(input_x.shape[1]):
+                    #         for k in range(input_x.shape[2]):
+                    #             if input_x[i, j, k] == 1:
+                    #                 ijk_x.append((i, j, k))
+
+                    # ijk_x = torch.Tensor(ijk_x)
+
+                    # proj inds for this sample
                     proj3d = feat2d_ind3d[ndx]
+                    # number of projected voxels
                     num_inds = proj3d[0]
+                    # the actual indices into the 3d volume
                     ind3d = proj3d[1:1+num_inds]
                     coords_3d = ProjectionHelper.lin_ind_to_coords_static(ind3d, 
                                     self.subvol_size).T[:, :-1].long()
@@ -919,7 +934,10 @@ class UNet2D3D(UNet3D):
                     feat3d_vecs.append(feat3d_whd[ndx][i, j, k])
                     # pick 2d feats at these locations
                     feat2d_vecs.append(feat2d_whd[ndx][i, j, k])
-
+                    
+                    # data = {'coords2d3d': coords_3d.T,
+                    #         'occ3d': ijk_x}
+                    # torch.save(data, 'inds.pth')
                     # overlap.append((input_x_vals[ndx][i, j, k] == 1).sum())
                     # occupied.append((input_x_vals[ndx] == 1).sum())
                     # projected.append(num_inds)
