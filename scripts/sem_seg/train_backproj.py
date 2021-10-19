@@ -1,5 +1,5 @@
-from pytorch_lightning.utilities.seed import seed_everything
-seed_everything(42)
+# from pytorch_lightning.utilities.seed import seed_everything
+# seed_everything(42)
 
 from pathlib import Path
 import argparse
