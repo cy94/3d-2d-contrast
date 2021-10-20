@@ -93,6 +93,8 @@ def main(args):
         Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
 
     # create a temp version for WB if not checkpointing
+    if args.b:
+        name += 'b'
     wbname = (name + 'tmp') if args.no_ckpt else name
     
     if args.no_log:
@@ -150,6 +152,8 @@ if __name__ == '__main__':
                     default=False, help='Use a subset of dataset')
     p.add_argument('--no-log', action='store_true', dest='no_log', 
                     default=False, help='Dont log to Weights and Biases')
+    p.add_argument('--b', action='store_true', dest='b', 
+                    default=False, help='Add b to wandb name')                    
 
     parser = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
