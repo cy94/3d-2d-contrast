@@ -2,13 +2,12 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    train_list: /mnt/data/scannet/train.txt
-    val_list: /mnt/data/scannet/val.txt
+    train_list: /mnt/data/scannet/splits/scannetv2_train.txt
+    val_list: /mnt/data/scannet/splits/scannetv2_val.txt
     # use every nth frame from a scan
     frame_skip: 10
-    # height, width
+    # width, height
     img_size: [320, 240]
-    # real labels = 0 to 19
     # ignored labels are mapped to this new label
     num_classes: 40
     ignore_label: 40
@@ -25,6 +24,8 @@ train:
     class_weights: true
     
     # eval every `eval_intv` batches
-    eval_intv: 1024
+    eval_intv: 2000
+
+    limit_val_batches: 1.0
 
     resume: null

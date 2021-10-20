@@ -105,7 +105,6 @@ def main(args):
                                         project='thesis', 
                                         id=wbname,
                                         save_dir='lightning_logs',
-          
                                         version=wbname,
                                         log_model=False)
         wblogger.log_hyperparams(cfg)
