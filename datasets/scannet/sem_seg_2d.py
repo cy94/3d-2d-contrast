@@ -82,8 +82,7 @@ class ScanNetSemSeg2D(Dataset):
         img_path, label_path = self.img_paths[idx], self.label_paths[idx]
         # read the image as float - same function used in 2d3d model
         # load as H,W,C in resized dims
-        # convert int to float
-        x = load_color(img_path, self.img_size).astype(np.float32).transpose(1, 2, 0)
+        x = load_color(img_path, self.img_size).transpose(1, 2, 0)
         # read the scannet label image as int, H,W
         label_scannet = np.array(imageio.imread(label_path))
         # map from scannet to nyu40 labels 0-40, H,W
@@ -102,14 +101,10 @@ class ScanNetSemSeg2D(Dataset):
             'y': y
         }
 
-        torch.save(sample, 'before.pth')
-
         if self.transform is not None:
             sample = self.transform(sample)
 
         # H,W,C->C,H,W
         sample['x'] = sample['x'].transpose(2, 0, 1)
-
-        torch.save(sample, 'after.pth')
 
         return sample
