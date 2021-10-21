@@ -1,7 +1,7 @@
 import argparse
 from lib.misc import get_logger_and_callbacks, read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D
-from transforms.image_2d import Normalize
+from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize
 from models.sem_seg.enet import ENet2
 
 from torch.utils.data import Subset, DataLoader
@@ -10,16 +10,29 @@ import pytorch_lightning as pl
 
 import numpy as np
 
+from torchvision.transforms import Compose
+
+from copy import deepcopy
 
 def main(args):
     cfg = read_config(args.cfg_path)
 
-    n = Normalize()
-    t = lambda img: Normalize.apply(img.astype(np.float32), mean=n.mean, std=n.std)
+    train_t = Compose([
+        LRFlip(),
+        ColorJitter(),
+        HueSaturationValue(),
+        GaussianBlur(),
+        GaussNoise(),
+        Normalize(),
+    ])
+    val_t = Normalize()
 
-    train_set = ScanNetSemSeg2D(cfg, transform=t, split='train')
-    val_set = ScanNetSemSeg2D(cfg, transform=t, split='val')        
-
+    train_set = ScanNetSemSeg2D(cfg, transform=train_t, split='train')
+    print('Set val frame skip to 30')
+    val_cfg = deepcopy(cfg)
+    val_cfg['data']['frame_skip'] = 30
+    val_set = ScanNetSemSeg2D(val_cfg, transform=val_t, split='val')        
+    
     if args.subset:
         print('Select a subset of data for quick run')
         train_set = Subset(train_set, range(128))
