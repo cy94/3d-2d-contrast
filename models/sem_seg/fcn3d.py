@@ -956,7 +956,7 @@ class UNet2D3D(UNet3D):
             return (x,) 
 
 def l2_norm_vecs(vecs, eps=1e-6):
-    vecs_norm = vecs / (torch.norm(vecs, p=2, dim=1, keepdim=True).detach() + eps)
+    vecs_norm = vecs / (torch.norm(vecs, p=2, dim=1, keepdim=True) + eps)
     return vecs_norm
 
 def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
