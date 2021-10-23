@@ -8,6 +8,8 @@ from torch.utils.data import Subset
 
 import pytorch_lightning as pl
 
+from torchsummary import summary
+
 
 def main(args):
     cfg = read_config(args.cfg_path)
@@ -37,6 +39,10 @@ def main(args):
     model = MODEL_MAP[model_name](in_channels=in_channels, num_classes=cfg['data']['num_classes'], cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
+    model = model.cuda()
+
+    summary(model, (1, 32, 32, 32))
+
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
     ckpt = cfg['train']['resume']
 
@@ -55,5 +61,4 @@ def main(args):
 
 if __name__ == '__main__':
     args = get_args()
-
     main(args)

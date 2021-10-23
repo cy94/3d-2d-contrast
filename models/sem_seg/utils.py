@@ -1,9 +1,10 @@
-from models.sem_seg.fcn3d import FCN3D, SparseNet3D, UNet3D
+from models.sem_seg.fcn3d import FCN3D, SparseNet3D, UNet3D, UNet3D_3DMV
 from models.sem_seg.sparse.res16unet import SparseResUNet
 
 MODEL_MAP = {
     'FCN3D': FCN3D,
     'UNet3D': UNet3D,
+    'UNet3D_3DMV': UNet3D_3DMV,
     'SparseNet3D': SparseNet3D,
     'SparseResUNet': SparseResUNet
 }
