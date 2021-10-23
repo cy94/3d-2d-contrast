@@ -980,15 +980,19 @@ def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
 
     return loss
 
-def pointinfoNCE_loss(feat1, feat2, temp):
+def pointinfoNCE_loss(feat2d, feat3d, temp):
+    '''
+    feat2d: 2d features
+    feat3d: 3d features
+    '''
     # L2 normalize
-    feat1_norm = l2_norm_vecs(feat1)
-    feat2_norm = l2_norm_vecs(feat2)
+    feat2d_norm = l2_norm_vecs(feat2d)
+    feat3d_norm = l2_norm_vecs(feat3d)
 
     # find all pair feature distances
     # multiply (N,C) and (C,N), get (N,N)
-    scores = torch.matmul(feat1_norm, feat2_norm.T)
-    labels = torch.arange(len(feat1)).to(feat1.device)
+    scores = torch.matmul(feat3d_norm, feat2d_norm.T)
+    labels = torch.arange(len(feat2d)).to(feat2d.device)
     # get contrastive loss
     ct_loss = F.cross_entropy(scores/temp, labels)
 
