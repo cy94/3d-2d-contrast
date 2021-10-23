@@ -1,5 +1,8 @@
 from pathlib import Path
 import yaml
+import argparse
+
+import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
@@ -12,6 +15,25 @@ def read_config(path):
         cfg = yaml.safe_load(f)
 
     return cfg
+
+def get_args():
+    p = argparse.ArgumentParser()
+    p.add_argument('cfg_path', help='Path to cfg')
+    p.add_argument('--no-ckpt', action='store_true', dest='no_ckpt', 
+                    default=False, help='Dont store checkpoints (for debugging)')
+    p.add_argument('--cpu', action='store_true', dest='cpu', 
+                    default=False, help='Train on CPU')                    
+    p.add_argument('--subset', action='store_true', dest='subset', 
+                    default=False, help='Use a subset of dataset')
+    p.add_argument('--no-log', action='store_true', dest='no_log', 
+                    default=False, help='Dont log to Weights and Biases')
+    p.add_argument('--b', action='store_true', dest='b', 
+                    default=False, help='Add b to wandb name')      
+    
+    p = pl.Trainer.add_argparse_args(p)
+    args = p.parse_args()
+
+    return args
 
 def get_logger_and_callbacks(args, cfg):
     '''

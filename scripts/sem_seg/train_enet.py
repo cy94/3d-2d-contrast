@@ -1,5 +1,5 @@
 import argparse
-from lib.misc import get_logger_and_callbacks, read_config
+from lib.misc import get_args, get_logger_and_callbacks, read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D
 from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize
 from models.sem_seg.enet import ENet2
@@ -70,18 +70,5 @@ def main(args):
 
   
 if __name__ == '__main__':
-    p = argparse.ArgumentParser()
-    p.add_argument('cfg_path', help='Path to cfg')
-    p.add_argument('--no-ckpt', action='store_true', dest='no_ckpt', 
-                    default=False, help='Dont store checkpoints (for debugging)')
-    p.add_argument('--cpu', action='store_true', dest='cpu', 
-                    default=False, help='Train on CPU')                    
-    p.add_argument('--subset', action='store_true', dest='subset', 
-                    default=False, help='Use a subset of dataset')
-    p.add_argument('--no-log', action='store_true', dest='no_log', 
-                    default=False, help='Dont log to Weights and Biases')
-
-    parser = pl.Trainer.add_argparse_args(p)
-    args = p.parse_args()
-
+    args = get_args()
     main(args)

@@ -1,20 +1,12 @@
-from pytorch_lightning.utilities.seed import seed_everything
-seed_everything(42)
-
-from pathlib import Path
-import argparse
 from datasets.scannet.utils import get_dataset, get_loader
 
-from lib.misc import get_logger_and_callbacks, read_config
+from lib.misc import get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import count_parameters
 from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
 
-from torchinfo import summary
 from torch.utils.data import Subset
 
 import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
 
 def main(args):
@@ -62,18 +54,6 @@ def main(args):
     trainer.fit(model, train_loader, val_loader)
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser()
-    p.add_argument('cfg_path', help='Path to cfg')
-    p.add_argument('--no-ckpt', action='store_true', dest='no_ckpt', 
-                    default=False, help='Dont store checkpoints (for debugging)')
-    p.add_argument('--cpu', action='store_true', dest='cpu', 
-                    default=False, help='Train on CPU')                    
-    p.add_argument('--subset', action='store_true', dest='subset', 
-                    default=False, help='Use a subset of dataset')
-    p.add_argument('--no-log', action='store_true', dest='no_log', 
-                default=False, help='Dont log to Weights and Biases')                    
-
-    parser = pl.Trainer.add_argparse_args(p)
-    args = p.parse_args()
+    args = get_args()
 
     main(args)

@@ -1,22 +1,14 @@
-# from pytorch_lightning.utilities.seed import seed_everything
-# seed_everything(42)
-
-from pathlib import Path
-import argparse
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
 from models.sem_seg.fcn3d import UNet2D3D
 
-from lib.misc import get_logger_and_callbacks, read_config
+from lib.misc import get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import count_parameters
 
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from pytorch_lightning import loggers as pl_loggers
-
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
 from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
@@ -82,23 +74,8 @@ def main(args):
                         fast_dev_run=args.fast_dev_run,
                         accumulate_grad_batches=cfg['train'].get('accum_grad', 1),)
 
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader,- val_loader)
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser()
-    p.add_argument('cfg_path', help='Path to cfg')
-    p.add_argument('--no-ckpt', action='store_true', dest='no_ckpt', 
-                    default=False, help='Dont store checkpoints (for debugging)')
-    p.add_argument('--cpu', action='store_true', dest='cpu', 
-                    default=False, help='Train on CPU')                    
-    p.add_argument('--subset', action='store_true', dest='subset', 
-                    default=False, help='Use a subset of dataset')
-    p.add_argument('--no-log', action='store_true', dest='no_log', 
-                    default=False, help='Dont log to Weights and Biases')
-    p.add_argument('--b', action='store_true', dest='b', 
-                    default=False, help='Add b to wandb name')                    
-
-    parser = pl.Trainer.add_argparse_args(p)
-    args = p.parse_args()
-
+    args = get_args()
     main(args)
