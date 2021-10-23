@@ -673,6 +673,7 @@ class UNet3D(SemSegNet):
         self.display_metric(confmat.ious, 'iou')
         self.display_metric(confmat.accs, 'acc')
 
+
 class UNet2D3D(UNet3D):
     '''
     Dense 3d convs on a volume grid
@@ -1053,6 +1054,143 @@ class UNet2D3D(UNet3D):
         else:
             # tuple with one element
             return (x,) 
+
+class UNet2D3D_3DMV(UNet2D3D):
+    def init_model(self):
+        self.pooling = nn.MaxPool1d(kernel_size=self.hparams['cfg']['data']['num_nearest_images'])
+
+        self.nf0 = 32 
+        self.nf1 = 64 
+        self.nf2 = 128 
+        self.bf = 1024
+
+        self.features2d = nn.ModuleList([
+            # 32->16
+            nn.Conv3d(self.nf2, self.nf1, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2),
+            # 16->8
+            nn.Conv3d(self.nf1, self.nf0, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2)
+        ])
+
+        self.features3d = nn.ModuleList([
+            # 32->16
+            nn.Conv3d(self.in_channels, self.nf0, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2),
+            # 16->18
+            nn.Conv3d(self.nf0, self.nf1, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2)
+        ])
+
+        # layers on top of combined features
+        # one down block, 3 up blocks
+        self.features = nn.ModuleList([
+            # 2d+3d, 8->4
+            nn.Conv3d(self.nf1 + self.nf0, self.nf2, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm3d(self.nf2),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf2),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm3d(self.nf2),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2),
+            # 4->8
+            nn.ConvTranspose3d(self.nf2, self.nf2, 4, 2, 1),
+            nn.BatchNorm3d(self.nf2),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
+            nn.BatchNorm3d(self.nf2),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
+            nn.BatchNorm3d(self.nf2),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2),
+            # 8->16
+            nn.ConvTranspose3d(self.nf2, self.nf1, 4, 2, 1),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.BatchNorm3d(self.nf1),
+            nn.ReLU(True),
+            nn.Dropout3d(0.2),
+            # 16->32
+            nn.ConvTranspose3d(self.nf1, self.nf0, 4, 2, 1),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.BatchNorm3d(self.nf0),
+            nn.ReLU(True),
+            nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1),
+        ])
+    
+    def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
+        '''
+        All the differentiable ops here
+        return_features: return the intermediate 2d and 3d features
+        '''
+        # fwd pass on rgb, then project to 3d volume and get features
+        out = self.rgb_to_feat3d(rgbs, depths, poses, transforms, frames)
+        # skip this batch
+        if out is None:
+            return None
+
+        feat2d_proj, feat2d_ind3d = out 
+
+        feat2d = feat2d_proj
+        # fwd pass projected features through convs
+        for layer in self.features2d:
+            feat2d = layer(feat2d)
+
+        # down layers on 3d
+        for layer in self.features3d:
+            x = layer(x)
+
+        # concat features from 2d with 3d along the channel dim
+        x = torch.cat([x, feat2d], dim=1)
+
+        # layers on combined feats
+        for layer in self.features:
+            x = layer(x)
+
+        return (x,) 
+
 
 def l2_norm_vecs(vecs, eps=1e-6):
     vecs_norm = vecs / (torch.norm(vecs, p=2, dim=1, keepdim=True) + eps)

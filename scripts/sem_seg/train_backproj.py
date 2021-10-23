@@ -1,9 +1,9 @@
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
-from models.sem_seg.fcn3d import UNet2D3D
+from models.sem_seg.fcn3d import UNet2D3D, UNet2D3D_3DMV
 
 from lib.misc import get_args, get_logger_and_callbacks, read_config
-from models.sem_seg.utils import count_parameters
+from models.sem_seg.utils import MODEL_MAP_2D3D, count_parameters
 
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
@@ -54,7 +54,8 @@ def main(args):
     # adjust for smaller image size
     intrinsic = adjust_intrinsic(intrinsic, [1296, 968], cfg['data']['proj_img_size'])
 
-    model = UNet2D3D(in_channels=1, num_classes=cfg['data']['num_classes'], cfg=cfg, 
+    model = MODEL_MAP_2D3D[cfg['model']['name']](in_channels=1, 
+                    num_classes=cfg['data']['num_classes'], cfg=cfg, 
                     features_2d=features_2d, intrinsic=intrinsic)
 
     print(f'Num params: {count_parameters(model)}')                                                      
@@ -74,7 +75,7 @@ def main(args):
                         fast_dev_run=args.fast_dev_run,
                         accumulate_grad_batches=cfg['train'].get('accum_grad', 1),)
 
-    trainer.fit(model, train_loader,- val_loader)
+    trainer.fit(model, train_loader, val_loader)
 
 if __name__ == '__main__':
     args = get_args()

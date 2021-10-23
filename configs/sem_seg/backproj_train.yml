@@ -23,16 +23,16 @@ data:
     depth_max: 4.0
 
 model: 
-    name: UNet2D3D
+    name: UNet2D3D_3DMV
     # 2d model checkpoint
     ckpt_2d: lightning_logs/version_138/checkpoints/last.ckpt
-    contrastive:
-        positives: common #nearest
-        type: nce
-        # tau param in NCE loss
-        temperature: 0.04
-        # number of points to calculate loss over 
-        n_points: 4
+    # contrastive:
+    #     positives: common #nearest
+    #     type: nce
+    #     # tau param in NCE loss
+    #     temperature: 0.04
+    #     # number of points to calculate loss over 
+    #     n_points: 8192
 
         # hardest contrastive loss    
         # type: hardest
@@ -45,14 +45,14 @@ train:
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 80
-    val_batch_size: 80
+    train_batch_size: 70
+    val_batch_size: 70
     epochs: 3000
     class_weights: true
     # eval every N batches
-    eval_intv: 1 #500
+    eval_intv: 500
     # 1.0: whole val set
     # integer N: N batches
     limit_val_batches: 1.0
 
-    resume: null #lightning_logs/version_607/checkpoints/last.ckpt
+    resume: null #lightning_logs/version_669/checkpoints/last.ckpt
