@@ -7,7 +7,7 @@ from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
 from models.sem_seg.fcn3d import UNet2D3D
 
-from lib.misc import read_config
+from lib.misc import get_logger_and_callbacks, read_config
 from models.sem_seg.utils import count_parameters
 
 from torchvision.transforms import Compose
@@ -67,65 +67,8 @@ def main(args):
 
     print(f'Num params: {count_parameters(model)}')                                                      
 
-    # log LR with schedulers
-    # without scheduler - done in model
-    callbacks = [LearningRateMonitor(logging_interval='step')]
-
-    # get the next version number from this
-    ckpt = cfg['train']['resume']                                             
-    resume = ckpt is not None
-    if resume:
-        print(f'Resuming from checkpoint: {ckpt}, reuse version')
-        ckpt_version = Path(ckpt).parent.parent.stem.split('_')[1]
-        name = f'version_{ckpt_version}'
-    else:
-        print('Create a new experiment version')
-        tblogger = pl_loggers.TensorBoardLogger('lightning_logs', '')
-        name = f'version_{tblogger.version}'
-
-    if (not args.no_log) or (not args.no_ckpt): 
-    # create a version folder if 
-    # we are logging -> so that even tmp versions can get upgraded
-    # or if we are checkpointing
-    # resuming -> ok if exists
-    # new expt -> dir should not exist
-        ckpt_dir = f'lightning_logs/{name}/checkpoints'
-        Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
-
-    # create a temp version for WB if not checkpointing
-    if args.b:
-        name += 'b'
-    wbname = (name + 'tmp') if args.no_ckpt else name
-    
-    if args.no_log:
-        wblogger = None
-        print('Logging disabled -> Checkpoint and LR logging disabled as well')
-        # cant log LR
-        callbacks = []
-    else:
-        wblogger = pl_loggers.WandbLogger(name=wbname,
-                                        project='thesis', 
-                                        id=wbname,
-                                        save_dir='lightning_logs',
-                                        version=wbname,
-                                        log_model=False)
-        wblogger.log_hyperparams(cfg)
-
-    # use for checkpoint
-    if not args.no_ckpt:
-        print('Saving checkpoints')
-        # create the dir, version num doesn't get reused next time
-        callbacks.append(ModelCheckpoint(ckpt_dir,
-                                        save_last=True, save_top_k=5, 
-                                        monitor='iou/val/mean',
-                                        mode='max',
-                                # put the miou in the filename
-                                filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
-                                auto_insert_metric_name=False))
-    else:
-        print('Log to a temp version of WandB')                                
-    
-
+    wblogger, callbacks = get_logger_and_callbacks(args, cfg)
+    ckpt = cfg['train']['resume']
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
