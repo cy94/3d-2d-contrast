@@ -43,6 +43,8 @@ def get_logger_and_callbacks(args, cfg):
         ckpt_dir = f'lightning_logs/{name}/checkpoints'
         Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
 
+    if args.b:
+        name += 'b'
     # create a temp version for WB if not checkpointing
     wbname = (name + 'tmp') if args.no_ckpt else name
     
