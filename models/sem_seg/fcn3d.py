@@ -531,25 +531,31 @@ class UNet3D_3DMV(SemSegNet):
         self.features3d = nn.ModuleList([
             # 32->16
             nn.Conv3d(self.in_channels, self.nf0, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm3d(self.nf0),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf0),
+
             nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm3d(self.nf0),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf0),
+
             nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm3d(self.nf0),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf0),
+
             nn.Dropout3d(0.2),
             # 16->8
             nn.Conv3d(self.nf0, self.nf1, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm3d(self.nf1),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf1),
+
             nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm3d(self.nf1),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf1),
+
             nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm3d(self.nf1),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf1),
+
             nn.Dropout3d(0.2)
         ])
         # layers on top of combined features
@@ -557,44 +563,55 @@ class UNet3D_3DMV(SemSegNet):
         self.features = nn.ModuleList([
             # 8->4
             nn.Conv3d(self.nf1, self.nf2, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm3d(self.nf2),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf2),
+
             nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm3d(self.nf2),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf2),
+
             nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm3d(self.nf2),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf2),
+
             nn.Dropout3d(0.2),
             # 4->8
             nn.ConvTranspose3d(self.nf2, self.nf2, 4, 2, 1),
-            nn.BatchNorm3d(self.nf2),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf2),
+
             nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
-            nn.BatchNorm3d(self.nf2),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf2),
+
             nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
-            nn.BatchNorm3d(self.nf2),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf2),
+
             nn.Dropout3d(0.2),
             # 8->16
             nn.ConvTranspose3d(self.nf2, self.nf1, 4, 2, 1),
-            nn.BatchNorm3d(self.nf1),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf1),
+
             nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
-            nn.BatchNorm3d(self.nf1),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf1),
+
             nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
-            nn.BatchNorm3d(self.nf1),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf1),
+
             nn.Dropout3d(0.2),
             # 16->32
             nn.ConvTranspose3d(self.nf1, self.nf0, 4, 2, 1),
-            nn.BatchNorm3d(self.nf0),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf0),
+
             nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
-            nn.BatchNorm3d(self.nf0),
             nn.ReLU(True),
+            nn.BatchNorm3d(self.nf0),
+            
             nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1),
         ])
 
