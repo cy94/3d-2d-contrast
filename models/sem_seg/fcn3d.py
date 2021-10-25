@@ -620,8 +620,13 @@ class UNet3D_3DMV(SemSegNet):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.ReLU(True),
+            nn.BatchNorm3d(self.nf0),
+
         )
+
+        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1)
 
     def forward(self, x):
         x16 = self.down1(x)
@@ -633,7 +638,9 @@ class UNet3D_3DMV(SemSegNet):
         xup16 = self.up2(torch.cat((xup8, x8), 1))
         xup32 = self.up3(torch.cat((xup16, x16), 1))
             
-        return xup32
+        out = self.pred_layer(xup32)
+
+        return out
 
 
 class UNet3D(SemSegNet):
