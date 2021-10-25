@@ -528,7 +528,7 @@ class UNet3D_3DMV(SemSegNet):
 
         # 3d conv on subvols
         # 2 down blocks
-        self.features3d = nn.ModuleList([
+        self.down1 = nn.Sequential(
             # 32->16
             nn.Conv3d(self.in_channels, self.nf0, kernel_size=3, stride=2, padding=1),
             nn.ReLU(True),
@@ -543,6 +543,8 @@ class UNet3D_3DMV(SemSegNet):
             nn.BatchNorm3d(self.nf0),
 
             nn.Dropout3d(0.2),
+        )
+        self.down2 = nn.Sequential(
             # 16->8
             nn.Conv3d(self.nf0, self.nf1, kernel_size=3, stride=2, padding=1),
             nn.ReLU(True),
@@ -556,11 +558,9 @@ class UNet3D_3DMV(SemSegNet):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Dropout3d(0.2)
-        ])
-        # layers on top of combined features
-        # one down block, 3 up blocks
-        self.features = nn.ModuleList([
+            nn.Dropout3d(0.2),
+        )
+        self.down3 = nn.Sequential(
             # 8->4
             nn.Conv3d(self.nf1, self.nf2, kernel_size=3, stride=2, padding=1),
             nn.ReLU(True),
@@ -575,6 +575,10 @@ class UNet3D_3DMV(SemSegNet):
             nn.BatchNorm3d(self.nf2),
 
             nn.Dropout3d(0.2),
+        )
+        # layers on top of combined features
+        # one down block, 3 up blocks
+        self.up1 = nn.Sequential(
             # 4->8
             nn.ConvTranspose3d(self.nf2, self.nf2, 4, 2, 1),
             nn.ReLU(True),
@@ -589,8 +593,10 @@ class UNet3D_3DMV(SemSegNet):
             nn.BatchNorm3d(self.nf2),
 
             nn.Dropout3d(0.2),
+        )
+        self.up2 = nn.Sequential(
             # 8->16
-            nn.ConvTranspose3d(self.nf2, self.nf1, 4, 2, 1),
+            nn.ConvTranspose3d(self.nf2+self.nf1, self.nf1, 4, 2, 1),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
@@ -603,8 +609,10 @@ class UNet3D_3DMV(SemSegNet):
             nn.BatchNorm3d(self.nf1),
 
             nn.Dropout3d(0.2),
+        )
+        self.up3 = nn.Sequential(
             # 16->32
-            nn.ConvTranspose3d(self.nf1, self.nf0, 4, 2, 1),
+            nn.ConvTranspose3d(self.nf1+self.nf0, self.nf0, 4, 2, 1),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
@@ -613,15 +621,19 @@ class UNet3D_3DMV(SemSegNet):
             nn.BatchNorm3d(self.nf0),
 
             nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1),
-        ])
+        )
 
     def forward(self, x):
-        for layer in self.features3d:
-            x = layer(x)
-        for layer in self.features:
-            x = layer(x)
+        x16 = self.down1(x)
+        x8 = self.down2(x16)
+        x4 = self.down3(x8)
+
+        # skip connections
+        xup8 = self.up1(x4)
+        xup16 = self.up2(torch.cat((xup8, x8), 1))
+        xup32 = self.up3(torch.cat((xup16, x16), 1))
             
-        return x
+        return xup32
 
 
 class UNet3D(SemSegNet):
