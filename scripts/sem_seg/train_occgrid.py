@@ -19,7 +19,7 @@ def main(args):
 
     train_t = Compose([
         RandomRotate(),
-        JitterOccupancy(),
+        JitterOccupancy(0.01),
         AddChannelDim(),
         TransposeDims(),
     ])
