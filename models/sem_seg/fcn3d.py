@@ -529,16 +529,17 @@ class UNet3D_3DMV(SemSegNet):
         # 3d conv on subvols
         # 2 down blocks
         self.down1 = nn.Sequential(
+            # kernel, stride, padding
             # 32->16
-            nn.Conv3d(self.in_channels, self.nf0, kernel_size=3, stride=2, padding=1),
+            nn.Conv3d(self.in_channels, self.nf0, 3, 2, 1),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
@@ -546,15 +547,15 @@ class UNet3D_3DMV(SemSegNet):
         )
         self.down2 = nn.Sequential(
             # 16->8
-            nn.Conv3d(self.nf0, self.nf1, kernel_size=3, stride=2, padding=1),
+            nn.Conv3d(self.nf0, self.nf1, 3, 2, 1),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
@@ -562,15 +563,15 @@ class UNet3D_3DMV(SemSegNet):
         )
         self.down3 = nn.Sequential(
             # 8->4
-            nn.Conv3d(self.nf1, self.nf2, kernel_size=3, stride=2, padding=1),
+            nn.Conv3d(self.nf1, self.nf2, 3, 2, 1),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
-            nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
+            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
-            nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
+            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
