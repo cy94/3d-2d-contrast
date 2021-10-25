@@ -16,15 +16,15 @@ data:
     use_rgb: false
 
 model: 
-    name: UNet3D
+    name: UNet3D_3DMV
 
 train:
     opt: 
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 40
-    val_batch_size: 40
+    train_batch_size: 110
+    val_batch_size: 110
     epochs: 3000
     class_weights: true
     # eval every N batches
