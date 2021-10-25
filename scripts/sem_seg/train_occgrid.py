@@ -30,7 +30,6 @@ def main(args):
 
     train_set = ScanNetOccGridH5(cfg['data'], transform=train_t, split='train')
     val_set = ScanNetOccGridH5(cfg['data'], transform=val_t, split='val')
-    train_set[0]
 
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
