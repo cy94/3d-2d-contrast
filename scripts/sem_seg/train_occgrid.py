@@ -1,23 +1,37 @@
-from datasets.scannet.utils import get_dataset, get_loader
+from datasets.scannet.sem_seg_3d import ScanNetOccGridH5
+from datasets.scannet.utils import get_loader
 
 from lib.misc import get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import count_parameters
-from models.sem_seg.utils import SPARSE_MODELS, MODEL_MAP
+from models.sem_seg.utils import MODEL_MAP
 
 from torch.utils.data import Subset
 
 import pytorch_lightning as pl
 
 from torchsummary import summary
+from transforms.common import Compose
+from transforms.grid_3d import AddChannelDim, JitterOccupancy, RandomRotate, TransposeDims
 
 
 def main(args):
     cfg = read_config(args.cfg_path)
-    model_name = cfg['model']['name']
-    is_sparse = model_name in SPARSE_MODELS
 
-    train_set = get_dataset(cfg, 'train')
-    val_set = get_dataset(cfg, 'val')
+    train_t = Compose([
+        RandomRotate(),
+        JitterOccupancy(),
+        AddChannelDim(),
+        TransposeDims(),
+    ])
+    val_t = Compose([
+        AddChannelDim(),
+        TransposeDims()
+    ])
+
+    train_set = ScanNetOccGridH5(cfg['data'], transform=train_t, split='train')
+    val_set = ScanNetOccGridH5(cfg['data'], transform=val_t, split='val')
+    train_set[0]
+
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
@@ -26,21 +40,15 @@ def main(args):
         train_set = Subset(train_set, range(1024))
         val_set = Subset(val_set, range(1024))
 
-    if not is_sparse:
-        # training on chunks with binary feature
-        in_channels = 1
-    else:
-        # sparse model always has 3 channels, with real or dummy RGB values
-        in_channels = 3
-
     train_loader = get_loader(train_set, cfg, 'train', cfg['train']['train_batch_size'])
     val_loader = get_loader(val_set, cfg, 'val', cfg['train']['val_batch_size'])
 
-    model = MODEL_MAP[model_name](in_channels=in_channels, num_classes=cfg['data']['num_classes'], cfg=cfg)
+    # training on chunks with binary feature
+    in_channels = 1
+    model = MODEL_MAP[cfg['model']['name']](in_channels=in_channels, num_classes=cfg['data']['num_classes'], cfg=cfg)
     print(f'Num params: {count_parameters(model)}')
 
     model = model.cuda()
-
     summary(model, (1, 32, 32, 32))
 
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)

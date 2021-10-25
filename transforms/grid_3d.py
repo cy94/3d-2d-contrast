@@ -7,7 +7,6 @@ from copy import deepcopy
 import numpy as np
 
 import torch
-import torchvision.transforms as transforms
 
 def pad_volume(vol, size, pad_val=-100):
     '''
@@ -23,6 +22,28 @@ def pad_volume(vol, size, pad_val=-100):
 
     return padded
 
+class JitterOccupancy:
+    '''
+    Jitter the occupancy grid -> set a few 1s to 0s, few 0s to 1s randomly
+    '''
+    def __init__(self, prob=0.05):
+        # change 0->1 and 1-> with this probability
+        self.prob = prob
+
+    def __call__(self, sample):
+        # change only x
+        occupied = (sample['x'] == 1)
+        empty = (sample['x'] == 0)
+
+        rnd = np.random.rand(*sample['x'].shape)
+
+        # change these locations
+        change_locs = rnd < self.prob
+        sample['x'][change_locs & occupied] = 0
+        sample['x'][change_locs & empty] = 1
+
+        return sample
+
 class RandomRotate:
     '''
     Randomly rotate the scene by 90, 180 or 270 degrees 
@@ -35,14 +56,12 @@ class RandomRotate:
         sample with x and y
         rotate both of them
         '''
-        new_sample = deepcopy(sample)
-
         # rotate 0, 1, 2 or 3 times
         num_rots = self.rng.integers(0, 3, endpoint=True)
-        new_sample['x'] = np.rot90(new_sample['x'], k=num_rots)
-        new_sample['y'] = np.rot90(new_sample['y'], k=num_rots)
+        sample['x'] = np.rot90(sample['x'], k=num_rots)
+        sample['y'] = np.rot90(sample['y'], k=num_rots)
 
-        return new_sample
+        return sample
 
 class RandomTranslate:
     '''
