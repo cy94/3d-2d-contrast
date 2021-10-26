@@ -1,10 +1,10 @@
 
 data:
     # h5 dataset
-    train_file: /mnt/data/scannet/backproj/train100.h5
-    val_file: /mnt/data/scannet/backproj/val50-10k.h5
+    train_file: /mnt/data/scannet/backproj/train100-v6-aug.h5
+    val_file: /mnt/data/scannet/backproj/val-v5.h5
 
-    # 20 or 40 classes?
+    # 20 or 40 classes? 
     num_classes: 40
     # padding value used in the target - usually = num_classes
     # since targets are 0..num_classes-1
@@ -13,27 +13,24 @@ data:
     limit_scans: null
     # size of each subvol
     subvol_size: [32, 32, 32]
-    # randomly sample these many subvols per scene
-    subvols_per_scene: 1000
-
     use_rgb: false
 
 model: 
-    name: UNet3D
+    name: UNet3D_3DMV
 
 train:
     opt: 
         name: adam
-        lr: 0.001
+        lr: 0.0001
         l2: 0.0000
-    train_batch_size: 80
-    val_batch_size: 80
+    train_batch_size: 100
+    val_batch_size: 100
     epochs: 3000
     class_weights: true
     # eval every N batches
-    eval_intv: 256
+    eval_intv: 500
     # 1.0: whole val set
     # integer N: N batches
     limit_val_batches: 1.0
 
-    resume: null 
+    resume: null #lightning_logs/version_7/checkpoints/last.ckpt 

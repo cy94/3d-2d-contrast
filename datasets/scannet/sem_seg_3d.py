@@ -202,6 +202,8 @@ class ScanNetSemSegOccGrid(Dataset):
         # splits the padding equally on both sides and applies it
         x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, pad_val=self.target_padding)
 
+        num_voxels = np.prod(self.subvol_size)
+
         # now x, y are atleast the size of subvol in each dimension
         # sample subvols as usual
         while 1:
@@ -215,10 +217,15 @@ class ScanNetSemSegOccGrid(Dataset):
             x_sub = x[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
             y_sub = y[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
 
+            occupied = (x_sub == 1).sum() / num_voxels
+            
+            # first check if atleast 50% of the subvol is occupied
+            # then check class distribution
             # classes 0,1 = wall, floor
             # if: the subvol has only these 2 classes -> keep only 5% of such subvols
             # or: other classes with index >2? keep the subvol
-            if (y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1):
+            if (occupied >= 0.04) and \
+                ((y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1)):
                 break
 
         retval = (x_sub, y_sub)
@@ -240,8 +247,11 @@ class ScanNetSemSegOccGrid(Dataset):
         data = torch.load(path)
         # labels are scannet IDs
         x, y_nyu = data['x'], data['y']
+        # the translation to be applied to 0,0,0 
+        # to get the center of the origin voxel
+        t = -data['start_ndx']
 
-        return x, y_nyu, None
+        return x, y_nyu, t
 
     def __getitem__(self, ndx):
         if not self.full_scene:

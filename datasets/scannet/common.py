@@ -92,8 +92,9 @@ def nyu40_to_continuous(img, ignore_label=20, num_classes=20):
             new_img[img == nyu_cls] = ignore_label
 
     # bugs in labels - some labels are 50 or 149
-    # negative values could be from quantization?
-    new_img[(img < 0) | (img == 50) | (img == 149)] = ignore_label      
+    # negative values = missing labels
+    # larger values = anything else
+    new_img[(img < 0) | (img == 50) | (img == 149) | (img > ignore_label)] = ignore_label      
 
     return new_img
 

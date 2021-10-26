@@ -14,34 +14,9 @@ import os, os.path as osp
 from pathlib import Path
 
 import trimesh
-from trimesh.exchange.ply import parse_header, ply_binary
+from datasets.scannet.common import load_ply
 
-def read_gt(gt_path):
-    '''
-    get vertices, rgb and labels from scannet GT PLY file such as 
-    {scan_id}_vh_clean_2.labels.ply
-
-    vertices: n, 3
-    rgb: n, 3
-    labels: n,
-    '''
-    with open(gt_path, 'rb') as f:
-        elements, _, _ = parse_header(f)
-        ply_binary(elements, f)
-        
-    labels = elements['vertex']['data']['label']
-
-    x, y, z = elements['vertex']['data']['x'], elements['vertex']['data']['y'], \
-                elements['vertex']['data']['z']
-    r, g, b = elements['vertex']['data']['red'], elements['vertex']['data']['green'], \
-                elements['vertex']['data']['blue']
-
-    gt_vertices = np.stack((x, y, z), axis=-1)
-    gt_rgb = np.stack((r, g, b), axis=-1)
-
-    return gt_vertices, gt_rgb, labels
-
-def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, voxel_size=None, method='nearest'):
+def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, rgb, voxel_size=None, method='nearest'):
     '''
     input_grid:  the input trimesh.VoxelGrid (l, h, b)
     gt_vertices: (n, 3) vertices of the GT mesh 
@@ -52,7 +27,8 @@ def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, voxel_size=None, meth
     centers = input_grid.points
     indices = input_grid.points_to_indices(centers)
     pairs = list(zip(centers, indices))
-    label_grid = np.zeros_like(input_grid.matrix, dtype=np.uint16)
+    label_grid = -np.ones_like(input_grid.matrix, dtype=np.int16)
+    rgb_grid = np.zeros(input_grid.matrix.shape + (3,), dtype=np.uint8)
 
     for center, ndx in tqdm(pairs, leave=False, desc='nearest_point'):
         if method == 'nearest':
@@ -61,7 +37,8 @@ def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, voxel_size=None, meth
             # closest vertex
             closest_vtx_ndx = dist.argmin()
             # label of this vertex
-            label = gt_vtx_labels[closest_vtx_ndx]
+            voxel_label = gt_vtx_labels[closest_vtx_ndx]
+            voxel_rgb = rgb[closest_vtx_ndx]
         elif method == 'voting':
             # find indices all vertices within this voxel
             low, high = center - voxel_size, center + voxel_size
@@ -70,15 +47,16 @@ def get_label_grid(input_grid, gt_vertices, gt_vtx_labels, voxel_size=None, meth
             labels = gt_vtx_labels[vtx_in_voxel]
             # most common label
             try:
-                label = np.bincount(labels).argmax()
+                voxel_label = np.bincount(labels).argmax()
             except ValueError:
-                label = None
+                voxel_label = None
         
-        # assign to label and color grid
-        if label is not None:
-            label_grid[ndx[0], ndx[1], ndx[2]] = label
+        label_grid[ndx[0], ndx[1], ndx[2]] = voxel_label
+        rgb_grid[ndx[0], ndx[1], ndx[2]] = voxel_rgb
 
-    return label_grid
+    center_colors = rgb_grid[indices[:, 0], indices[:, 1], indices[:, 2]]
+
+    return label_grid, rgb_grid, center_colors
 
 def main(args):
     root = Path(args.scannet_dir)
@@ -96,14 +74,17 @@ def main(args):
         input_grid = input_mesh.voxelized(pitch=voxel_size) 
         
         # read GT mesh, get vertex coordinates and labels
-        gt_vertices, _, labels = read_gt(scan_dir / gt_file)
+        _, rgb, _ = load_ply(scan_dir / input_file)
+        # read coords and labels from GT file
+        coords, _, labels = load_ply(scan_dir / gt_file, read_label=True)
 
-        label_grid = get_label_grid(input_grid, gt_vertices, labels)
-
+        label_grid, rgb_grid, center_colors = get_label_grid(input_grid, coords, labels, rgb)
+        
         x, y = input_grid.matrix, label_grid
         out_file = f'{scan_id}_occ_grid.pth'
 
-        data = {'x': x, 'y': y}
+        data = {'x': x, 'y': y, 'translation': input_grid.translation, 
+                'start_ndx': input_grid.translation / voxel_size}
         torch.save(data, scan_dir / out_file)
 
 if __name__ == '__main__':

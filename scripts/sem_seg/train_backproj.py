@@ -1,22 +1,14 @@
-from pytorch_lightning.utilities.seed import seed_everything
-seed_everything(42)
-
-from pathlib import Path
-import argparse
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
-from models.sem_seg.fcn3d import UNet2D3D
+from models.sem_seg.fcn3d import UNet2D3D, UNet2D3D_3DMV
 
-from lib.misc import read_config
-from models.sem_seg.utils import count_parameters
+from lib.misc import get_args, get_logger_and_callbacks, read_config
+from models.sem_seg.utils import MODEL_MAP_2D3D, count_parameters
 
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from pytorch_lightning import loggers as pl_loggers
-
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
 from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
@@ -40,8 +32,8 @@ def main(args):
 
     if args.subset:
         print('Select a subset of data for quick run')
-        train_set = Subset(train_set, range(4096))
-        val_set = Subset(val_set, range(1024))
+        train_set = Subset(train_set, range(1))
+        val_set = Subset(val_set, range(16))
         print(f'Train set: {len(train_set)}')
         print(f'Val set: {len(val_set)}')
 
@@ -62,66 +54,19 @@ def main(args):
     # adjust for smaller image size
     intrinsic = adjust_intrinsic(intrinsic, [1296, 968], cfg['data']['proj_img_size'])
 
-    model = UNet2D3D(in_channels=1, num_classes=cfg['data']['num_classes'], cfg=cfg, 
+    model = MODEL_MAP_2D3D[cfg['model']['name']](in_channels=1, 
+                    num_classes=cfg['data']['num_classes'], cfg=cfg, 
                     features_2d=features_2d, intrinsic=intrinsic)
 
     print(f'Num params: {count_parameters(model)}')                                                      
 
-    # log LR with schedulers
-    # without scheduler - done in model
-    callbacks = [LearningRateMonitor(logging_interval='step')]
-
-    # get the next version number from this
-    ckpt = cfg['train']['resume']                                             
-    resume = ckpt is not None
-    if resume:
-        print(f'Resuming from checkpoint: {ckpt}, reuse version')
-        ckpt_version = Path(ckpt).parent.parent.stem.split('_')[1]
-        name = f'version_{ckpt_version}'
-    else:
-        print('Create a new experiment version')
-        tblogger = pl_loggers.TensorBoardLogger('lightning_logs', '')
-        name = f'version_{tblogger.version}'
-
-    # use for checkpoint
-    if not args.no_ckpt:
-        print('Saving checkpoints')
-        ckpt_dir = f'lightning_logs/{name}/checkpoints'
-        # resuming -> ok if exists
-        # new expt -> dir should not exist
-        Path(ckpt_dir).mkdir(parents=True, exist_ok=resume)
-
-        # create the dir, version num doesn't get reused next time
-        callbacks.append(ModelCheckpoint(ckpt_dir,
-                                        save_last=True, save_top_k=5, 
-                                        monitor='iou/val/mean',
-                                        mode='max',
-                                # put the miou in the filename
-                                filename='epoch{epoch:02d}-step{step}-miou{iou/val/mean:.2f}',
-                                auto_insert_metric_name=False))
-    else:
-        print('Log to a temp version of WandB')                                
-    
-    # create a temp version for WB if not checkpointing
-    wbname = (name + 'tmp') if args.no_ckpt else name
-    
-    if args.no_log:
-        wblogger = None
-        print('Logging disabled -> Checkpoint and LR logging disabled as well')
-        # cant log LR
-        callbacks = []
-    else:
-        wblogger = pl_loggers.WandbLogger(name=wbname,
-                                        project='thesis', 
-                                        id=wbname,
-                                        save_dir='lightning_logs',
-                                        version=wbname,
-                                        log_model=False)
-        wblogger.log_hyperparams(cfg)
+    wblogger, callbacks = get_logger_and_callbacks(args, cfg)
+    ckpt = cfg['train']['resume']
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
-                        gpus=1 if not args.cpu else None, 
+                        # num_sanity_val_steps=0,
+                        gpus=1 if not args.cpu else 0, 
                         log_every_n_steps=10,
                         callbacks=callbacks,
                         max_epochs=cfg['train']['epochs'],
@@ -133,18 +78,5 @@ def main(args):
     trainer.fit(model, train_loader, val_loader)
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser()
-    p.add_argument('cfg_path', help='Path to cfg')
-    p.add_argument('--no-ckpt', action='store_true', dest='no_ckpt', 
-                    default=False, help='Dont store checkpoints (for debugging)')
-    p.add_argument('--cpu', action='store_true', dest='cpu', 
-                    default=False, help='Train on CPU')                    
-    p.add_argument('--subset', action='store_true', dest='subset', 
-                    default=False, help='Use a subset of dataset')
-    p.add_argument('--no-log', action='store_true', dest='no_log', 
-                    default=False, help='Dont log to Weights and Biases')
-
-    parser = pl.Trainer.add_argparse_args(p)
-    args = p.parse_args()
-
+    args = get_args()
     main(args)

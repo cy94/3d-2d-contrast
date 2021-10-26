@@ -7,7 +7,6 @@ from copy import deepcopy
 import numpy as np
 
 import torch
-import torchvision.transforms as transforms
 
 def pad_volume(vol, size, pad_val=-100):
     '''
@@ -23,6 +22,28 @@ def pad_volume(vol, size, pad_val=-100):
 
     return padded
 
+class JitterOccupancy:
+    '''
+    Jitter the occupancy grid -> set a few 1s to 0s, few 0s to 1s randomly
+    '''
+    def __init__(self, prob=0.05):
+        # change 0->1 and 1-> with this probability
+        self.prob = prob
+
+    def __call__(self, sample):
+        # change only x
+        occupied = (sample['x'] == 1)
+        empty = (sample['x'] == 0)
+
+        rnd = np.random.rand(*sample['x'].shape)
+
+        # change these locations
+        change_locs = rnd < self.prob
+        sample['x'][change_locs & occupied] = 0
+        sample['x'][change_locs & empty] = 1
+
+        return sample
+
 class RandomRotate:
     '''
     Randomly rotate the scene by 90, 180 or 270 degrees 
@@ -35,14 +56,12 @@ class RandomRotate:
         sample with x and y
         rotate both of them
         '''
-        new_sample = deepcopy(sample)
-
         # rotate 0, 1, 2 or 3 times
         num_rots = self.rng.integers(0, 3, endpoint=True)
-        new_sample['x'] = np.rot90(new_sample['x'], k=num_rots)
-        new_sample['y'] = np.rot90(new_sample['y'], k=num_rots)
+        sample['x'] = np.rot90(sample['x'], k=num_rots)
+        sample['y'] = np.rot90(sample['y'], k=num_rots)
 
-        return new_sample
+        return sample
 
 class RandomTranslate:
     '''
@@ -160,11 +179,20 @@ class LoadDepths(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
-        # invert dims in the tensor
-        # N, H, W -> torch nn convention
-        depths = torch.Tensor(len(frames), self.img_size[1], self.img_size[0])
-        load_depth_multiple(paths, self.img_size, depths)
+        depths = torch.zeros(len(frames), self.img_size[1], self.img_size[0])
+        
+        # check if this sample has frames
+        if -1 not in frames:
+            paths = [Path(self.data_dir) / scan_name / 'depth' / f'{i}.png' for i in frames]
+            # invert dims in the tensor
+            # N, H, W -> torch nn convention
+            # all the paths should exist
+            if all([path.exists() for path in paths]):
+                load_depth_multiple(paths, self.img_size, depths)
+            else:
+                sample['frames'][:] = -1
+        else:
+            sample['frames'][:] = -1
 
         sample['depths'] = depths
         
@@ -178,10 +206,17 @@ class LoadPoses(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
+        poses = torch.zeros(len(frames), 4, 4)
 
-        poses = torch.Tensor(len(frames), 4, 4)
-        load_pose_multiple(paths, poses)
+        if -1 not in frames:
+            paths = [Path(self.data_dir) / scan_name / 'pose' / f'{i}.txt' for i in frames]
+            # all the paths should exist
+            if all([path.exists() for path in paths]):
+                load_pose_multiple(paths, poses)
+            else:
+                sample['frames'][:] = -1
+        else:
+            sample['frames'][:] = -1
 
         sample['poses'] = poses
 
@@ -199,10 +234,18 @@ class LoadRGBs(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
-        paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
         # N, C, H, W -> torch nn convention
-        rgbs = torch.Tensor(len(frames), 3, self.img_size[1], self.img_size[0])
-        load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
+        rgbs = torch.zeros(len(frames), 3, self.img_size[1], self.img_size[0])
+
+        if -1 not in frames:
+            paths = [Path(self.data_dir) / scan_name / 'color' / f'{i}.jpg' for i in frames]
+            # all the paths should exist
+            if all([path.exists() for path in paths]):
+                load_rgbs_multiple(paths, self.img_size, rgbs, self.transform)
+            else:
+                sample['frames'][:] = -1
+        else:
+            sample['frames'][:] = -1
 
         sample['rgbs'] = rgbs
 

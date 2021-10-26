@@ -1,7 +1,51 @@
-from copy import deepcopy
+import albumentations as A
 
 import cv2
 import numpy as np
+
+class TransformX:
+    '''
+    Base class that transfroms only X using albumentations
+    '''
+    def __call__(self, sample):
+        aug = self.t(image=sample['x'])
+        sample['x'] = aug['image']
+
+        return sample
+
+class TransformXY:
+    '''
+    Base class that transfroms only X using albumentations
+    '''
+    def __call__(self, sample):
+        aug = self.t(image=sample['x'], mask=sample['y'])
+        sample['x'] = aug['image']
+        sample['y'] = aug['mask']
+        return sample
+
+class GaussianBlur(TransformX):
+    def __init__(self):
+        self.t = A.GaussianBlur()
+
+class ColorJitter(TransformX):
+    def __init__(self):
+        self.t = A.ColorJitter()
+
+class HueSaturationValue(TransformX):
+    def __init__(self):
+        self.t = A.HueSaturationValue()
+
+class Blur(TransformX):
+    def __init__(self):
+        self.t = A.Blur()
+
+class GaussNoise(TransformX):
+    def __init__(self):
+        self.t = A.GaussNoise()
+
+class LRFlip(TransformXY):
+    def __init__(self):
+        self.t = A.HorizontalFlip()
 
 class Resize:
     def __init__(self, size=(640, 480)):
@@ -9,24 +53,22 @@ class Resize:
         self.size = tuple(size)
 
     def __call__(self, sample):
-        new_sample = deepcopy(sample)
         # height, width
-        new_sample['img'] = cv2.resize(new_sample['img'], self.size) 
+        sample['x'] = cv2.resize(sample['img'], self.size) 
         # use nearest method - keep valid labels!
-        new_sample['label'] = cv2.resize(new_sample['label'], self.size, 
+        sample['y'] = cv2.resize(sample['label'], self.size, 
                                             interpolation=cv2.INTER_NEAREST)
-        return new_sample                                
+        return sample                                
 
 class TransposeChannels:
     def __init__(self):
         pass
 
     def __call__(self, sample):
-        new_sample = deepcopy(sample)
         # move channels to the front
-        new_sample['img'] = new_sample['img'].transpose((2, 0, 1))
+        sample['x'] = sample['x'].transpose((2, 0, 1))
 
-        return new_sample
+        return sample
 
 class Normalize:
     def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
@@ -35,17 +77,20 @@ class Normalize:
 
     @staticmethod
     def apply(img, mean, std):
-        img /= 255.0
+        '''
+        img: H,W,3
+        '''
+        img = img.astype(np.float32) / 255.0
         img = (img - mean) / std
 
         return img
 
     def __call__(self, sample):
         '''
-        input: rgb in (0,255)
+        input: H,W,3 in (0,255)
         output: normalize image
         '''
-        sample['img'] /= 255.0
-        sample['img'] = (sample['img'] - self.mean) / self.std
+        sample['x'] = sample['x'].astype(np.float32) / 255.0
+        sample['x'] = (sample['x'] - self.mean) / self.std
 
         return sample

@@ -34,7 +34,8 @@ def load_depth_multiple(paths, image_dims, out):
     out: out array
     '''
     for ndx, path in enumerate(paths):
-        out[ndx] = torch.Tensor(load_depth(path, image_dims))
+        if path.exists():
+            out[ndx] = torch.Tensor(load_depth(path, image_dims))
 
     return out
 
@@ -56,7 +57,8 @@ def load_pose_multiple(paths, out):
     out: out array
     '''
     for ndx, path in enumerate(paths):
-        out[ndx] = torch.Tensor(load_pose(path))
+        if path.exists():
+            out[ndx] = torch.Tensor(load_pose(path))
     return out
     
 def load_pose(path):
@@ -71,7 +73,8 @@ def load_rgbs_multiple(paths, image_dims, out, transform=None):
     out: out array
     '''
     for ndx, path in enumerate(paths):
-        out[ndx] = torch.Tensor(load_color(path, image_dims, transform=transform))
+        if path.exists():
+            out[ndx] = torch.Tensor(load_color(path, image_dims, transform=transform))
     return out
 
 def load_color(path, image_dims, transform=None):
@@ -301,7 +304,31 @@ class ProjectionHelper():
         return lin_inds
 
     @staticmethod
-    def lin_ind_to_coords_static(lin_ind, coords, vol_dims):
+    def lin_ind2d_to_coords2d_static(lin_ind, img_dims, coords=None):
+        '''
+        Get XY coordinates within the image grid
+
+        lin_ind: [0, 1, 2, 3 ..] tensor of integers - only the valid indices
+        coords: empty array to fill coords, (2, len(lin_ind))
+        img_dims: W, H of the depth image into which the coords are used
+
+        Static method, does the same thing as below
+        additionally need to pass in the volume dims
+        '''
+        if coords is None:
+            coords = torch.empty(2, len(lin_ind), dtype=torch.long).to(lin_ind.device)
+
+        # IMP: use a floored division here to keep only the integer coordinates!
+        # Y = N / width = number of filled widths
+        coords[1] = lin_ind.div(img_dims[0], rounding_mode='floor')
+        # position within the row is X -> remove full widths to get X
+        coords[0] = lin_ind - (coords[1]*img_dims[0]).long()
+
+        return coords
+
+
+    @staticmethod
+    def lin_ind_to_coords_static(lin_ind, vol_dims, coords=None):
         '''
         Get XYZ coordinates within the grid
         ie. homogenous coordinate XYZ of each voxel 
@@ -312,6 +339,9 @@ class ProjectionHelper():
         Static method, does the same thing as below
         additionally need to pass in the volume dims
         '''
+        if coords is None:
+            coords = torch.empty(4, len(lin_ind)).to(lin_ind.device)
+
         # Z = N / (X*Y)
         # IMP: use a floored division here to keep only the integer coordinates!
         coords[2] = lin_ind.div(vol_dims[0]*vol_dims[1], rounding_mode='floor')
@@ -328,7 +358,7 @@ class ProjectionHelper():
         '''
         call the static method
         '''
-        return self.lin_ind_to_coords_static(lin_ind, coords, self.volume_dims)
+        return self.lin_ind_to_coords_static(lin_ind, self.volume_dims, coords)
 
 
     def compute_projection(self, depth, camera_to_world, world_to_grid, return_coverage=False):
@@ -366,6 +396,7 @@ class ProjectionHelper():
         # empty array with size (4, num_voxels)
         coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
         # fill the array with ((0,0,0), (1,0,0),..(2,0,0),...(N,N,N))
+        # actual coord is the center of the voxel
         coords = self.lin_ind_to_coords(lin_ind_volume, coords)
 
         # the actual voxels that the camera can see
@@ -476,26 +507,23 @@ def project_2d_3d(feat2d, lin_indices_3d, lin_indices_2d, volume_dims):
 
     return: C,D,H,W volume
     '''
-    # is the 2D feature (W, H)? then C=1, else (C, W, H) -> get C
-    num_feat = 1 if len(feat2d.shape) == 2 else feat2d.shape[0]
-    # required shape is C, D, H, W, create an empty volume
-    output = feat2d.new_zeros(num_feat, volume_dims[0], volume_dims[1], volume_dims[2])
+    # dimension of the feature
+    feat_dim = feat2d.shape[0]
+    # required shape is C,D,H,W, create an empty volume
+    output = feat2d.new_zeros(feat_dim, volume_dims[2], volume_dims[1], volume_dims[0])
     # number of valid voxels which can be mapped to pixels
     num_ind = lin_indices_3d[0]
     # if there are any voxels to be mapped
     if num_ind > 0:
-        # permute C,H,W->C,W,H because the depth is used this way during projection
-        # then reshape the 2d feature to have 2 dimensions (C, W*H)
-        linear_feat = feat2d.permute(0, 2, 1).reshape(num_feat, -1)
-        # then pick the required 2d features
-        # get the features for the required pixels
-        vals = torch.index_select(linear_feat, 1, lin_indices_2d[1:1+num_ind])
-        # reshape the output volume to (C, W*H*D), then insert the 2d features
-        # at the requires locations
-        output.view(num_feat, -1)[:, lin_indices_3d[1:1+num_ind]] = vals
-
-    # change CWHD -> CDHW
-    output = output.permute(0, 3, 2, 1)   
+        # linear indices into H,W image
+        inds2d = lin_indices_2d[1:1+num_ind]
+        # then pick the required 2d features from CHW using linear inds
+        feats = feat2d.view(feat_dim, -1)[:, inds2d]
+        # index into CDHW volume using linear inds
+        # insert the 2d features at the required locations
+        inds3d = lin_indices_3d[1:1+num_ind]
+        # indices into WHD tensor
+        output.view(feat_dim, -1)[:, inds3d] = feats
 
     return output
 

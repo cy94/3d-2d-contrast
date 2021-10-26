@@ -3,7 +3,7 @@ prepare 2d+3d dataset (like 3DMV)
 3d: 32^3 subvolumes x and y sampled from dense grid
 2d: indices of 5 nearest images to each subvolume
 '''
-
+import wandb
 
 import os, os.path as osp
 import argparse
@@ -18,7 +18,7 @@ import h5py
 import numpy as np
 
 from lib.misc import read_config
-from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, ScanNetPLYDataset
+from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, ScanNetPLYDataset, ScanNetSemSegOccGrid
 from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
     load_depth_multiple, load_intrinsic, load_pose_multiple, make_intrinsic
 
@@ -93,47 +93,58 @@ def get_nearest_images(world_to_grid, poses, depths, num_nearest_imgs, projector
     projector: ProjectionHelper object
     device: run on cuda/cpu
     '''
-    if num_nearest_imgs != 1:
-        raise NotImplementedError
+    projections = []
 
-    coverages = []
+    for pose, depth in zip(poses, depths):
+        projection = projector.compute_projection(depth, pose, world_to_grid)
+        projections.append(projection)
 
-    inputs = zip(poses, depths)
+    # initially none of the voxels are covered
+    covered_voxels = set()
+    # initially no frames selected
+    frames = []
 
-    for pose, depth in inputs:
-        coverage = get_coverage_task(pose, depth, world_to_grid,
-                                        projector)
-        coverages.append(coverage)
+    for _ in range(num_nearest_imgs):
+        current_coverages = np.zeros(len(projections), dtype=np.int16)
+
+        # get the number of extra voxels that each unselected pose adds
+        for pose_ndx, projection in enumerate(projections):
+            # should have a valid projection, not be selected already
+            if projection is not None and pose_ndx not in frames:
+                ind3d, _ = projection
+                num_ind = ind3d[0]
+                covered_by_this_pose = set(ind3d[1:1+num_ind].tolist())
+                newly_covered = len(covered_by_this_pose - covered_voxels)
+                current_coverages[pose_ndx] = newly_covered
+        
+        # find the current best pose
+        best_pose = np.argmax(current_coverages)
+        if (projections[best_pose] is not None) and (current_coverages[best_pose] > 0):
+            # add to frames
+            frames.append(best_pose)
+            # update voxels covered so far
+            ind3d, _ = projections[best_pose]
+            num_ind = ind3d[0]
+            covered_by_this_pose = set(ind3d[1:1+num_ind].tolist())
+            covered_voxels = covered_voxels.union(covered_by_this_pose)
 
     # some image covers this subvol
-    if max(coverages) > 0:
-        return np.argmax(coverages)
+    if len(frames) > 0:
+        return np.array(frames, dtype=np.int16)
     # nothing covers this subvol
     else:
-        return None
-
-def get_coverage_task(pose, depth, world_to_grid, projector):
-    '''
-    pose: 4x4 tensor
-    depth: W, H tensor
-    world_to_grid: 4x4 transform
-    projector: ProjectionHelper object
-    '''
-    return projector.get_coverage(depth, pose, world_to_grid)
-
-def inf_generator():
-  while True:
-    yield
+        # -1 for each index
+        return -np.ones(num_nearest_imgs, dtype=np.int16)
 
 def main(args):
     cfg = read_config(args.cfg_path)
+    wandb.init(project='prep-backproj', config=cfg)
     
     device = torch.device('cuda' if args.gpu else 'cpu')
     print('Using device:', device)
 
     # get full scene grid, extract subvols later
-    dataset = ScanNetPLYDataset(cfg['data'], split=args.split,
-                                  full_scene=True)
+    dataset = ScanNetSemSegOccGrid(cfg['data'], split=args.split, full_scene=True)
     print(f'Dataset: {len(dataset)}')
 
     # create dir if it doesn't exist
@@ -223,6 +234,7 @@ def main(args):
         # indices into all_pose_files of poses considered
         pose_indices = range(0, len(all_pose_files), cfg['data']['frame_skip'])
         pose_files = [all_pose_files[ndx] for ndx in pose_indices]
+        pose_file_ndxs = [int(osp.splitext(f)[0]) for f in pose_files]
 
         pose_paths = (pose_dir / f for f in pose_files)
         depth_paths = (depth_dir / f'{Path(f).stem}.png' for f in pose_files)
@@ -248,9 +260,15 @@ def main(args):
         pbar = tqdm(total=subvols_per_scene, desc='subvol', leave=False)
 
         while subvols_found < subvols_per_scene:
-            # sample a batch of subvols
-            if args.full_scene and subvols_per_scene_list[scene_ndx] < batch_size:
-                num_in_batch = subvols_per_scene_list[scene_ndx]
+            # full scene -> pick all the subvols
+            if args.full_scene:
+                if subvols_per_scene_list[scene_ndx] < batch_size:
+                    # only 1 small batch
+                    num_in_batch = subvols_per_scene_list[scene_ndx]
+                else:
+                    # not the first batch - min(bsize, whatever is left)
+                    num_in_batch = min(batch_size, subvols_per_scene_list[scene_ndx] - subvols_found)
+            # randomly sample a batch of subvols
             else:
                 num_in_batch = batch_size
             
@@ -276,6 +294,15 @@ def main(args):
             # make a tensor, used for projection
             # handle the case when actual subvols < batch_size, take only a subset
             world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch[:num_in_batch]).to(device)
+
+            # projection expects origin of chunk in a corner
+            # but w2g is wrt center of the chunk -> add 16 to its "grid coords" 
+            # to get the required grid indices
+            # ie 0,0,0 becomes 16,16,16
+            # add an additional translation to existing one 
+            t = torch.eye(4).to(device)
+            t[:3, -1] = torch.Tensor(subvol_size) / 2
+            world_to_grid_batch_tensor = t @ world_to_grid_batch_tensor
 
             # compute projection for the whole batch in parallel
             task_func = partial(get_nearest_images, poses=poses, depths=depths,
@@ -304,7 +331,8 @@ def main(args):
             # check the valid ones and save them to file
             # full scene - save all to file, -1 as nearest image
             for ndx, nearest_imgs in enumerate(nearest_imgs_all):
-                if (nearest_imgs is None) and (not args.full_scene):
+                # not full scene, and didnt get coverage -> discard
+                if (-1 in nearest_imgs) and (not args.full_scene):
                     bad_subvols += 1
                 else:
                     # update the number found
@@ -313,20 +341,21 @@ def main(args):
                     subvols_found += 1
                     
                     # full scene: insert -1 as the pose
-                    if nearest_imgs is None:
-                        nearest_pose = -1
+                    # didnt get coverage -> insert -1 as it is 
+                    if -1 in nearest_imgs:
+                        nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
                     else:
-                        # TODO: currently returns a single index
-                        # returns an index into frame_skipped poses 
-                        # -> get the index into all the poses 
-                        # pick the image with max coverage N.txt
-                        nearest_pose_file = all_pose_files[pose_indices[nearest_imgs]]
-                        # get its index N
-                        nearest_pose = int(osp.splitext(nearest_pose_file)[0])
+                        # nearest imgs is a list of ints
+                        # its length is not necessarily num_nearest_imgs
+                        # -> rest should be -1
+                        # get the corresponding pose for each of these 
+                        nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
+                        for i, pose_ndx in enumerate(nearest_imgs):
+                            # get the "N".txt number
+                            nearest_poses[i] = pose_file_ndxs[pose_ndx]
                 
                     # find nearest images to this grid
-                    outfile['frames'][data_ndx] = nearest_pose
-                    
+                    outfile['frames'][data_ndx] = nearest_poses
                     outfile['x'][data_ndx] = subvol_x_batch[ndx]
                     outfile['y'][data_ndx] = subvol_y_batch[ndx]
                     outfile['scene_id'][data_ndx] = scene_id
