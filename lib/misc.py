@@ -6,6 +6,8 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
 
 def read_config(path):
     """
@@ -98,4 +100,14 @@ def get_logger_and_callbacks(args, cfg):
     else:
         print('Log to a temp version of WandB')                                
     
+    # loss will be logged, can do early stopping
+    if not args.no_log:
+        print('Add early stopping callback')
+        callbacks.append(
+            # loss ~ 3, need to improve atleast 0.01
+            EarlyStopping(monitor="loss/val", min_delta=0.01, 
+            patience=5, verbose=True, mode="min", strict=True,
+            check_finite=True,)
+        )
+
     return wblogger, callbacks
