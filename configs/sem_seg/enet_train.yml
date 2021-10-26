@@ -17,8 +17,8 @@ train:
         name: adam
         lr: 0.001
         l2: 0.0000
-    train_batch_size: 32
-    val_batch_size: 32
+    train_batch_size: 36
+    val_batch_size: 36
     epochs: 30000
 
     class_weights: true
