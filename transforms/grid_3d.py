@@ -44,6 +44,68 @@ class JitterOccupancy:
 
         return sample
 
+class RandomPadding:
+    '''
+    Randomly change a few edge layers of the input to padding
+    set x along the edges of the volume to 0, but dont change y
+    no need to change w2g transformation
+    '''
+    def __init__(self, max_pad=3, pad_x=-100, pad_y=40):
+        self.max_pad = max_pad
+        self.pad_x = pad_x
+        self.pad_y = pad_y
+        self.rng = np.random.default_rng()
+    
+    def __call__(self, sample):
+        # how many slices of the input to change?
+        # along each axis, each end = 3x2 = 6
+        xl, xr, yl, yr, zl, zr = self.rng.integers(0, self.max_pad, 6, endpoint=True)
+        slices = (
+            np.s_[:xl, :, :],
+            np.s_[-xr:, :, :],
+            np.s_[:, :yl, :], 
+            np.s_[:, -yr:, :],
+            np.s_[:, :, :zl],
+            np.s_[:, :, -zr:],
+        )
+
+        for slice in slices:
+            sample['x'][slice] = self.pad_x
+            sample['y'][slice] = self.pad_y
+
+        return sample
+
+class RandomInputZero:
+    '''
+    Randomly change a few edge layers of the input to padding
+    set x along the edges of the volume to 0, but dont change y
+    no need to change w2g transformation
+    '''
+    def __init__(self, max_pad=3, x_val=0, y_val=40):
+        self.max_pad = max_pad
+        self.x_val = x_val
+        self.y_val = y_val
+        self.rng = np.random.default_rng()
+    
+    def __call__(self, sample):
+        # how many slices of the input to change?
+        # along each axis, each end = 3x2 = 6
+        xl, xr, yl, yr, zl, zr = self.rng.integers(0, self.max_pad, 6, endpoint=True)
+        slices = (
+            np.s_[:xl, :, :],
+            np.s_[-xr:, :, :],
+            np.s_[:, :yl, :], 
+            np.s_[:, -yr:, :],
+            np.s_[:, :, :zl],
+            np.s_[:, :, -zr:],
+        )
+
+        for slice in slices:
+            sample['x'][slice] = self.x_val
+            sample['y'][slice] = self.y_val
+
+        return sample
+
 class RandomRotate:
     '''
     Randomly rotate the scene by 90, 180 or 270 degrees 
