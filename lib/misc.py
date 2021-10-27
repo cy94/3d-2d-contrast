@@ -106,7 +106,7 @@ def get_logger_and_callbacks(args, cfg):
         callbacks.append(
             # loss ~ 3, need to improve atleast 0.01
             EarlyStopping(monitor="loss/val", min_delta=0.01, 
-            patience=5, verbose=True, mode="min", strict=True,
+            patience=10, verbose=True, mode="min", strict=True,
             check_finite=True,)
         )
 
