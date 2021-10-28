@@ -521,10 +521,9 @@ class UNet3D_3DMV(SemSegNet):
 
     def init_model(self):
         # number of features
-        self.nf0 = 32 
+        self.nf0 = 32
         self.nf1 = 64 
         self.nf2 = 128 
-        self.bf = 1024
 
         # 3d conv on subvols
         # 2 down blocks
@@ -1099,7 +1098,6 @@ class UNet2D3D_3DMV(UNet2D3D):
         self.nf0 = 32 
         self.nf1 = 64 
         self.nf2 = 128 
-        self.bf = 1024
 
         self.down1_2d = nn.Sequential(
             # 32->16
