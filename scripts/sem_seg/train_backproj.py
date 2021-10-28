@@ -11,13 +11,15 @@ from torch.utils.data import Subset, DataLoader
 import pytorch_lightning as pl
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
-from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
+from transforms.grid_3d import AddChannelDim, JitterOccupancy, RandomRotate, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
 
 def main(args):
     cfg = read_config(args.cfg_path)
 
     t = Compose([
+        RandomRotate(aug_w2g=True),
+        JitterOccupancy(0.01),
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
