@@ -106,12 +106,33 @@ class RandomInputZero:
 
         return sample
 
+def get_rot_mat(num_rots):
+    '''
+    num_rots: number of rotations by np.rot90 in the direction X->Y axis, about the Z axis
+    subvol_size: (W, H, D) size
+    '''
+    # rotate about the Z axis num_rots times
+    rot90 = np.eye(4)
+    rot90[0, 0] = 0
+    rot90[1, 1] = 0
+    rot90[0, 1] = -1
+    rot90[1, 0] = 1
+
+    rot_n = np.linalg.matrix_power(rot90, num_rots)
+
+    return rot_n 
+
+
 class RandomRotate:
     '''
     Randomly rotate the scene by 90, 180 or 270 degrees 
     '''
-    def __init__(self):
+    def __init__(self, aug_w2g=False):
         self.rng = np.random.default_rng()
+        self.aug_w2g = aug_w2g
+
+        if self.aug_w2g:
+            self.rot_mats = {n: get_rot_mat(n) for n in (0, 1, 2, 3)}
 
     def __call__(self, sample):
         '''
@@ -123,6 +144,8 @@ class RandomRotate:
         sample['x'] = np.rot90(sample['x'], k=num_rots)
         sample['y'] = np.rot90(sample['y'], k=num_rots)
 
+        if self.aug_w2g:
+            sample['world_to_grid'] = self.rot_mats[num_rots] @ sample['world_to_grid']
         return sample
 
 class RandomTranslate:
