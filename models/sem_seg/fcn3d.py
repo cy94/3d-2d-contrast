@@ -1105,11 +1105,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
@@ -1121,11 +1121,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
@@ -1141,11 +1141,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
@@ -1157,11 +1157,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
@@ -1173,11 +1173,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
+            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
+            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
@@ -1191,11 +1191,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
+            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
+            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf2),
 
@@ -1208,11 +1208,11 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
+            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf1),
 
@@ -1225,17 +1225,17 @@ class UNet2D3D_3DMV(UNet2D3D):
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
+            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
             nn.ReLU(True),
             nn.BatchNorm3d(self.nf0),
 
         )
 
-        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1)
+        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 1, 1, 0)
     
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
