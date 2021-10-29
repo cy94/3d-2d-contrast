@@ -14,10 +14,11 @@ from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
 from transforms.grid_3d import AddChannelDim, JitterOccupancy, RandomRotate, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
 
+
 def main(args):
     cfg = read_config(args.cfg_path)
 
-    t = Compose([
+    train_t = Compose([
         RandomRotate(aug_w2g=True),
         JitterOccupancy(0.01),
         AddChannelDim(),
@@ -26,9 +27,16 @@ def main(args):
         LoadPoses(cfg),
         LoadRGBs(cfg)
     ])
+    val_t = Compose([
+        AddChannelDim(),
+        TransposeDims(),
+        LoadDepths(cfg),
+        LoadPoses(cfg),
+        LoadRGBs(cfg)
+    ])
 
-    train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=t)
-    val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=t)
+    train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=train_t)
+    val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=val_t)
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
