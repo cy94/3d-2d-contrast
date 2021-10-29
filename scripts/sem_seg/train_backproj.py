@@ -1,6 +1,5 @@
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
-from models.sem_seg.fcn3d import UNet2D3D, UNet2D3D_3DMV
 
 from lib.misc import get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import MODEL_MAP_2D3D, count_parameters
@@ -13,10 +12,21 @@ import pytorch_lightning as pl
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
 from transforms.grid_3d import AddChannelDim, JitterOccupancy, RandomRotate, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
+from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize
 
 
 def main(args):
     cfg = read_config(args.cfg_path)
+
+    train_t2d = Compose([
+        LRFlip(),
+        ColorJitter(),
+        HueSaturationValue(),
+        GaussianBlur(),
+        GaussNoise(),
+        Normalize(),
+    ])
+    val_t2d = Normalize()
 
     train_t = Compose([
         RandomRotate(aug_w2g=True),
@@ -25,14 +35,14 @@ def main(args):
         TransposeDims(),
         LoadDepths(cfg),
         LoadPoses(cfg),
-        LoadRGBs(cfg)
+        LoadRGBs(cfg, transform=train_t2d)
     ])
     val_t = Compose([
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
         LoadPoses(cfg),
-        LoadRGBs(cfg)
+        LoadRGBs(cfg, transform=val_t2d)
     ])
 
     train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=train_t)
