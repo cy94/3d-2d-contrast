@@ -85,17 +85,14 @@ def load_color(path, image_dims, transform=None):
     # reads a H, W, 3 array
     rgb = imageio.imread(path)
     # resize H, W -> Hnew, Wnew
-    # image_dims must be (W, H)
-    
-    # TODO: use resize_crop_image
-    # rgb = resize_crop_image(rgb, image_dims)
 
     # use cv2.resize as done during enet training
     rgb = cv2.resize(rgb, image_dims)
     
     # normalize the image, etc 
     if transform is not None:
-        rgb = transform(rgb)
+        # transform is on a dict with 'x' key
+        rgb = transform({'x': rgb})['x']
     # no need to transpose the dims, its already H, W
     # put channel first, get C, H, W
     rgb =  np.transpose(rgb, [2, 0, 1]) 
