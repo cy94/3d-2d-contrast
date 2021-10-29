@@ -308,12 +308,10 @@ class LoadPoses(LoadData):
         return sample
     
 class LoadRGBs(LoadData):
-    def __init__(self, cfg):
+    def __init__(self, cfg, transform=None):
         super().__init__(cfg)
         self.img_size = tuple(cfg['data']['rgb_img_size'])
-        t = Normalize()
-        # transform to operate on arrays, not dicts
-        self.transform = lambda img: Normalize.apply(img.astype(np.float32), mean=t.mean, std=t.std)
+        self.transform = transform
 
     def __call__(self, sample):
         # create all paths for depths
