@@ -19,18 +19,12 @@ def main(args):
     cfg = read_config(args.cfg_path)
 
     train_t2d = Compose([
-        LRFlip(),
-        ColorJitter(),
-        HueSaturationValue(),
-        GaussianBlur(),
-        GaussNoise(),
         Normalize(),
     ])
     val_t2d = Normalize()
 
     train_t = Compose([
         RandomRotate(aug_w2g=True),
-        JitterOccupancy(0.01),
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
