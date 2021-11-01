@@ -32,19 +32,19 @@ def main(args):
     
     for _, sample in enumerate(tqdm(dataset)):
         y = sample['y']
-
         counts += np.bincount(y.flatten(), minlength=num_classes+1)
 
     # remove the last ignored class
     counts = counts[:-1]
     
-    print('Counts:', counts)
-    normed = counts/counts.sum().numpy()
-    print('Class distrib fraction: ', np.round_(normed(decimals=4)))
+    normed = counts/counts.sum()
+    print('Class distrib fraction: ')
+    print(np.round_(normed, decimals=4).tolist())
     
     # taken from 3DMV
     weights = 1/np.log(1.2 + normed)
-    print('1/log(freq): ', np.round(weights, decimals=4))
+    print('1/log(norm_freq): ')
+    print(np.round(weights, decimals=4).tolist())
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
