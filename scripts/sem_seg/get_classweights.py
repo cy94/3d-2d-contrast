@@ -51,16 +51,12 @@ def main(args):
     counts = counts[:-1]
     
     print('Counts:', counts)
-    fraction = counts/counts.sum() 
-    print('Class distrib: ',fraction)
+    normed = counts/counts.sum().numpy()
+    print('Class distrib fraction: ', np.round_(normed(decimals=4)))
     
-    inv_frac = 1/fraction
-    print('1/fraction: ', inv_frac.tolist())
-    print('Normed: ', (inv_frac / inv_frac.sum()).tolist())
-
-    inv_log = 1/np.log(counts)
-    print('1/log(freq): ', inv_log.tolist())
-    print('normed: ', (inv_log / inv_log.sum()).tolist())
+    # taken from 3DMV
+    weights = 1/np.log(1.2 + normed)
+    print('1/log(freq): ', np.round(weights, decimals=4))
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
