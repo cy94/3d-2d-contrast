@@ -18,9 +18,7 @@ from transforms.image_2d import Normalize
 def main(args):
     cfg = read_config(args.cfg_path)
 
-    train_t2d = Compose([
-        Normalize(),
-    ])
+    train_t2d = Normalize()
     val_t2d = Normalize()
 
     train_t = Compose([
