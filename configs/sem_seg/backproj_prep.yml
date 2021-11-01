@@ -1,8 +1,7 @@
 data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
-    # train_list: /mnt/data/scannet/splits/scannetv2_train.txt
-    train_list: /mnt/data/scannet/splits/train1.txt
+    train_list: /mnt/data/scannet/splits/scannetv2_train.txt
     val_list: /mnt/data/scannet/splits/scannetv2_val.txt
     # 20 or 40 classes?
     num_classes: 40
