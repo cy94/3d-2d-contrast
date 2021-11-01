@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 
 from torchsummary import summary
 from transforms.common import Compose
-from transforms.grid_3d import AddChannelDim, JitterOccupancy, RandomRotate, TransposeDims
+from transforms.grid_3d import AddChannelDim, RandomRotate, TransposeDims
 
 
 def main(args):
@@ -19,7 +19,6 @@ def main(args):
 
     train_t = Compose([
         RandomRotate(),
-        JitterOccupancy(0.01),
         AddChannelDim(),
         TransposeDims(),
     ])
