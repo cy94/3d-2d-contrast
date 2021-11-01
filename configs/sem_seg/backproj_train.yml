@@ -25,7 +25,7 @@ data:
 model: 
     name: UNet2D3D_3DMV
     # 2d model checkpoint
-    ckpt_2d: lightning_logs/version_138/checkpoints/last.ckpt
+    ckpt_2d: enet_models/version_679.ckpt
     # contrastive:
     #     positives: common #nearest
     #     type: nce
