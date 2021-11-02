@@ -171,7 +171,7 @@ class ScanNetSemSegOccGrid(Dataset):
             return len(self.paths)
         return self.subvols_per_scene * len(self.paths)
 
-    def sample_subvol(self, x, y, return_start_ndx=False):
+    def sample_subvol(self, x, y, return_start_ndx=False, min_occ=0.2, num_retries=20):
         '''
         x, y - volumes of the same size
         return_start_ndx: return the start index of the subvol within the 
@@ -204,6 +204,9 @@ class ScanNetSemSegOccGrid(Dataset):
 
         num_voxels = np.prod(self.subvol_size)
 
+        # min frac of occupied voxels in the chunk
+        current_min_occ = min_occ
+        n_attempts = 0
         # now x, y are atleast the size of subvol in each dimension
         # sample subvols as usual
         while 1:
@@ -224,9 +227,15 @@ class ScanNetSemSegOccGrid(Dataset):
             # classes 0,1 = wall, floor
             # if: the subvol has only these 2 classes -> keep only 5% of such subvols
             # or: other classes with index >2? keep the subvol
-            if (occupied >= 0.04) and \
+            if (occupied >= current_min_occ) and \
                 ((y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1)):
                 break
+            n_attempts += 1
+            if n_attempts % num_retries == 0:
+                # try to get lesser occupancy
+                current_min_occ -= 0.01
+                # can get atleast this much 
+                current_min_occ = max(current_min_occ, 0.04)
 
         retval = (x_sub, y_sub)
         
