@@ -10,7 +10,6 @@ import numpy as np
 from tqdm import tqdm
 
 from lib.misc import read_config
-from datasets.scannet.utils import get_trainval_sets
 
 def main(args):
     cfg = read_config(args.cfg_path)
