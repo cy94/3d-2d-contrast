@@ -47,6 +47,21 @@ class Down3D_Big(nn.Module):
 
         return x4
 
+class Same3D1x1(nn.Module):
+    def __init__(self, in_channels, out_channels, dropout=True):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, 1, 1, 0),
+            nn.ReLU(),
+            nn.BatchNorm3d(out_channels),
+            nn.Dropout3d(0.2) if dropout else nn.Identity()
+        )
+
+    def forward(self, x):
+        out = self.block(x)
+        return out
+
+
 class Same3D_Big(nn.Module):
     def __init__(self, in_channels, out_channels, dropout=True):
         super().__init__()
@@ -68,8 +83,9 @@ class Same3D_Big(nn.Module):
     def forward(self, x):
         x1 = self.block1(x)
         x2 = self.block2(x1) + x
+        x3 = self.dropout(x2)
 
-        return x2
+        return x3
 
 class Up3D_Big(nn.Module):
     def __init__(self, in_channels, out_channels, dropout=True):
