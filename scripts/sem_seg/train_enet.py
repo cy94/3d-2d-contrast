@@ -57,6 +57,7 @@ def main(args):
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
+                        num_sanity_val_steps=0,
                         gpus=1 if not args.cpu else 0, 
                         log_every_n_steps=10,
                         callbacks=callbacks,
