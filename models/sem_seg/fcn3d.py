@@ -105,8 +105,8 @@ class SemSegNet(pl.LightningModule):
         if cfg['name'] == 'sgd':
             optimizer = torch.optim.SGD(self.parameters(), lr=cfg['lr'], 
                 weight_decay=cfg['l2'],
-                momentum=cfg['momentum'],
-                dampening=cfg['dampening'])
+                momentum=cfg.get('momentum', 0.9),
+                dampening=cfg.get('dampening', 0))
         elif cfg['name'] == 'adam':
             optimizer = torch.optim.Adam(self.parameters(), lr=cfg['lr'], 
                 weight_decay=cfg['l2'])
