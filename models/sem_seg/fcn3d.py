@@ -1101,7 +1101,7 @@ class UNet2D3D_3DMV(UNet2D3D):
 
         # 32->16
         self.down1_2d = Down3D_Big(self.nf2, self.nf1) 
-        self.down2_2d = Down3D_Big(self.nf1, self.nf0) 
+        self.down2_2d = Down3D_Big(self.nf1, self.nf1) 
 
         # 3d conv on subvols
         # 2 down blocks
@@ -1112,10 +1112,10 @@ class UNet2D3D_3DMV(UNet2D3D):
         # layers on top of combined features
         # one down block, 3 up blocks
         self.up1 = Up3D_Big(self.nf2, self.nf2)
-        self.up2 = Up3D_Big(self.nf2+self.nf1+self.nf0, self.nf2)
-        self.up3 = Up3D_Big(self.nf2+self.nf0, self.nf1) 
+        self.up2 = Up3D_Big(self.nf2+self.nf1+self.nf1, self.nf2)
+        self.up3 = Up3D_Big(self.nf2+self.nf0, self.nf2) 
 
-        self.pred_layer = nn.Conv3d(self.nf1, self.num_classes, 3, 1, 1)
+        self.pred_layer = nn.Conv3d(self.nf2, self.num_classes, 3, 1, 1)
     
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
