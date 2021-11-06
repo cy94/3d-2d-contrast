@@ -37,7 +37,7 @@ def main(args):
                 
         for ndx in tqdm(range(len(f2['x']))):
             for key in copy_keys:
-                outf[key][ndx] = f2[key][f1_subvols + ndx]
+                outf[key][f1_subvols + ndx] = f2[key][ndx]
         
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
