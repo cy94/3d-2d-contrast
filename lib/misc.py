@@ -101,7 +101,8 @@ def get_logger_and_callbacks(args, cfg):
         print('Log to a temp version of WandB')                                
     
     # loss will be logged, can do early stopping
-    if not args.no_log:
+    # dont early stop when using a subset of data to overfit
+    if not args.no_log and not args.subset:
         print('Add early stopping callback')
         callbacks.append(
             # loss ~ 3, need to improve atleast 0.01
