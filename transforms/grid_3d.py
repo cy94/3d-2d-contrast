@@ -317,6 +317,7 @@ class LoadRGBs(LoadData):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
+
         # N, C, H, W -> torch nn convention
         rgbs = torch.zeros(len(frames), 3, self.img_size[1], self.img_size[0])
 

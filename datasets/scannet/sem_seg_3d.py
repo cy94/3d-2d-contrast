@@ -70,6 +70,7 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
     '''
     def __init__(self, cfg, split, transform=None):
         super().__init__(cfg, split, transform)
+        self.num_images = cfg['num_nearest_images']
 
     @staticmethod
     def collate_func(samples):
@@ -98,6 +99,8 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         keys = 'x', 'y', 'world_to_grid', 'frames', 'scene_id', 'scan_id'
 
         sample = {key: self.data[key][ndx] for key in keys} 
+        # keep only the required frames
+        sample['frames'] = sample['frames'][:self.num_images]
 
         if self.transform is not None:
             sample = self.transform(sample)
