@@ -18,7 +18,7 @@ import h5py
 import numpy as np
 
 from lib.misc import read_config
-from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, ScanNetPLYDataset, ScanNetSemSegOccGrid
+from datasets.scannet.sem_seg_3d import ScanNetGridTestSubvols, ScanNetSemSegOccGrid
 from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
     load_depth_multiple, load_intrinsic, load_pose_multiple, make_intrinsic
 
