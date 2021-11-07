@@ -15,7 +15,7 @@ class SameConv3D(nn.Module):
         return self.layers(x)
 
 class Down3D_Big(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout=True):
+    def __init__(self, in_channels, out_channels, dropout=True, conv1x1=False):
         super().__init__()
         # x->x/2
         self.block1 = nn.Sequential(
@@ -25,12 +25,14 @@ class Down3D_Big(nn.Module):
         )
         # same conv
         self.block2 = nn.Sequential(
+            nn.Conv3d(out_channels, out_channels, 1, 1, 0) if conv1x1 else \
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
         )
         # same conv
         self.block3 = nn.Sequential(
+            nn.Conv3d(out_channels, out_channels, 1, 1, 0) if conv1x1 else \
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
@@ -88,7 +90,7 @@ class Same3D_Big(nn.Module):
         return x3
 
 class Up3D_Big(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout=True):
+    def __init__(self, in_channels, out_channels, dropout=True, conv1x1=False):
         super().__init__()
         # x->2x
         self.block1 = nn.Sequential(
@@ -98,12 +100,14 @@ class Up3D_Big(nn.Module):
         )
         # same conv
         self.block2 = nn.Sequential(
+            nn.Conv3d(out_channels, out_channels, 1, 1, 0) if conv1x1 else \
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
         )
         # same conv
         self.block3 = nn.Sequential(
+            nn.Conv3d(out_channels, out_channels, 1, 1, 0) if conv1x1 else \
             nn.Conv3d(out_channels, out_channels, 3, 1, 1),
             nn.ReLU(),
             nn.BatchNorm3d(out_channels),
