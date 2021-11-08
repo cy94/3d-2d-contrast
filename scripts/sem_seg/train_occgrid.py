@@ -47,7 +47,7 @@ def main(args):
     print(f'Num params: {count_parameters(model)}')
 
     model = model.cuda()
-    summary(model, (1, 32, 32, 32))
+    summary(model, (1,) + tuple(cfg['data']['subvol_size'][::-1]))
 
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
     ckpt = cfg['train']['resume']
