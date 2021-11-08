@@ -531,10 +531,10 @@ class UNet3D_3DMV(SemSegNet):
         self.down2 = Down3D_Big(self.nf0, self.nf1) 
         self.down3 = Down3D_Big(self.nf1, self.nf2) 
         self.up1 = Up3D_Big(self.nf2, self.nf2) 
-        self.up2 = Up3D_Big(self.nf2+self.nf1, self.nf1) 
-        self.up3 = Up3D_Big(self.nf1+self.nf0, self.nf0)
+        self.up2 = Up3D_Big(self.nf2+self.nf1, self.nf2) 
+        self.up3 = Up3D_Big(self.nf2+self.nf0, self.nf2)
 
-        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1)
+        self.pred_layer = nn.Conv3d(self.nf2, self.num_classes, 3, 1, 1)
 
     def forward(self, x):
         x16 = self.down1(x)
