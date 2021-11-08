@@ -521,20 +521,20 @@ class UNet3D_3DMV(SemSegNet):
 
     def init_model(self):
         # number of features
-        self.nf0 = 8
-        self.nf1 = 16 
-        self.nf2 = 32 
+        self.nf0 = 32
+        self.nf1 = 64 
+        self.nf2 = 128 
 
         # 3d conv on subvols
         # use 1x1 convs, fewer params
-        self.down1 = Down3D_Big(self.in_channels, self.nf0, conv1x1=True)
-        self.down2 = Down3D_Big(self.nf0, self.nf1, conv1x1=True)
-        self.down3 = Down3D_Big(self.nf1, self.nf2, conv1x1=True)
-        self.up1 = Up3D_Big(self.nf2, self.nf1, conv1x1=True)
-        self.up2 = Up3D_Big(self.nf1+self.nf1, self.nf1, conv1x1=True)
-        self.up3 = Up3D_Big(self.nf1+self.nf0, self.nf0, conv1x1=True)
+        self.down1 = Down3D_Big(self.in_channels, self.nf0) 
+        self.down2 = Down3D_Big(self.nf0, self.nf1) 
+        self.down3 = Down3D_Big(self.nf1, self.nf2) 
+        self.up1 = Up3D_Big(self.nf2, self.nf2) 
+        self.up2 = Up3D_Big(self.nf2+self.nf1, self.nf1) 
+        self.up3 = Up3D_Big(self.nf1+self.nf0, self.nf0)
 
-        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 1, 1, 0)
+        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1)
 
     def forward(self, x):
         x16 = self.down1(x)
