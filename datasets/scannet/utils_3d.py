@@ -351,7 +351,7 @@ class ProjectionHelper():
 
         return coords
         
-    def lin_ind_to_coords(self, lin_ind, coords):
+    def lin_ind_to_coords(self, lin_ind, coords=None):
         '''
         call the static method
         '''
@@ -390,11 +390,9 @@ class ProjectionHelper():
 
         # indices from 0,1,2 .. 31*31*62 = num_voxels
         lin_ind_volume = torch.arange(0, self.volume_dims[0]*self.volume_dims[1]*self.volume_dims[2], out=torch.LongTensor()).to(self.device)
-        # empty array with size (4, num_voxels)
-        coords = camera_to_world.new_empty(4, lin_ind_volume.size(0))
-        # fill the array with ((0,0,0), (1,0,0),..(2,0,0),...(N,N,N))
-        # actual coord is the center of the voxel
-        coords = self.lin_ind_to_coords(lin_ind_volume, coords)
+        # coord is the center of the voxel?
+        # ((0,0,0), (1,0,0),..(2,0,0),...(N,N,N))
+        coords = self.lin_ind_to_coords(lin_ind_volume)
 
         # the actual voxels that the camera can see
         # based on the lower bound
