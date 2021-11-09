@@ -23,8 +23,6 @@ def collate_func(sample_list):
         'y': torch.LongTensor([s['y'] for s in sample_list]),
     }
 
-
-
 class ScanNetOccGridH5(Dataset):
     '''
     Read x,y samples from a h5 file
@@ -197,6 +195,8 @@ class ScanNetSemSegOccGrid(Dataset):
         small_scene_pad[small_scene_pad < 0] = 0
 
         # augmentation padding for all other scenes (left+right)
+        # TODO: change the start_ndx accordingly!
+        # then remove w2g+subvol_size/2 everywhere
         aug_pad = self.subvol_size
 
         # final scene size
@@ -369,16 +369,21 @@ class ScanNetGridTestSubvols:
 
         self.transform = transform 
 
-        # pad the scene to multiples of subvols
+        # pad the scene on the left with subvol_size/2 because we did this during training
+        padded_size = np.array(x.shape) + np.array(self.subvol_size)/2
+        x = pad_volume(x, padded_size, pad_end='left')
+        y = pad_volume(y, padded_size, self.target_padding, pad_end='left')
+
+        # then pad the scene on the right to multiples of subvols
         padded_size = ((np.array(x.shape) // self.subvol_size) + 1) * self.subvol_size
-        self.x = pad_volume(x, padded_size)
-        self.y = pad_volume(y, padded_size, self.target_padding)
+        self.x = pad_volume(x, padded_size, pad_end='right')
+        self.y = pad_volume(y, padded_size, self.target_padding, pad_end='right')
 
         # mapping from ndx to subvol slices
         self.mapping = OrderedDict()
-        # TODO: find a way to get this from the np.s_ slice
         self.start_ndx = OrderedDict()
         ndx = 0
+
         # depth
         for k in range(0, self.x.shape[2], self.subvol_size[2]):
             # height
@@ -390,9 +395,11 @@ class ScanNetGridTestSubvols:
                         j : j+self.subvol_size[1], 
                         k : k+self.subvol_size[2], 
                     ]
-                    self.mapping[ndx] = slice
-                    self.start_ndx[ndx] = (i, j, k)
-                    ndx += 1
+                    # if subvol is not occupied at all, discard
+                    if (self.x[slice] == 1).sum() > 0:
+                        self.mapping[ndx] = slice
+                        self.start_ndx[ndx] = (i, j, k)
+                        ndx += 1
 
     def __len__(self):
         return len(self.mapping)
