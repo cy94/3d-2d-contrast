@@ -195,15 +195,14 @@ class ScanNetSemSegOccGrid(Dataset):
         small_scene_pad[small_scene_pad < 0] = 0
 
         # augmentation padding for all other scenes (left+right)
-        # TODO: change the start_ndx accordingly!
-        # then remove w2g+subvol_size/2 everywhere
         aug_pad = self.subvol_size
 
         # final scene size
         pad = np.maximum(small_scene_pad, aug_pad)
         scene_size = np.array(x.shape) + pad
-        # splits the padding equally on both sides and applies it
-        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, pad_val=self.target_padding)
+        # pad only on the right side, no need to change start_ndx then
+        x = pad_volume(x, scene_size, pad_end='right')
+        y = pad_volume(y, scene_size, pad_val=self.target_padding, pad_end='right')
 
         num_voxels = np.prod(self.subvol_size)
 
@@ -369,12 +368,7 @@ class ScanNetGridTestSubvols:
 
         self.transform = transform 
 
-        # pad the scene on the left with subvol_size/2 because we did this during training
-        padded_size = np.array(x.shape) + np.array(self.subvol_size)/2
-        x = pad_volume(x, padded_size, pad_end='left')
-        y = pad_volume(y, padded_size, self.target_padding, pad_end='left')
-
-        # then pad the scene on the right to multiples of subvols
+        # pad the scene on the right to reach nearest multiple of subvols
         padded_size = ((np.array(x.shape) // self.subvol_size) + 1) * self.subvol_size
         self.x = pad_volume(x, padded_size, pad_end='right')
         self.y = pad_volume(y, padded_size, self.target_padding, pad_end='right')
