@@ -295,15 +295,6 @@ def main(args):
             # handle the case when actual subvols < batch_size, take only a subset
             world_to_grid_batch_tensor = torch.Tensor(world_to_grid_batch[:num_in_batch]).to(device)
 
-            # projection expects origin of chunk in a corner
-            # but w2g is wrt center of the chunk -> add 16 to its "grid coords" 
-            # to get the required grid indices
-            # ie 0,0,0 becomes 16,16,16
-            # add an additional translation to existing one 
-            t = torch.eye(4).to(device)
-            t[:3, -1] = torch.Tensor(subvol_size) / 2
-            world_to_grid_batch_tensor = t @ world_to_grid_batch_tensor
-
             # compute projection for the whole batch in parallel
             task_func = partial(get_nearest_images, poses=poses, depths=depths,
                                     num_nearest_imgs=num_nearest_imgs,
@@ -340,18 +331,14 @@ def main(args):
                     good_in_batch += 1
                     subvols_found += 1
                     
-                    # full scene: insert -1 as the pose
-                    # didnt get coverage -> insert -1 as it is 
-                    if -1 in nearest_imgs:
-                        nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
-                    else:
-                        # nearest imgs is a list of ints
-                        # its length is not necessarily num_nearest_imgs
-                        # -> rest should be -1
-                        # get the corresponding pose for each of these 
-                        nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
-                        for i, pose_ndx in enumerate(nearest_imgs):
-                            # get the "N".txt number
+                    # nearest imgs is a list of ints
+                    # its length is not necessarily num_nearest_imgs
+                    # -> rest should be -1. create an array of -1s
+                    nearest_poses = -np.ones(num_nearest_imgs, dtype=np.int16)
+                    for i, pose_ndx in enumerate(nearest_imgs):
+                        if pose_ndx != -1:
+                            # get the corresponding pose for each of these 
+                            # =get the "N".txt number
                             nearest_poses[i] = pose_file_ndxs[pose_ndx]
                 
                     # find nearest images to this grid
