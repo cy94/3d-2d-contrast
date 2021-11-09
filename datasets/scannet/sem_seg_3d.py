@@ -187,8 +187,7 @@ class ScanNetSemSegOccGrid(Dataset):
         # for 2+3 - apply padding to the whole scene, then sample subvolumes as usual
         # so that subvols on the edge of the scene get padding
         #
-        # result: left+right padding = max(subvol size, padding required to reach subvol size)
-        # then apply half of this padding on each side 
+        # result: right padding = max(subvol size, padding required to reach subvol size)
 
         # the padding required for small scenes (left+right)
         small_scene_pad = self.subvol_size - x.shape
