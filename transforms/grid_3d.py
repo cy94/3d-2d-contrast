@@ -8,7 +8,7 @@ import numpy as np
 
 import torch
 
-def pad_volume(vol, size, pad_val=-100):
+def pad_volume(vol, size, pad_val=-100, pad_end=False):
     '''
     vol: (l, b, h) array
     size: (3,) array
@@ -16,8 +16,14 @@ def pad_volume(vol, size, pad_val=-100):
     '''
     diff = size - np.array(vol.shape)
     # left and right padding for 3 dims (ie l/r, front/back, top/bottom)
-    pad = np.stack((np.floor(diff/2), np.ceil(diff/2)), axis=-1).astype(np.uint8).tolist()
-    
+    # pad only at one end
+    if pad_end:
+        padvals = (np.zeros(3), diff)
+    # pad half at each end
+    else:
+        padvals = (np.floor(diff/2), np.ceil(diff/2))
+
+    pad = np.stack(padvals, axis=-1).astype(np.uint8).tolist()
     padded = np.pad(vol, pad, constant_values=pad_val)
 
     return padded
