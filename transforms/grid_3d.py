@@ -14,11 +14,15 @@ def pad_volume(vol, size, pad_val=-100, pad_end=False):
     size: (3,) array
     pad_val: value to pad
     '''
+    # how much to pad
     diff = size - np.array(vol.shape)
     # left and right padding for 3 dims (ie l/r, front/back, top/bottom)
-    # pad only at one end
-    if pad_end:
+    # pad only at right end
+    if pad_end == 'right':
         padvals = (np.zeros(3), diff)
+    # pad only at left end
+    elif pad_end == 'left':
+        padvals = (diff, np.zeros(3))
     # pad half at each end
     else:
         padvals = (np.floor(diff/2), np.ceil(diff/2))
