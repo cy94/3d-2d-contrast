@@ -22,7 +22,7 @@ def main(args):
     val_t2d = Normalize()
 
     train_t = Compose([
-        RandomRotate(aug_w2g=True),
+        # RandomRotate(aug_w2g=True),
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
