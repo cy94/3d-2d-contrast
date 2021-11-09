@@ -236,7 +236,7 @@ class ScanNetSemSegOccGrid(Dataset):
                 # try to get lesser occupancy
                 current_min_occ -= 0.01
                 # can get atleast this much 
-                current_min_occ = max(current_min_occ, 0.04)
+                current_min_occ = max(current_min_occ, 0.01)
 
         retval = (x_sub, y_sub)
         
