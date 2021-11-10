@@ -632,7 +632,7 @@ class UNet2D3D(UNet3D):
         self.in_channels = in_channels
 
         # 2D features from ENet pretrained model
-        # TODO: make sure no grad and its not saved to the checkpoint
+        # TODO: dont save this to the checkpoint
         self.features_2d = features_2d
         for param in self.features_2d.parameters():
             param.requires_grad = False
