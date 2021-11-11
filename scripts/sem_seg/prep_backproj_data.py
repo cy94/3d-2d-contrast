@@ -24,9 +24,9 @@ from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, \
 
 
 # number of processes to prepare data
-N_PROC = 8
+N_PROC = 4
 # number of samples handled at a time
-CHUNK_SIZE = 16
+CHUNK_SIZE = 8
 
 def create_datasets(out_file, n_samples, subvol_size, num_nearest_images):
     '''
@@ -203,7 +203,7 @@ def main(args):
     world_to_grid_batch = np.empty((batch_size,) + (4,4), dtype=np.float32)
 
     bad_subvols = 0
-
+    
     # iterate over each scene, read it only once
     for scene_ndx, scene in enumerate(tqdm(dataset, desc='scene')):
         scene_x, scene_y, path = scene['x'], scene['y'], scene['path']
