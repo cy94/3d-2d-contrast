@@ -49,9 +49,8 @@ train:
         # momentum: 0.9
         # l2: 0.0000
 
-    # set eval intv accordingly -> 3 evals per epoch
-    train_batch_size: 12
-    val_batch_size: 12
+    train_batch_size: 14
+    val_batch_size: 14
     epochs: 3000
     class_weights: true
     # eval every N batches
