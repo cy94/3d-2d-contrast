@@ -1,14 +1,14 @@
 data:
     root: /mnt/data/scannet/scans/
-    train_file: /mnt/data/scannet/backproj/train100-v7.h5
-    val_file: /mnt/data/scannet/backproj/val-v5.h5
+    train_file: /mnt/data/scannet/backproj/train-v13.h5
+    val_file: /mnt/data/scannet/backproj/val-v8.h5
     # 20 or 40 classes?
     num_classes: 40
     # padding value used in the target - usually = num_classes
     # since targets are 0..num_classes-1
     target_padding: 40
     # size of each subvol
-    subvol_size: [32, 32, 32]
+    subvol_size: [32, 32, 64]
     # how many rgb images for each chunk (3DMV)
     num_nearest_images: 1
     # size of the image that "looks" at the voxel
@@ -25,7 +25,7 @@ data:
 model: 
     name: UNet2D3D_3DMV
     # 2d model checkpoint
-    ckpt_2d: enet_models/version_679.ckpt
+    ckpt_2d: enet_models/version_705.ckpt
     # contrastive:
     #     positives: common #nearest
     #     type: nce
@@ -45,14 +45,19 @@ train:
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 70
-    val_batch_size: 70
+        # name: sgd
+        # momentum: 0.9
+        # l2: 0.0000
+
+    # set eval intv accordingly -> 3 evals per epoch
+    train_batch_size: 12
+    val_batch_size: 12
     epochs: 3000
     class_weights: true
     # eval every N batches
-    eval_intv: 500
+    eval_intv: 2000
     # 1.0: whole val set
     # integer N: N batches
     limit_val_batches: 1.0
 
-    resume: null #lightning_logs/version_669/checkpoints/last.ckpt
+    resume: null #lightning_logs/version_718/checkpoints/last.ckpt
