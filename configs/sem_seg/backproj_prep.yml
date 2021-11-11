@@ -2,14 +2,16 @@ data:
     root: /mnt/data/scannet/scans/
     label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
     train_list: /mnt/data/scannet/splits/scannetv2_train.txt
+    # train_list: /mnt/data/scannet/splits/train1.txt
     val_list: /mnt/data/scannet/splits/scannetv2_val.txt
+    # val_list: /mnt/data/scannet/splits/val1.txt
     # 20 or 40 classes?
     num_classes: 40
     # padding value used in the target - usually = num_classes
     # since targets are 0..num_classes-1
     target_padding: 40
     # size of each subvol
-    subvol_size: [32, 32, 32]
+    subvol_size: [32, 32, 64]
     # randomly sample these many subvols per scene
     # has no effect when doing full scene data prep
     subvols_per_scene: 100
