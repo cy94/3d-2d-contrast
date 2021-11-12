@@ -29,11 +29,18 @@ def get_args():
                     default=False, help='Use a subset of dataset')
     p.add_argument('--no-log', action='store_true', dest='no_log', 
                     default=False, help='Dont log to Weights and Biases')
+    p.add_argument('--debug', action='store_true', dest='debug', 
+        default=False, help='No checkpoint, no log')
     p.add_argument('--b', action='store_true', dest='b', 
                     default=False, help='Add b to wandb name')      
     
     p = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
+
+    if args.debug:
+        print('Debug: no checkpoint, no log')
+        args.no_log = True
+        args.no_ckpt = True
 
     return args
 
