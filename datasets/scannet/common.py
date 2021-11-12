@@ -239,3 +239,10 @@ def read_list(path):
     cleanlines = [line.strip() for line in lines]
 
     return cleanlines
+
+def get_scene_scan_ids(scan_name):
+    '''
+    scan_name: scene0673_05
+    output: 673, 05 (ints)
+    '''
+    return int(scan_name[5:9]), int(scan_name[10:12])
