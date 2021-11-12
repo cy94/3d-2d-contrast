@@ -30,7 +30,7 @@ def main(args):
     with h5py.File(args.out_path, 'w') as outf:
         create_datasets(outf, out_subvols, subvol_size, num_nearest_images)
 
-        for out_ndx, ndx in tqdm(enumerate(lr_subvols_ndx)):
+        for out_ndx, ndx in enumerate(tqdm(lr_subvols_ndx)):
             for key in copy_keys:
                 outf[key][out_ndx] = f[key][ndx]
     
