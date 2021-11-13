@@ -1047,7 +1047,36 @@ class UNet2D3D_3DMV(UNet2D3D):
             
         out = self.pred_layer(xup32)
 
-        return (out,) 
+        if return_features and self.contrastive:
+            feat3d = xup32
+            feat_dim = feat3d.shape[1]
+
+            # positives are the locations common to 2d and 3d
+            if self.positives_method == 'common':
+                feat2d_vecs, feat3d_vecs = [], []  
+
+                for ndx in range(x.shape[0]):
+                    # proj inds for this sample
+                    proj3d = feat2d_ind3d[ndx]
+                    # number of projected voxels
+                    num_inds = proj3d[0]
+                    # the  indices into the CDHW volume
+                    ind3d = proj3d[1:1+num_inds]
+                    # out of all projected locations, which locations are occupied
+                    # in the input?
+                    occupied_mask = (x[ndx].squeeze().view(-1)[ind3d] == 1)
+                    overlap_inds = ind3d[occupied_mask]
+                    # pick 3d feats at these locations
+                    feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
+                    # pick 2d feats at these locations
+                    feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
+                    
+                feat3d_vecs = torch.cat(feat3d_vecs, -1).T
+                feat2d_vecs = torch.cat(feat2d_vecs, -1).T
+            return feat2d_vecs, feat3d_vecs, out
+        else:
+            # tuple with one element
+            return (out,) 
 
 
 def l2_norm_vecs(vecs, eps=1e-6):
