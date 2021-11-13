@@ -1,6 +1,5 @@
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
-from models.sem_seg.fcn3d import UNet2D3D, UNet2D3D_3DMV
 
 from lib.misc import get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import MODEL_MAP_2D3D, count_parameters
@@ -11,22 +10,35 @@ from torch.utils.data import Subset, DataLoader
 import pytorch_lightning as pl
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
-from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
+from transforms.grid_3d import AddChannelDim, RandomRotate, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
+from transforms.image_2d import Normalize
+
 
 def main(args):
     cfg = read_config(args.cfg_path)
 
-    t = Compose([
+    train_t2d = Normalize()
+    val_t2d = Normalize()
+
+    train_t = Compose([
+        # RandomRotate(aug_w2g=True),
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
         LoadPoses(cfg),
-        LoadRGBs(cfg)
+        LoadRGBs(cfg, transform=train_t2d)
+    ])
+    val_t = Compose([
+        AddChannelDim(),
+        TransposeDims(),
+        LoadDepths(cfg),
+        LoadPoses(cfg),
+        LoadRGBs(cfg, transform=val_t2d)
     ])
 
-    train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=t)
-    val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=t)
+    train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=train_t)
+    val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=val_t)
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
@@ -65,7 +77,7 @@ def main(args):
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
-                        # num_sanity_val_steps=0,
+                        num_sanity_val_steps=0,
                         gpus=1 if not args.cpu else 0, 
                         log_every_n_steps=10,
                         callbacks=callbacks,

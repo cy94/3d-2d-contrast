@@ -15,12 +15,18 @@ class TransformX:
 
 class TransformXY:
     '''
-    Base class that transfroms only X using albumentations
+    Base class that transforms only X using albumentations
+    Can transform only X as well if Y is missing
     '''
     def __call__(self, sample):
-        aug = self.t(image=sample['x'], mask=sample['y'])
-        sample['x'] = aug['image']
-        sample['y'] = aug['mask']
+        if 'y' in sample:
+            aug = self.t(image=sample['x'], mask=sample['y'])
+            sample['x'] = aug['image']
+            sample['y'] = aug['mask']
+        else:
+            aug = self.t(image=sample['x'])
+            sample['x'] = aug['image']
+
         return sample
 
 class GaussianBlur(TransformX):
@@ -56,8 +62,9 @@ class Resize:
         # height, width
         sample['x'] = cv2.resize(sample['img'], self.size) 
         # use nearest method - keep valid labels!
-        sample['y'] = cv2.resize(sample['label'], self.size, 
-                                            interpolation=cv2.INTER_NEAREST)
+        if 'y' in sample:
+            sample['y'] = cv2.resize(sample['label'], self.size, 
+                                                interpolation=cv2.INTER_NEAREST)
         return sample                                
 
 class TransposeChannels:

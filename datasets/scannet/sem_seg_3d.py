@@ -23,8 +23,6 @@ def collate_func(sample_list):
         'y': torch.LongTensor([s['y'] for s in sample_list]),
     }
 
-
-
 class ScanNetOccGridH5(Dataset):
     '''
     Read x,y samples from a h5 file
@@ -70,6 +68,7 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
     '''
     def __init__(self, cfg, split, transform=None):
         super().__init__(cfg, split, transform)
+        self.num_images = cfg['num_nearest_images']
 
     @staticmethod
     def collate_func(samples):
@@ -98,6 +97,8 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         keys = 'x', 'y', 'world_to_grid', 'frames', 'scene_id', 'scan_id'
 
         sample = {key: self.data[key][ndx] for key in keys} 
+        # keep only the required frames
+        sample['frames'] = sample['frames'][:self.num_images]
 
         if self.transform is not None:
             sample = self.transform(sample)
@@ -171,7 +172,7 @@ class ScanNetSemSegOccGrid(Dataset):
             return len(self.paths)
         return self.subvols_per_scene * len(self.paths)
 
-    def sample_subvol(self, x, y, return_start_ndx=False):
+    def sample_subvol(self, x, y, return_start_ndx=False, min_occ=0.2, num_retries=20):
         '''
         x, y - volumes of the same size
         return_start_ndx: return the start index of the subvol within the 
@@ -186,8 +187,7 @@ class ScanNetSemSegOccGrid(Dataset):
         # for 2+3 - apply padding to the whole scene, then sample subvolumes as usual
         # so that subvols on the edge of the scene get padding
         #
-        # result: left+right padding = max(subvol size, padding required to reach subvol size)
-        # then apply half of this padding on each side 
+        # result: right padding = max(subvol size, padding required to reach subvol size)
 
         # the padding required for small scenes (left+right)
         small_scene_pad = self.subvol_size - x.shape
@@ -199,11 +199,15 @@ class ScanNetSemSegOccGrid(Dataset):
         # final scene size
         pad = np.maximum(small_scene_pad, aug_pad)
         scene_size = np.array(x.shape) + pad
-        # splits the padding equally on both sides and applies it
-        x, y = pad_volume(x, scene_size), pad_volume(y, scene_size, pad_val=self.target_padding)
+        # pad only on the right side, no need to change start_ndx then
+        x = pad_volume(x, scene_size, pad_end='right')
+        y = pad_volume(y, scene_size, pad_val=self.target_padding, pad_end='right')
 
         num_voxels = np.prod(self.subvol_size)
 
+        # min frac of occupied voxels in the chunk
+        current_min_occ = min_occ
+        n_attempts = 0
         # now x, y are atleast the size of subvol in each dimension
         # sample subvols as usual
         while 1:
@@ -224,9 +228,15 @@ class ScanNetSemSegOccGrid(Dataset):
             # classes 0,1 = wall, floor
             # if: the subvol has only these 2 classes -> keep only 5% of such subvols
             # or: other classes with index >2? keep the subvol
-            if (occupied >= 0.04) and \
+            if (occupied >= current_min_occ) and \
                 ((y_sub.max() == 1 and random.random() > 0.95) or (y_sub.max() > 1)):
                 break
+            n_attempts += 1
+            if n_attempts % num_retries == 0:
+                # try to get lesser occupancy
+                current_min_occ -= 0.01
+                # can get atleast this much 
+                current_min_occ = max(current_min_occ, 0.01)
 
         retval = (x_sub, y_sub)
         
@@ -357,16 +367,16 @@ class ScanNetGridTestSubvols:
 
         self.transform = transform 
 
-        # pad the scene to multiples of subvols
+        # pad the scene on the right to reach nearest multiple of subvols
         padded_size = ((np.array(x.shape) // self.subvol_size) + 1) * self.subvol_size
-        self.x = pad_volume(x, padded_size)
-        self.y = pad_volume(y, padded_size, self.target_padding)
+        self.x = pad_volume(x, padded_size, pad_end='right')
+        self.y = pad_volume(y, padded_size, self.target_padding, pad_end='right')
 
         # mapping from ndx to subvol slices
         self.mapping = OrderedDict()
-        # TODO: find a way to get this from the np.s_ slice
         self.start_ndx = OrderedDict()
         ndx = 0
+
         # depth
         for k in range(0, self.x.shape[2], self.subvol_size[2]):
             # height
@@ -378,9 +388,11 @@ class ScanNetGridTestSubvols:
                         j : j+self.subvol_size[1], 
                         k : k+self.subvol_size[2], 
                     ]
-                    self.mapping[ndx] = slice
-                    self.start_ndx[ndx] = (i, j, k)
-                    ndx += 1
+                    # if subvol is not occupied at all, discard
+                    if (self.x[slice] == 1).sum() > 0:
+                        self.mapping[ndx] = slice
+                        self.start_ndx[ndx] = (i, j, k)
+                        ndx += 1
 
     def __len__(self):
         return len(self.mapping)

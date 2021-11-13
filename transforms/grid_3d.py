@@ -8,16 +8,26 @@ import numpy as np
 
 import torch
 
-def pad_volume(vol, size, pad_val=-100):
+def pad_volume(vol, size, pad_val=-100, pad_end=False):
     '''
     vol: (l, b, h) array
     size: (3,) array
     pad_val: value to pad
     '''
+    # how much to pad
     diff = size - np.array(vol.shape)
     # left and right padding for 3 dims (ie l/r, front/back, top/bottom)
-    pad = np.stack((np.floor(diff/2), np.ceil(diff/2)), axis=-1).astype(np.uint8).tolist()
-    
+    # pad only at right end
+    if pad_end == 'right':
+        padvals = (np.zeros(3), diff)
+    # pad only at left end
+    elif pad_end == 'left':
+        padvals = (diff, np.zeros(3))
+    # pad half at each end
+    else:
+        padvals = (np.floor(diff/2), np.ceil(diff/2))
+
+    pad = np.stack(padvals, axis=-1).astype(np.uint8).tolist()
     padded = np.pad(vol, pad, constant_values=pad_val)
 
     return padded
@@ -44,12 +54,95 @@ class JitterOccupancy:
 
         return sample
 
+class RandomPadding:
+    '''
+    Randomly change a few edge layers of the input to padding
+    set x along the edges of the volume to 0, but dont change y
+    no need to change w2g transformation
+    '''
+    def __init__(self, max_pad=3, pad_x=-100, pad_y=40):
+        self.max_pad = max_pad
+        self.pad_x = pad_x
+        self.pad_y = pad_y
+        self.rng = np.random.default_rng()
+    
+    def __call__(self, sample):
+        # how many slices of the input to change?
+        # along each axis, each end = 3x2 = 6
+        xl, xr, yl, yr, zl, zr = self.rng.integers(0, self.max_pad, 6, endpoint=True)
+        slices = (
+            np.s_[:xl, :, :],
+            np.s_[-xr:, :, :],
+            np.s_[:, :yl, :], 
+            np.s_[:, -yr:, :],
+            np.s_[:, :, :zl],
+            np.s_[:, :, -zr:],
+        )
+
+        for slice in slices:
+            sample['x'][slice] = self.pad_x
+            sample['y'][slice] = self.pad_y
+
+        return sample
+
+class RandomInputZero:
+    '''
+    Randomly change a few edge layers of the input to padding
+    set x along the edges of the volume to 0, but dont change y
+    no need to change w2g transformation
+    '''
+    def __init__(self, max_pad=3, x_val=0, y_val=40):
+        self.max_pad = max_pad
+        self.x_val = x_val
+        self.y_val = y_val
+        self.rng = np.random.default_rng()
+    
+    def __call__(self, sample):
+        # how many slices of the input to change?
+        # along each axis, each end = 3x2 = 6
+        xl, xr, yl, yr, zl, zr = self.rng.integers(0, self.max_pad, 6, endpoint=True)
+        slices = (
+            np.s_[:xl, :, :],
+            np.s_[-xr:, :, :],
+            np.s_[:, :yl, :], 
+            np.s_[:, -yr:, :],
+            np.s_[:, :, :zl],
+            np.s_[:, :, -zr:],
+        )
+
+        for slice in slices:
+            sample['x'][slice] = self.x_val
+            sample['y'][slice] = self.y_val
+
+        return sample
+
+def get_rot_mat(num_rots):
+    '''
+    num_rots: number of rotations by np.rot90 in the direction X->Y axis, about the Z axis
+    subvol_size: (W, H, D) size
+    '''
+    # rotate about the Z axis num_rots times
+    rot90 = np.eye(4)
+    rot90[0, 0] = 0
+    rot90[1, 1] = 0
+    rot90[0, 1] = -1
+    rot90[1, 0] = 1
+
+    rot_n = np.linalg.matrix_power(rot90, num_rots)
+
+    return rot_n 
+
+
 class RandomRotate:
     '''
     Randomly rotate the scene by 90, 180 or 270 degrees 
     '''
-    def __init__(self):
+    def __init__(self, aug_w2g=False):
         self.rng = np.random.default_rng()
+        self.aug_w2g = aug_w2g
+
+        if self.aug_w2g:
+            self.rot_mats = {n: get_rot_mat(n) for n in (0, 1, 2, 3)}
 
     def __call__(self, sample):
         '''
@@ -61,6 +154,8 @@ class RandomRotate:
         sample['x'] = np.rot90(sample['x'], k=num_rots)
         sample['y'] = np.rot90(sample['y'], k=num_rots)
 
+        if self.aug_w2g:
+            sample['world_to_grid'] = self.rot_mats[num_rots] @ sample['world_to_grid']
         return sample
 
 class RandomTranslate:
@@ -223,17 +318,16 @@ class LoadPoses(LoadData):
         return sample
     
 class LoadRGBs(LoadData):
-    def __init__(self, cfg):
+    def __init__(self, cfg, transform=None):
         super().__init__(cfg)
         self.img_size = tuple(cfg['data']['rgb_img_size'])
-        t = Normalize()
-        # transform to operate on arrays, not dicts
-        self.transform = lambda img: Normalize.apply(img.astype(np.float32), mean=t.mean, std=t.std)
+        self.transform = transform
 
     def __call__(self, sample):
         # create all paths for depths
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
+
         # N, C, H, W -> torch nn convention
         rgbs = torch.zeros(len(frames), 3, self.img_size[1], self.img_size[0])
 

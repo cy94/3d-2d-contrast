@@ -39,29 +39,42 @@ def main(args):
 
     with h5py.File(args.in_path) as f:
         # keys to copy as-is
-        copy_keys = 'scan_id', 'scene_id', 'frames'
-        total_subvols = len(f['x']) 
         subvol_size = f['x'][0].shape
         # create rotation matrices once
         rot_mats = {n: get_rot_mat(n, subvol_size) for n in (0, 1, 2, 3)}
+        # num rots * num samples
+        in_samples = len(f['x']) 
+        total_aug_subvols = len(rot_mats) * in_samples
+        print(f'In samples: {in_samples}, out samples: {total_aug_subvols}')
         num_nearest_images = len(f['frames'][0])
 
         with h5py.File(args.out_path, 'w') as outf:
-            create_datasets(outf, total_subvols, subvol_size, num_nearest_images)
-
+            create_datasets(outf, total_aug_subvols, subvol_size, num_nearest_images)
+            
             for ndx in tqdm(range(len(f['x']))):
-                for key in copy_keys:
-                    outf[key][ndx] = f[key][ndx]
+                # read everything once
+                # these will change
                 x, y, world_to_grid = f['x'][ndx], f['y'][ndx], f['world_to_grid'][ndx] 
-                # rotate x, y around the Z axis
-                num_rots = rng.integers(0, 3, endpoint=True)
-                aug_x = np.rot90(x, k=num_rots)
-                aug_y = np.rot90(y, k=num_rots)
-                # change world_to_grid accordingly
-                aug_world_to_grid = rot_mats[num_rots] @ world_to_grid
-                outf['x'][ndx] = aug_x
-                outf['y'][ndx] = aug_y
-                outf['world_to_grid'][ndx] = aug_world_to_grid
+                # these wont change
+                scan_id, scene_id, frames = f['scan_id'][ndx], f['scene_id'][ndx], f['frames'][ndx]
+
+                for num_rots, rot_mat in rot_mats.items():
+                    out_ndx = 4*ndx + num_rots
+
+                    # copy existing fields
+                    outf['scan_id'][out_ndx] = scan_id
+                    outf['scene_id'][out_ndx] = scene_id
+                    outf['frames'][out_ndx] = frames
+
+                    # rotate x, y around the Z axis
+                    aug_x = np.rot90(x, k=num_rots)
+                    aug_y = np.rot90(y, k=num_rots)
+                    # change world_to_grid accordingly
+                    aug_world_to_grid = rot_mat @ world_to_grid
+                    # put these 3 into the file
+                    outf['x'][out_ndx] = aug_x
+                    outf['y'][out_ndx] = aug_y
+                    outf['world_to_grid'][out_ndx] = aug_world_to_grid
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()

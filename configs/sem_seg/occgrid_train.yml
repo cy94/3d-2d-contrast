@@ -1,8 +1,8 @@
 
 data:
     # h5 dataset
-    train_file: /mnt/data/scannet/backproj/train100-v6-aug.h5
-    val_file: /mnt/data/scannet/backproj/val-v5.h5
+    train_file: /mnt/data/scannet/backproj/train-v13.h5
+    val_file: /mnt/data/scannet/backproj/val-v8.h5
 
     # 20 or 40 classes? 
     num_classes: 40
@@ -23,12 +23,12 @@ train:
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 100
-    val_batch_size: 100
+    train_batch_size: 14
+    val_batch_size: 14
     epochs: 3000
     class_weights: true
     # eval every N batches
-    eval_intv: 500
+    eval_intv: 2000
     # 1.0: whole val set
     # integer N: N batches
     limit_val_batches: 1.0

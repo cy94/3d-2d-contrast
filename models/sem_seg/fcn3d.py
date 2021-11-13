@@ -24,7 +24,7 @@ import pytorch_lightning as pl
 
 from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.common import CLASS_NAMES, CLASS_NAMES_ALL, CLASS_WEIGHTS, CLASS_WEIGHTS_ALL, VALID_CLASSES
-from models.layers_3d import Down3D, Up3D, SameConv3D
+from models.layers_3d import Down3D, Down3D_Big, Up3D, SameConv3D, Up3D_Big
 
 class SemSegNet(pl.LightningModule):
     '''
@@ -105,8 +105,8 @@ class SemSegNet(pl.LightningModule):
         if cfg['name'] == 'sgd':
             optimizer = torch.optim.SGD(self.parameters(), lr=cfg['lr'], 
                 weight_decay=cfg['l2'],
-                momentum=cfg['momentum'],
-                dampening=cfg['dampening'])
+                momentum=cfg.get('momentum', 0.9),
+                dampening=cfg.get('dampening', 0))
         elif cfg['name'] == 'adam':
             optimizer = torch.optim.Adam(self.parameters(), lr=cfg['lr'], 
                 weight_decay=cfg['l2'])
@@ -521,113 +521,20 @@ class UNet3D_3DMV(SemSegNet):
 
     def init_model(self):
         # number of features
-        self.nf0 = 32 
+        self.nf0 = 32
         self.nf1 = 64 
         self.nf2 = 128 
-        self.bf = 1024
 
         # 3d conv on subvols
-        # 2 down blocks
-        self.down1 = nn.Sequential(
-            # kernel, stride, padding
-            # 32->16
-            nn.Conv3d(self.in_channels, self.nf0, 3, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
+        # use 1x1 convs, fewer params
+        self.down1 = Down3D_Big(self.in_channels, self.nf0) 
+        self.down2 = Down3D_Big(self.nf0, self.nf1) 
+        self.down3 = Down3D_Big(self.nf1, self.nf2) 
+        self.up1 = Up3D_Big(self.nf2, self.nf2) 
+        self.up2 = Up3D_Big(self.nf2+self.nf1, self.nf2) 
+        self.up3 = Up3D_Big(self.nf2+self.nf0, self.nf2)
 
-            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, 1, 1, 0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Dropout3d(0.2),
-        )
-        self.down2 = nn.Sequential(
-            # 16->8
-            nn.Conv3d(self.nf0, self.nf1, 3, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, 1, 1, 0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Dropout3d(0.2),
-        )
-        self.down3 = nn.Sequential(
-            # 8->4
-            nn.Conv3d(self.nf1, self.nf2, 3, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, 1, 1, 0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Dropout3d(0.2),
-        )
-        # layers on top of combined features
-        # one down block, 3 up blocks
-        self.up1 = nn.Sequential(
-            # 4->8
-            nn.ConvTranspose3d(self.nf2, self.nf2, 4, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Dropout3d(0.2),
-        )
-        self.up2 = nn.Sequential(
-            # 8->16
-            nn.ConvTranspose3d(self.nf2+self.nf1, self.nf1, 4, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Dropout3d(0.2),
-        )
-        self.up3 = nn.Sequential(
-            # 16->32
-            nn.ConvTranspose3d(self.nf1+self.nf0, self.nf0, 4, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-        )
-
-        self.pred_layer = nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1)
+        self.pred_layer = nn.Conv3d(self.nf2, self.num_classes, 3, 1, 1)
 
     def forward(self, x):
         x16 = self.down1(x)
@@ -725,7 +632,7 @@ class UNet2D3D(UNet3D):
         self.in_channels = in_channels
 
         # 2D features from ENet pretrained model
-        # TODO: make sure no grad and its not saved to the checkpoint
+        # TODO: dont save this to the checkpoint
         self.features_2d = features_2d
         for param in self.features_2d.parameters():
             param.requires_grad = False
@@ -847,15 +754,6 @@ class UNet2D3D(UNet3D):
         transforms = world_to_grid.unsqueeze(1)
         transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
         
-        # projection expects origin of chunk in a corner
-        # but w2g is wrt center of the chunk -> add 16 to its "grid coords" 
-        # to get the required grid indices
-        # ie 0,0,0 becomes 16,16,16
-        # add an additional translation to existing one 
-        t = torch.eye(4).to(self.device)
-        t[:3, -1] = torch.Tensor(self.subvol_size) / 2
-        transforms = t @ transforms
-
         # model forward pass 
         out = self(x, rgbs, depths, poses, transforms, frames, return_features=self.contrastive)
         
@@ -1099,126 +997,25 @@ class UNet2D3D_3DMV(UNet2D3D):
         self.nf0 = 32 
         self.nf1 = 64 
         self.nf2 = 128 
-        self.bf = 1024
 
-        self.features2d = nn.ModuleList([
-            # 32->16
-            nn.Conv3d(self.nf2, self.nf1, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
+        # 32->16
+        self.down1_2d = Down3D_Big(self.nf2, self.nf1) 
+        self.down2_2d = Down3D_Big(self.nf1, self.nf0) 
 
-            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Dropout3d(0.2),
-            # 16->8
-            nn.Conv3d(self.nf1, self.nf0, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Dropout3d(0.2)
-        ])
-
-        self.features3d = nn.ModuleList([
-            # 32->16
-            nn.Conv3d(self.in_channels, self.nf0, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Dropout3d(0.2),
-            # 16->18
-            nn.Conv3d(self.nf0, self.nf1, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Dropout3d(0.2)
-        ])
-
+        # 3d conv on subvols
+        # 2 down blocks
+        # 32->16
+        self.down1 = Down3D_Big(self.in_channels, self.nf0) 
+        self.down2 = Down3D_Big(self.nf0, self.nf1)
+        self.down3 = Down3D_Big(self.nf1, self.nf2)
         # layers on top of combined features
         # one down block, 3 up blocks
-        self.features = nn.ModuleList([
-            # 2d+3d, 8->4
-            nn.Conv3d(self.nf1 + self.nf0, self.nf2, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
+        self.up1 = Up3D_Big(self.nf2, self.nf2)
+        # previous layer + 2D features + skip connection to 3D 
+        self.up2 = Up3D_Big(self.nf2+self.nf0+self.nf1, self.nf2)
+        self.up3 = Up3D_Big(self.nf2+self.nf0, self.nf2) 
 
-            nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Dropout3d(0.2),
-            # 4->8
-            nn.ConvTranspose3d(self.nf2, self.nf2, 4, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Conv3d(self.nf2, self.nf2, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf2),
-
-            nn.Dropout3d(0.2),
-            # 8->16
-            nn.ConvTranspose3d(self.nf2, self.nf1, 4, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Conv3d(self.nf1, self.nf1, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf1),
-
-            nn.Dropout3d(0.2),
-            # 16->32
-            nn.ConvTranspose3d(self.nf1, self.nf0, 4, 2, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-
-            nn.Conv3d(self.nf0, self.nf0, 3, 1, 1),
-            nn.ReLU(True),
-            nn.BatchNorm3d(self.nf0),
-            
-            nn.Conv3d(self.nf0, self.num_classes, 3, 1, 1),
-        ])
+        self.pred_layer = nn.Conv3d(self.nf2, self.num_classes, 3, 1, 1)
     
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
@@ -1233,23 +1030,53 @@ class UNet2D3D_3DMV(UNet2D3D):
 
         feat2d_proj, feat2d_ind3d = out 
 
-        feat2d = feat2d_proj
-        # fwd pass projected features through convs
-        for layer in self.features2d:
-            feat2d = layer(feat2d)
+        # conv on 2d feats, down
+        x2d_16 = self.down1_2d(feat2d_proj)
+        x2d_8 = self.down2_2d(x2d_16)
 
-        # down layers on 3d
-        for layer in self.features3d:
-            x = layer(x)
+        # conv on 3d, down and 1 up
+        x16 = self.down1(x)
+        x8 = self.down2(x16)
+        x4 = self.down3(x8)
 
-        # concat features from 2d with 3d along the channel dim
-        x = torch.cat([x, feat2d], dim=1)
+        xup8 = self.up1(x4)
 
-        # layers on combined feats
-        for layer in self.features:
-            x = layer(x)
+        # upconvs+skip connection+2d feats
+        xup16 = self.up2(torch.cat((xup8, x8, x2d_8), 1))
+        xup32 = self.up3(torch.cat((xup16, x16), 1))
+            
+        out = self.pred_layer(xup32)
 
-        return (x,) 
+        if return_features and self.contrastive:
+            feat3d = xup32
+            feat_dim = feat3d.shape[1]
+
+            # positives are the locations common to 2d and 3d
+            if self.positives_method == 'common':
+                feat2d_vecs, feat3d_vecs = [], []  
+
+                for ndx in range(x.shape[0]):
+                    # proj inds for this sample
+                    proj3d = feat2d_ind3d[ndx]
+                    # number of projected voxels
+                    num_inds = proj3d[0]
+                    # the  indices into the CDHW volume
+                    ind3d = proj3d[1:1+num_inds]
+                    # out of all projected locations, which locations are occupied
+                    # in the input?
+                    occupied_mask = (x[ndx].squeeze().view(-1)[ind3d] == 1)
+                    overlap_inds = ind3d[occupied_mask]
+                    # pick 3d feats at these locations
+                    feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
+                    # pick 2d feats at these locations
+                    feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
+                    
+                feat3d_vecs = torch.cat(feat3d_vecs, -1).T
+                feat2d_vecs = torch.cat(feat2d_vecs, -1).T
+            return feat2d_vecs, feat3d_vecs, out
+        else:
+            # tuple with one element
+            return (out,) 
 
 
 def l2_norm_vecs(vecs, eps=1e-6):

@@ -29,11 +29,18 @@ def get_args():
                     default=False, help='Use a subset of dataset')
     p.add_argument('--no-log', action='store_true', dest='no_log', 
                     default=False, help='Dont log to Weights and Biases')
+    p.add_argument('--debug', action='store_true', dest='debug', 
+        default=False, help='No checkpoint, no log')
     p.add_argument('--b', action='store_true', dest='b', 
                     default=False, help='Add b to wandb name')      
     
     p = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
+
+    if args.debug:
+        print('Debug: no checkpoint, no log')
+        args.no_log = True
+        args.no_ckpt = True
 
     return args
 
@@ -101,11 +108,12 @@ def get_logger_and_callbacks(args, cfg):
         print('Log to a temp version of WandB')                                
     
     # loss will be logged, can do early stopping
-    if not args.no_log:
+    # dont early stop when using a subset of data to overfit
+    if not args.no_log and not args.subset:
         print('Add early stopping callback')
         callbacks.append(
             # loss ~ 3, need to improve atleast 0.01
-            EarlyStopping(monitor="loss/val", min_delta=0.01, 
+            EarlyStopping(monitor="loss/val", min_delta=0.005, 
             patience=5, verbose=True, mode="min", strict=True,
             check_finite=True,)
         )

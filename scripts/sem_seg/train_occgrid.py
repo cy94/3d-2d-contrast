@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 
 from torchsummary import summary
 from transforms.common import Compose
-from transforms.grid_3d import AddChannelDim, JitterOccupancy, RandomRotate, TransposeDims
+from transforms.grid_3d import AddChannelDim, RandomRotate, TransposeDims
 
 
 def main(args):
@@ -19,7 +19,6 @@ def main(args):
 
     train_t = Compose([
         RandomRotate(),
-        JitterOccupancy(0.01),
         AddChannelDim(),
         TransposeDims(),
     ])
@@ -48,13 +47,14 @@ def main(args):
     print(f'Num params: {count_parameters(model)}')
 
     model = model.cuda()
-    summary(model, (1, 32, 32, 32))
+    summary(model, (1,) + tuple(cfg['data']['subvol_size'][::-1]))
 
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
     ckpt = cfg['train']['resume']
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
+                        num_sanity_val_steps=0,
                         gpus=1 if not args.cpu else None, 
                         log_every_n_steps=10,
                         callbacks=callbacks,
