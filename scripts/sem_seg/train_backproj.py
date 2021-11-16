@@ -74,7 +74,7 @@ def main(args):
 
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
     ckpt = cfg['train']['resume']
-    breakpoint()
+
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
                         num_sanity_val_steps=0,
