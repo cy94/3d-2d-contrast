@@ -187,7 +187,6 @@ class SemSegNet(pl.LightningModule):
             # all losses
             else:
                 loss_keys = loss.keys()
-            breakpoint()
             losses = [loss[key] for key in loss_keys]
             return sum(losses)
         else:
