@@ -157,9 +157,9 @@ class SemSegNet(pl.LightningModule):
     def log_losses(self, loss, split):
         # log each loss
         if isinstance(loss, dict):
-            self.log(f'loss/{split}', loss['loss'])
+            self.log(f'loss/{split}', loss['crossent'])
             for key in loss:
-                if key != 'loss':
+                if key != 'crossent':
                     self.log(f'loss/{split}/{key}', loss[key])
         else:
             self.log(f'loss/{split}', loss)
@@ -181,8 +181,15 @@ class SemSegNet(pl.LightningModule):
         self.log('lr', self.optim.param_groups[0]['lr'])
 
         if isinstance(loss, dict):
-            # backprop with sum of all losses
-            return sum(loss.values())
+            # pick only these losses
+            if 'losses' in self.hparams['cfg']['model']:
+                loss_keys = self.hparams['cfg']['model']['losses']
+            # all losses
+            else:
+                loss_keys = loss.keys()
+            breakpoint()
+            losses = [loss[key] for key in loss_keys]
+            return sum(losses)
         else:
             return loss
 
@@ -263,7 +270,7 @@ class SemSegNet(pl.LightningModule):
                 key: np.nanmean(torch.Tensor([output[key] for output in outputs]))
                         for key in outputs[0]
                         }
-            self.log("hp_metric", loss_mean['loss'])    
+            self.log("hp_metric", loss_mean['crossent'])    
         else:
             loss_mean = np.nanmean(torch.Tensor(outputs))
             self.log("hp_metric", loss_mean)    
@@ -288,7 +295,7 @@ class SemSegNet(pl.LightningModule):
         if self.logger is None:
             return
 
-        current_val_loss = val_loss['loss'] if isinstance(val_loss, dict) else val_loss
+        current_val_loss = val_loss['crossent'] if isinstance(val_loss, dict) else val_loss
 
         if current_val_loss < self.best_val_loss:
             self.best_val_loss = current_val_loss
@@ -796,7 +803,7 @@ class UNet2D3D(UNet3D):
                 ct_loss = hardest_contrastive_loss(feat2d, feat3d, 
                                 self.contr_cfg['margin_pos'], self.contr_cfg['margin_neg'])
 
-            loss = {'loss': loss, 'contrastive': ct_loss}
+            loss = {'crossent': loss, 'contrastive': ct_loss}
         return preds, loss
 
 
