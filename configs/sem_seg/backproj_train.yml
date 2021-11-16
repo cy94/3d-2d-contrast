@@ -36,21 +36,11 @@ model:
         # number of points to calculate loss over 
         n_points: 8192
 
-        # hardest contrastive loss    
-        # type: hardest
-        # margin_pos: 0.4 #0.1
-        # margin_neg: 0.6 #1.4
-        # n_points: 4
-
 train:
     opt: 
         name: adam
         lr: 0.0001
         l2: 0.0000
-        # name: sgd
-        # momentum: 0.9
-        # l2: 0.0000
-
     train_batch_size: 12
     val_batch_size: 12
     epochs: 3000
