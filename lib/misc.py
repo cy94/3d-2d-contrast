@@ -110,7 +110,16 @@ def get_logger_and_callbacks(args, cfg):
     # loss will be logged, can do early stopping
     # dont early stop when using a subset of data to overfit
     if not args.no_log and not args.subset:
-        print('Add early stopping callback')
+        # monitor this value
+        monitor_key = 'loss/val'
+
+        # using contr loss?
+        if 'contrastive' in cfg['model']:
+            # only contr loss?
+            if 'losses' in cfg['model'] and cfg['model']['losses'] == ['contrastive']:
+                monitor_key = 'loss/val/contrastive'
+
+        print(f'Add early stopping callback on {monitor_key}')
         callbacks.append(
             # loss ~ 3, need to improve atleast 0.01
             EarlyStopping(monitor="loss/val", min_delta=0.005, 
