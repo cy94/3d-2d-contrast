@@ -6,6 +6,7 @@ from models.sem_seg.utils import MODEL_MAP_2D3D, count_parameters
 
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
+import torch
 
 import pytorch_lightning as pl
 
@@ -69,11 +70,15 @@ def main(args):
     model = MODEL_MAP_2D3D[cfg['model']['name']](in_channels=1, 
                     num_classes=cfg['data']['num_classes'], cfg=cfg, 
                     features_2d=features_2d, intrinsic=intrinsic)
-
+    ckpt = cfg['train']['resume']
+    # not resuming, have pretrained model? then load weights
+    if not ckpt and 'pretrained' in cfg['model']:
+        print(f'Use pretrained model: ', cfg['model']['pretrained'])
+        model.load_state_dict(torch.load(cfg['model']['pretrained'])['state_dict'])
+    
     print(f'Num params: {count_parameters(model)}')                                                      
 
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
-    ckpt = cfg['train']['resume']
 
     trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
