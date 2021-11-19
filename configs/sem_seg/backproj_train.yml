@@ -26,8 +26,12 @@ model:
     name: UNet2D3D_3DMV
     # 2d model checkpoint
     ckpt_2d: enet_models/version_705.ckpt
+    finetune_2d: true
+    # load state dict from here
+    # pretrained: lightning_logs/version_739/checkpoints/last.ckpt
     losses:
-        - contrastive
+        # keep for only contrastive loss training
+        - contrastive 
     contrastive:
         positives: common #nearest
         type: nce
@@ -41,8 +45,8 @@ train:
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 12
-    val_batch_size: 12
+    train_batch_size: 8
+    val_batch_size: 8
     epochs: 3000
     class_weights: true
     # eval every N batches
@@ -51,4 +55,4 @@ train:
     # integer N: N batches
     limit_val_batches: 1.0
 
-    resume: null #lightning_logs/version_729/checkpoints/last.ckpt
+    resume: null #lightning_logs/version_739/checkpoints/last.ckpt

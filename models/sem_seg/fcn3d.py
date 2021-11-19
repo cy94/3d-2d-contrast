@@ -640,8 +640,15 @@ class UNet2D3D(UNet3D):
         # 2D features from ENet pretrained model
         # TODO: dont save this to the checkpoint
         self.features_2d = features_2d
-        for param in self.features_2d.parameters():
-            param.requires_grad = False
+
+        finetune_2d = cfg['model'].get('finetune_2d', False)
+        if finetune_2d:
+            print('Finetune 2D weights')
+        else:
+            # freeze the 2d weights
+            print('Freeze 2D weights')
+            for param in self.features_2d.parameters():
+                param.requires_grad = False
 
         self.subvol_size = cfg['data']['subvol_size']
         self.proj_img_dims = cfg['data']['proj_img_size']
