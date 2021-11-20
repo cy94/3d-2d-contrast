@@ -68,7 +68,8 @@ def main(args):
 
     model = MODEL_MAP_2D3D[cfg['model']['name']](in_channels=1, 
                     num_classes=cfg['data']['num_classes'], cfg=cfg, 
-                    features_2d=features_2d, intrinsic=intrinsic)
+                    features_2d=features_2d, intrinsic=intrinsic,
+                    log_all_classes=True)
     ckpt = cfg['train']['resume']
     # not resuming, have pretrained model? then load weights
     if not ckpt and 'pretrained' in cfg['model']:

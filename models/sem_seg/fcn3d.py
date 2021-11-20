@@ -24,20 +24,19 @@ import pytorch_lightning as pl
 
 from eval.vis import confmat_to_fig, fig_to_arr
 from datasets.scannet.common import CLASS_NAMES, CLASS_NAMES_ALL, CLASS_WEIGHTS, CLASS_WEIGHTS_ALL, VALID_CLASSES
-from models.layers_3d import Down3D, Down3D_Big, Up3D, SameConv3D, Up3D_Big
+from models.layers_3d import Down3D, Down3D_Big, Up3D, Up3D_Big
 
 class SemSegNet(pl.LightningModule):
     '''
     Parent class for semantic segmentation on voxel grid
     '''
-    def __init__(self, num_classes, cfg=None, log_all_classes=False, 
-                should_log_confmat=False):
+    def __init__(self, num_classes, cfg=None, **kwargs):
         super().__init__()
         self.save_hyperparameters()
-        
+
         self.num_classes = num_classes
-        
-        self.should_log_confmat = should_log_confmat
+        self.should_log_confmat = kwargs.get('should_log_confmat', False)
+        self.log_all_classes = kwargs.get('log_all_classes', False)
 
         self.target_padding = cfg['data']['target_padding']
 
@@ -49,7 +48,6 @@ class SemSegNet(pl.LightningModule):
         # init the model layers
         self.init_model()
 
-        self.log_all_classes = log_all_classes
 
     def optimizer_zero_grad(self, epoch, batch_idx, optimizer, optimizer_idx):
         optimizer.zero_grad(set_to_none=True)
@@ -561,13 +559,13 @@ class UNet3D(SemSegNet):
     '''
     Dense 3d convs on a volume grid
     '''
-    def __init__(self, in_channels, num_classes, cfg=None):
+    def __init__(self, in_channels, num_classes, cfg=None, *args, **kwargs):
         '''
         in_channels: number of channels in input
 
         '''
         self.in_channels = in_channels
-        super().__init__(num_classes, cfg)
+        super().__init__(num_classes, cfg, *args, **kwargs)
 
     def init_model(self):
         self.layers = nn.ModuleList([
@@ -629,12 +627,12 @@ class UNet2D3D(UNet3D):
     Dense 3d convs on a volume grid
     Uses 2D features from nearby images using a pretrained ENet
     '''
-    def __init__(self, in_channels, num_classes, cfg, features_2d, intrinsic):
+    def __init__(self, in_channels, num_classes, cfg, features_2d, intrinsic, *args, **kwargs):
         '''
         in_channels: number of channels in input
 
         '''
-        super().__init__(in_channels, num_classes, cfg)
+        super().__init__(in_channels, num_classes, cfg, *args, **kwargs)
         self.in_channels = in_channels
 
         # 2D features from ENet pretrained model
