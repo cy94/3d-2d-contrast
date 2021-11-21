@@ -636,7 +636,6 @@ class UNet2D3D(UNet3D):
         self.in_channels = in_channels
 
         # 2D features from ENet pretrained model
-        # TODO: dont save this to the checkpoint
         self.features_2d = features_2d
 
         finetune_2d = cfg['model'].get('finetune_2d', False)
