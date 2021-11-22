@@ -632,11 +632,16 @@ class UNet2D3D(UNet3D):
         in_channels: number of channels in input
 
         '''
+        # use 2d feats by default, else it becomes a 3D-only model
+        self.use_2dfeat = cfg['model'].get('use_2dfeat', True)
+
         super().__init__(in_channels, num_classes, cfg, *args, **kwargs)
         self.in_channels = in_channels
 
         # 2D features from ENet pretrained model
         self.features_2d = features_2d
+
+        print('Using 2d feats in 2d3d model?: ', self.use_2dfeat)
 
         finetune_2d = cfg['model'].get('finetune_2d', False)
         if finetune_2d:
@@ -1008,9 +1013,10 @@ class UNet2D3D_3DMV(UNet2D3D):
         self.nf1 = 64 
         self.nf2 = 128 
 
-        # 32->16
-        self.down1_2d = Down3D_Big(self.nf2, self.nf1) 
-        self.down2_2d = Down3D_Big(self.nf1, self.nf0) 
+        if self.use_2dfeat:
+            # 32->16
+            self.down1_2d = Down3D_Big(self.nf2, self.nf1) 
+            self.down2_2d = Down3D_Big(self.nf1, self.nf0) 
 
         # 3d conv on subvols
         # 2 down blocks
@@ -1022,7 +1028,8 @@ class UNet2D3D_3DMV(UNet2D3D):
         # one down block, 3 up blocks
         self.up1 = Up3D_Big(self.nf2, self.nf2)
         # previous layer + 2D features + skip connection to 3D 
-        self.up2 = Up3D_Big(self.nf2+self.nf0+self.nf1, self.nf2)
+        feat2d_dim = self.nf0 if self.use_2dfeat else 0
+        self.up2 = Up3D_Big(self.nf2+feat2d_dim+self.nf1, self.nf2)
         self.up3 = Up3D_Big(self.nf2+self.nf0, self.nf2) 
 
         self.pred_layer = nn.Conv3d(self.nf2, self.num_classes, 3, 1, 1)
@@ -1040,9 +1047,10 @@ class UNet2D3D_3DMV(UNet2D3D):
 
         feat2d_proj, feat2d_ind3d = out 
 
-        # conv on 2d feats, down
-        x2d_16 = self.down1_2d(feat2d_proj)
-        x2d_8 = self.down2_2d(x2d_16)
+        if self.use_2dfeat:
+            # conv on 2d feats, down
+            x2d_16 = self.down1_2d(feat2d_proj)
+            x2d_8 = self.down2_2d(x2d_16)
 
         # conv on 3d, down and 1 up
         x16 = self.down1(x)
@@ -1051,8 +1059,10 @@ class UNet2D3D_3DMV(UNet2D3D):
 
         xup8 = self.up1(x4)
 
-        # upconvs+skip connection+2d feats
-        xup16 = self.up2(torch.cat((xup8, x8, x2d_8), 1))
+        # if using 2d feats: upconvs+skip connection+2d feats
+        # else plain 3d network
+        inputs = (xup8, x8) + ((x2d_8,) if self.use_2dfeat else ())
+        xup16 = self.up2(torch.cat(inputs, 1))
         xup32 = self.up3(torch.cat((xup16, x16), 1))
             
         out = self.pred_layer(xup32)

@@ -24,11 +24,13 @@ data:
 
 model: 
     name: UNet2D3D_3DMV
-    # 2d model checkpoint
+    use_2dfeat: False
+    # 2d model checkpoint, always specify
+    # this model will be overwritten if pretrained is specified
     ckpt_2d: enet_models/version_705.ckpt
-    finetune_2d: true
+    # finetune_2d: true
     # load state dict from here
-    # pretrained: lightning_logs/version_739/checkpoints/last.ckpt
+    # pretrained: lightning_logs/version_749/checkpoints/last.ckpt
     losses:
         # keep for only contrastive loss training
         - contrastive 
@@ -45,8 +47,8 @@ train:
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 8
-    val_batch_size: 8
+    train_batch_size: 12
+    val_batch_size: 12
     epochs: 3000
     class_weights: true
     # eval every N batches
