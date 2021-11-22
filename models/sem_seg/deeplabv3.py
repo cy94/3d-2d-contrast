@@ -32,8 +32,7 @@ class ASPPCustom(nn.Module):
         self.project = nn.Sequential(
             nn.Conv2d(len(self.convs) * hidden_dim, out_channels, 1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
-            nn.Dropout(0.5),
+            # relu and dropout in the next layer below
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -48,6 +47,9 @@ class DeepLabHeadCustom(nn.Module):
         super().__init__()
         self.aspp = ASPPCustom(in_channels, [12, 24, 36], 64, 128)
         self.conv = nn.Sequential(
+            # relu and dropout that were in ASPP
+            nn.ReLU(),
+            nn.Dropout(0.5),
             nn.Conv2d(128, 64, 3, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(),
