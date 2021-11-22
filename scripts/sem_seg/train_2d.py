@@ -35,6 +35,8 @@ def main(args):
     val_cfg['data']['frame_skip'] = 30
     val_set = ScanNetSemSeg2D(val_cfg, transform=val_t, split='val')        
     
+    collate_func = train_set.collate_func
+    
     if args.subset:
         print('Select a subset of data for quick run')
         train_set = Subset(train_set, range(1))
@@ -44,10 +46,10 @@ def main(args):
     print(f'Val set: {len(val_set)}')
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
-                            shuffle=True, num_workers=4, collate_fn=train_set.collate_func)  
+                            shuffle=True, num_workers=4, collate_fn=collate_func)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
-                            shuffle=False, num_workers=4, collate_fn=val_set.collate_func)      
+                            shuffle=False, num_workers=4, collate_fn=collate_func)      
 
     # ignored label in 2D is called target padding in 3D - use a common name 
     cfg['data']['target_padding'] = cfg['data']['ignore_label']
