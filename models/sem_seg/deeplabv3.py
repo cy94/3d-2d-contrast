@@ -87,5 +87,4 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
             out = x
         else:
             out = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
-        breakpoint()
         return out
