@@ -1,6 +1,6 @@
 from typing import List
 
-from torchvision.models.segmentation import deeplabv3_resnet50
+from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
 from torchvision.models.segmentation.deeplabv3 import ASPPConv, ASPPPooling
 import torch.nn as nn
 import torch
@@ -10,27 +10,27 @@ from models.sem_seg.sem_seg_2d import SemSegNet2D
 from models.sem_seg.fcn3d import SemSegNet
 
 class ASPPCustom(nn.Module):
-    def __init__(self, in_channels: int, atrous_rates: List[int], out_channels: int = 128) -> None:
+    def __init__(self, in_channels: int, atrous_rates: List[int], hidden_dim, out_channels: int = 128) -> None:
         super().__init__()
         modules = []
         modules.append(
             nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, 1, bias=False), 
-                nn.BatchNorm2d(out_channels), 
+                nn.Conv2d(in_channels, hidden_dim, 1, bias=False), 
+                nn.BatchNorm2d(hidden_dim), 
                 nn.ReLU()
             )
         )
 
         rates = tuple(atrous_rates)
         for rate in rates:
-            modules.append(ASPPConv(in_channels, out_channels, rate))
+            modules.append(ASPPConv(in_channels, hidden_dim, rate))
 
-        modules.append(ASPPPooling(in_channels, out_channels))
+        modules.append(ASPPPooling(in_channels, hidden_dim))
 
         self.convs = nn.ModuleList(modules)
 
         self.project = nn.Sequential(
-            nn.Conv2d(len(self.convs) * out_channels, out_channels, 1, bias=False),
+            nn.Conv2d(len(self.convs) * hidden_dim, out_channels, 1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Dropout(0.5),
@@ -46,12 +46,12 @@ class ASPPCustom(nn.Module):
 class DeepLabHeadCustom(nn.Module):
     def __init__(self, in_channels: int, num_classes: int) -> None:
         super().__init__()
-        self.aspp = ASPPCustom(in_channels, [12, 24, 36])
+        self.aspp = ASPPCustom(in_channels, [12, 24, 36], 64, 128)
         self.conv = nn.Sequential(
-            nn.Conv2d(128, 128, 3, padding=1, bias=False),
-            nn.BatchNorm2d(128),
+            nn.Conv2d(128, 64, 3, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(128, num_classes, 1)
+            nn.Conv2d(64, num_classes, 1)
         )
 
     def forward(self, x, return_features=False):
@@ -68,13 +68,13 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
     def __init__(self, num_classes, cfg=None):
         super().__init__(num_classes, cfg)
 
-        self.dlv3 = deeplabv3_resnet50(pretrained=True, progress=True)
+        self.dlv3 = deeplabv3_mobilenet_v3_large(pretrained=True, progress=True)
         self.dlv3.aux_classifier = None
 
         for param in self.dlv3.parameters():
             param.requires_grad = False
 
-        self.dlv3.classifier = DeepLabHeadCustom(2048, self.num_classes)
+        self.dlv3.classifier = DeepLabHeadCustom(960, self.num_classes)
     
     def forward(self, x, return_features=False):
         input_shape = x.shape[-2:]
@@ -87,4 +87,5 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
             out = x
         else:
             out = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
+        
         return out

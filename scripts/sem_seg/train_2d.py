@@ -39,7 +39,7 @@ def main(args):
     
     if args.subset:
         print('Select a subset of data for quick run')
-        train_set = Subset(train_set, range(1))
+        train_set = Subset(train_set, range(2))
         val_set = Subset(val_set, range(16))                        
 
     print(f'Train set: {len(train_set)}')
