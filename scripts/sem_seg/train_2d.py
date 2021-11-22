@@ -1,8 +1,10 @@
 import argparse
 from lib.misc import get_args, get_logger_and_callbacks, read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D
+from models.sem_seg.utils import MODEL_MAP_2D
 from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize
-from models.sem_seg.enet import ENet2
+
+from torchsummary import summary
 
 from torch.utils.data import Subset, DataLoader
 
@@ -35,8 +37,8 @@ def main(args):
     
     if args.subset:
         print('Select a subset of data for quick run')
-        train_set = Subset(train_set, range(128))
-        val_set = Subset(val_set, range(128))                        
+        train_set = Subset(train_set, range(1))
+        val_set = Subset(val_set, range(16))                        
 
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
@@ -49,8 +51,15 @@ def main(args):
 
     # ignored label in 2D is called target padding in 3D - use a common name 
     cfg['data']['target_padding'] = cfg['data']['ignore_label']
-    model = ENet2(num_classes=cfg['data'].get('num_classes', 20), cfg=cfg)
+
+    # pick the 2d model
+    model = MODEL_MAP_2D[cfg['model']['name']](num_classes=cfg['data']['num_classes'], cfg=cfg)
     
+    model = model.cuda()
+    input_dims = (1, 3) + tuple(cfg['data']['img_size'][::-1])
+    print(input_dims)
+    # summary(model, input_dims)
+
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
 
     ckpt = cfg['train']['resume']

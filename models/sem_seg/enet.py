@@ -3,6 +3,7 @@
 
 from datasets.scannet.common import CLASS_WEIGHTS_ALL_2D
 from models.sem_seg.fcn3d import SemSegNet
+from models.sem_seg.sem_seg_2d import SemSegNet2D
 import torch
 import torch.nn as nn
 
@@ -1059,7 +1060,7 @@ class UpsamplingBottleneck(nn.Module):
         return self.out_activation(out)
 
 
-class ENet2(SemSegNet):
+class ENet2(SemSegNet2D, SemSegNet):
     """Generate the ENet model.
 
     Keyword arguments:
@@ -1176,19 +1177,6 @@ class ENet2(SemSegNet):
             stride=2,
             padding=1,
             bias=False)
-
-    def init_class_weights(self, cfg):
-        if cfg['train']['class_weights']:
-            print('Using class weights for 2D model')
-            weights = {
-                40: CLASS_WEIGHTS_ALL_2D
-            }
-            if self.num_classes in weights:
-                self.class_weights = torch.Tensor(weights[self.num_classes])
-            else:
-                raise NotImplementedError(f'Add class weights for {self.num_classes} classes')
-        else: 
-            self.class_weights = None
 
     def forward(self, x, return_features=False):
         # Initial block

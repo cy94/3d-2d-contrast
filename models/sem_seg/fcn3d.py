@@ -82,6 +82,7 @@ class SemSegNet(pl.LightningModule):
                 raise NotImplementedError(f'Add class weights for {self.num_classes} classes')
         else: 
             self.class_weights = None
+            
     def init_model(self):
         pass
 
