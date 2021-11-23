@@ -28,7 +28,6 @@ def main(args):
         HueSaturationValue(),
         GaussianBlur(),
         GaussNoise(),
-        CoarseDropout(),
         Normalize(),
     ])
     val_t = Normalize()

@@ -75,7 +75,7 @@ class GaussNoise(TransformX):
 
 class RGBShift(TransformX):
     def __init__(self):
-        self.t = A.RGBShift()
+        self.t = A.RGBShift(5, 5, 5)
 
 class Resize:
     def __init__(self, size=(640, 480)):
