@@ -70,7 +70,7 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
     def __init__(self, num_classes, cfg=None):
         super().__init__(num_classes, cfg)
 
-        self.dlv3 = deeplabv3_resnet50(pretrained=True, progress=True)
+        self.dlv3 = deeplabv3_resnet50(pretrained_backbone=True, pretrained=False, progress=True)
         self.dlv3.aux_classifier = None
 
         for param in self.dlv3.parameters():
