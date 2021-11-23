@@ -30,7 +30,7 @@ def main(args):
     val_t = Normalize()
 
     train_set = ScanNetSemSeg2D(cfg, transform=train_t, split='train')
-    val_frame_skip = 40
+    val_frame_skip = 30
     print(f'Set val frame skip to {val_frame_skip}')
     val_cfg = deepcopy(cfg)
     val_cfg['data']['frame_skip'] = val_frame_skip
