@@ -29,6 +29,26 @@ class TransformXY:
 
         return sample
 
+#############
+# transform both X and Y
+#############
+
+class CoarseDropout(TransformXY):
+    def __init__(self):
+        self.t = A.CoarseDropout()
+
+class LRFlip(TransformXY):
+    def __init__(self):
+        self.t = A.HorizontalFlip()
+
+#############
+# transform only X 
+#############
+
+class Downscale(TransformX):
+    def __init__(self):
+        self.t = A.Downscale()
+
 class GaussianBlur(TransformX):
     def __init__(self):
         self.t = A.GaussianBlur()
@@ -45,13 +65,17 @@ class Blur(TransformX):
     def __init__(self):
         self.t = A.Blur()
 
+class RandomBrightnessContrast(TransformX):
+    def __init__(self):
+        self.t = A.RandomBrightnessContrast()
+
 class GaussNoise(TransformX):
     def __init__(self):
         self.t = A.GaussNoise()
 
-class LRFlip(TransformXY):
+class RGBShift(TransformX):
     def __init__(self):
-        self.t = A.HorizontalFlip()
+        self.t = A.RGBShift()
 
 class Resize:
     def __init__(self, size=(640, 480)):
