@@ -30,9 +30,10 @@ def main(args):
     val_t = Normalize()
 
     train_set = ScanNetSemSeg2D(cfg, transform=train_t, split='train')
-    print('Set val frame skip to 30')
+    val_frame_skip = 40
+    print(f'Set val frame skip to {val_frame_skip}')
     val_cfg = deepcopy(cfg)
-    val_cfg['data']['frame_skip'] = 30
+    val_cfg['data']['frame_skip'] = val_frame_skip
     val_set = ScanNetSemSeg2D(val_cfg, transform=val_t, split='val')        
     
     collate_func = train_set.collate_func
