@@ -45,7 +45,7 @@ class ASPPCustom(nn.Module):
 class DeepLabHeadCustom(nn.Module):
     def __init__(self, in_channels: int, num_classes: int) -> None:
         super().__init__()
-        self.aspp = ASPPCustom(in_channels, [12, 24, 36], 128, 128)
+        self.aspp = ASPPCustom(in_channels, [12, 24, 36], 64, 128)
         self.conv = nn.Sequential(
             # relu and dropout that were in ASPP
             nn.ReLU(),
