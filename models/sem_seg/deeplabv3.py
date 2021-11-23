@@ -1,6 +1,6 @@
 from typing import List
 
-from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
+from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large, deeplabv3_resnet50
 from torchvision.models.segmentation.deeplabv3 import ASPPConv, ASPPPooling
 import torch.nn as nn
 import torch
@@ -70,13 +70,13 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
     def __init__(self, num_classes, cfg=None):
         super().__init__(num_classes, cfg)
 
-        self.dlv3 = deeplabv3_mobilenet_v3_large(pretrained=True, progress=True)
+        self.dlv3 = deeplabv3_resnet50(pretrained=True, progress=True)
         self.dlv3.aux_classifier = None
 
         for param in self.dlv3.parameters():
             param.requires_grad = False
 
-        self.dlv3.classifier = DeepLabHeadCustom(960, self.num_classes)
+        self.dlv3.classifier = DeepLabHeadCustom(2048, self.num_classes)
     
     def forward(self, x, return_features=False):
         input_shape = x.shape[-2:]
