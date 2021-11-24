@@ -45,15 +45,15 @@ class ASPPCustom(nn.Module):
 class DeepLabHeadCustom(nn.Module):
     def __init__(self, in_channels: int, num_classes: int) -> None:
         super().__init__()
-        self.aspp = ASPPCustom(in_channels, [12, 24, 36], 64, 128)
+        self.aspp = ASPPCustom(in_channels, [12, 24, 36], 128, 128)
         self.conv = nn.Sequential(
             # relu and dropout that were in ASPP
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Conv2d(128, 64, 3, padding=1, bias=False),
-            nn.BatchNorm2d(64),
+            nn.Conv2d(128, 128, 3, padding=1, bias=False),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(64, num_classes, 1)
+            nn.Conv2d(128, num_classes, 1)
         )
 
     def forward(self, x, return_features=False):
@@ -70,7 +70,7 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
     def __init__(self, num_classes, cfg=None):
         super().__init__(num_classes, cfg)
 
-        self.dlv3 = deeplabv3_resnet50(pretrained_backbone=True, pretrained=False, progress=True)
+        self.dlv3 = deeplabv3_resnet50(pretrained=True, progress=True)
         self.dlv3.aux_classifier = None
 
         for param in self.dlv3.parameters():
