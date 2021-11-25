@@ -24,11 +24,11 @@ data:
 
 model: 
     name: UNet2D3D_3DMV
-    use_2dfeat: False
+    use_2dfeat: True
     # 2d model checkpoint, always specify
     # this model will be overwritten if pretrained is specified
-    ckpt_2d: enet_models/version_705.ckpt
-    # finetune_2d: true
+    ckpt_2d: lightning_logs/version_778/checkpoints/last.ckpt
+    finetune_2d: false
     # load state dict from here
     # pretrained: lightning_logs/version_749/checkpoints/last.ckpt
     losses:
