@@ -24,6 +24,7 @@ data:
 
 model: 
     name: UNet2D3D_3DMV
+    name_2d: DeepLabv3 #ENet
     use_2dfeat: True
     # 2d model checkpoint, always specify
     # this model will be overwritten if pretrained is specified
@@ -35,11 +36,9 @@ model:
         # keep for only contrastive loss training
         - contrastive 
     contrastive:
-        positives: common #nearest
+        positives: common 
         type: nce
-        # tau param in NCE loss
         temperature: 0.04
-        # number of points to calculate loss over 
         n_points: 8192
 
 train:
@@ -51,10 +50,7 @@ train:
     val_batch_size: 12
     epochs: 3000
     class_weights: true
-    # eval every N batches
     eval_intv: 2000
-    # 1.0: whole val set
-    # integer N: N batches
     limit_val_batches: 1.0
 
     resume: null #lightning_logs/version_739/checkpoints/last.ckpt

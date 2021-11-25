@@ -2,7 +2,7 @@ from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 from models.sem_seg.enet import ENet2
 
 from lib.misc import get_args, get_logger_and_callbacks, read_config
-from models.sem_seg.utils import MODEL_MAP_2D3D, count_parameters
+from models.sem_seg.utils import MODEL_MAP_2D, MODEL_MAP_2D3D, count_parameters
 
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
@@ -59,7 +59,7 @@ def main(args):
                             shuffle=False, num_workers=8,
                             pin_memory=True) 
 
-    features_2d = ENet2.load_from_checkpoint(cfg['model']['ckpt_2d'])
+    features_2d = MODEL_MAP_2D[cfg['model']['name_2d']].load_from_checkpoint(cfg['model']['ckpt_2d'])
 
     # intrinsic of the color camera from scene0001_00
     intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)

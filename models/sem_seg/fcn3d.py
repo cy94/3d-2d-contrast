@@ -639,7 +639,7 @@ class UNet2D3D(UNet3D):
         super().__init__(in_channels, num_classes, cfg, *args, **kwargs)
         self.in_channels = in_channels
 
-        # 2D features from ENet pretrained model
+        # 2D pretrained model
         self.features_2d = features_2d
 
         print('Using 2d feats in 2d3d model?: ', self.use_2dfeat)
