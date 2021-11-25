@@ -76,6 +76,9 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
         for param in self.dlv3.parameters():
             param.requires_grad = False
 
+        for param in self.dlv3.backbone.layer4.parameters():
+            param.requires_grad = True
+
         self.dlv3.classifier = DeepLabHeadCustom(2048, self.num_classes)
     
     def forward(self, x, return_features=False):
