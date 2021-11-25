@@ -21,10 +21,10 @@ def main(args):
 
     train_t = Compose([
         LRFlip(),
-        RGBShift(),
-        Downscale(),
+        # RGBShift(),
+        # Downscale(),
         ColorJitter(),
-        RandomBrightnessContrast(),
+        # RandomBrightnessContrast(),
         HueSaturationValue(),
         GaussianBlur(),
         GaussNoise(),
