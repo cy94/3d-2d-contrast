@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from datasets.scannet.common import nyu40_to_continuous, read_label_mapping, read_list
+from datasets.scannet.common import nyu40_to_continuous, read_label_mapping, read_list, get_scene_scan_ids
 from transforms.grid_3d import pad_volume
 
 def collate_func(sample_list):
@@ -36,6 +36,7 @@ class ScanNetOccGridH5(Dataset):
         self.data = None
         self.transform = transform
         self.file_path = cfg[f'{split}_file'] 
+        self.split = split
         
         # get the length once
         with h5py.File(self.file_path, 'r') as f:
@@ -70,6 +71,28 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         super().__init__(cfg, split, transform)
         self.num_images = cfg['num_nearest_images']
 
+        self.lr_subvols_ndx = None
+        self.target_padding = cfg['target_padding']
+
+        # keep labels only for a subset scenes
+        if self.split == 'train' and 'filter_train_label' in cfg:
+            # read list of scenes
+            lr_list = read_list(cfg['filter_train_label'])
+            lr_ids_list = list(map(get_scene_scan_ids, lr_list))
+
+            # open the file once in each worker, allow multiproc
+            if self.data is None:
+                self.data = h5py.File(self.file_path, 'r')
+
+            # create tuples
+            scene_ids = self.data['scene_id'][:].tolist()
+            scan_ids = self.data['scan_id'][:].tolist()
+            ids = zip(scene_ids, scan_ids)
+            # get the indices of the samples where labels should be kept
+            self.lr_subvols_ndx = [ndx for ndx, id in enumerate(ids) if id in lr_ids_list]
+
+            print(f'Keeping 3D labels for {len(self.lr_subvols_ndx)} train samples')
+
     @staticmethod
     def collate_func(samples):
         floats = 'x', 'world_to_grid', 
@@ -99,6 +122,9 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         sample = {key: self.data[key][ndx] for key in keys} 
         # keep only the required frames
         sample['frames'] = sample['frames'][:self.num_images]
+
+        if self.lr_subvols_ndx is not None and ndx not in self.lr_subvols_ndx:
+            sample['y'].fill(self.target_padding)
 
         if self.transform is not None:
             sample = self.transform(sample)

@@ -42,6 +42,8 @@ def main(args):
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
+    train_set[0]
+
     if args.subset:
         print('Select a subset of data for quick run')
         train_set = Subset(train_set, range(1))
@@ -59,7 +61,13 @@ def main(args):
                             shuffle=False, num_workers=8,
                             pin_memory=True) 
 
-    features_2d = MODEL_MAP_2D[cfg['model']['name_2d']].load_from_checkpoint(cfg['model']['ckpt_2d'])
+    model_name_2d = cfg['model']['name_2d']
+    if 'ckpt_2d' in cfg['model']:
+        print('Use pretrained 2D model')
+        features_2d = MODEL_MAP_2D[model_name_2d].load_from_checkpoint(cfg['model']['ckpt_2d'])
+    else:
+        print('Train 2D model from scratch')
+        features_2d = MODEL_MAP_2D[model_name_2d](num_classes=cfg['data']['num_classes'], cfg=cfg)
 
     # intrinsic of the color camera from scene0001_00
     intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)
