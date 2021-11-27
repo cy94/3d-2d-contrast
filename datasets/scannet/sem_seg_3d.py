@@ -89,14 +89,14 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
             scan_ids = self.data['scan_id'][:].tolist()
             ids = zip(scene_ids, scan_ids)
             # get the indices of the samples where labels should be kept
-            self.lr_subvols_ndx = [ndx for ndx, id in enumerate(ids) if id in lr_ids_list]
+            self.labeled_samples_ndx = [ndx for ndx, id in enumerate(ids) if id in lr_ids_list]
 
-            print(f'Keeping 3D labels for {len(self.lr_subvols_ndx)} train samples')
-
+            print(f'Keeping 3D labels for {len(self.labeled_samples_ndx)} train samples')
+        
     @staticmethod
     def collate_func(samples):
         floats = 'x', 'world_to_grid', 
-        ints = 'y', 'frames', 'scene_id', 'scan_id'
+        ints = 'y', 'frames', 'scene_id', 'scan_id', 'has_label'
         stack_floats = 'depths', 'rgbs', 'poses'
 
         batch = {}
@@ -123,8 +123,13 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         # keep only the required frames
         sample['frames'] = sample['frames'][:self.num_images]
 
-        if self.lr_subvols_ndx is not None and ndx not in self.lr_subvols_ndx:
+        # by default, the sample has a label y
+        sample['has_label'] = 1
+
+        if self.labeled_samples_ndx is not None and ndx not in self.labeled_samples_ndx:
             sample['y'].fill(self.target_padding)
+            # sample has no label
+            sample['has_label'] = 0
 
         if self.transform is not None:
             sample = self.transform(sample)

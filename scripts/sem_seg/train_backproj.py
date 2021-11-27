@@ -1,5 +1,6 @@
+from datasets.scannet.utils import BalancedUpSampler
+from torch.utils.data import WeightedRandomSampler
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
-from models.sem_seg.enet import ENet2
 
 from lib.misc import get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import MODEL_MAP_2D, MODEL_MAP_2D3D, count_parameters
@@ -11,7 +12,7 @@ import torch
 import pytorch_lightning as pl
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
-from transforms.grid_3d import AddChannelDim, RandomRotate, TransposeDims, LoadDepths, LoadPoses,\
+from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
 from transforms.image_2d import Normalize
 
@@ -42,10 +43,24 @@ def main(args):
     print(f'Train set: {len(train_set)}')
     print(f'Val set: {len(val_set)}')
 
-    train_set[0]
+    if 'filter_train_label' in cfg['data']:
+        print('Balanced sampler on train set, no shuffle')
+        has_label = torch.zeros(len(train_set), dtype=int)
+        # samples that have labels
+        has_label_indices = train_set.labeled_samples_ndx
+        has_label[has_label_indices] = 1
+        # samples that dont have labels
+        no_label_indices = torch.nonzero(has_label == 0)
+        # upsample the minority and shuffle
+        train_sampler = BalancedUpSampler(no_label_indices, has_label_indices, has_label)
+        train_shuffle = False
+    else:
+        print('Default sampler on train set, shuffle')
+        train_sampler = None
+        train_shuffle = True
 
     if args.subset:
-        print('Select a subset of data for quick run')
+        print('Select a subse[t of data for quick run')
         train_set = Subset(train_set, range(1))
         val_set = Subset(val_set, range(16))
         print(f'Train set: {len(train_set)}')
@@ -53,13 +68,14 @@ def main(args):
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
-                            shuffle=True, num_workers=8,
-                            pin_memory=True)  
+                            sampler=train_sampler,
+                            shuffle=train_shuffle, num_workers=8,)
+                            # pin_memory=True)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
-                            shuffle=False, num_workers=8,
-                            pin_memory=True) 
+                            shuffle=False, num_workers=8,)
+                            # pin_memory=True) 
 
     model_name_2d = cfg['model']['name_2d']
     if 'ckpt_2d' in cfg['model']:
