@@ -73,7 +73,8 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
 
         self.lr_subvols_ndx = None
         self.target_padding = cfg['target_padding']
-
+        self.labeled_samples_ndx = None
+        
         # keep labels only for a subset scenes
         if self.split == 'train' and 'filter_train_label' in cfg:
             # read list of scenes
