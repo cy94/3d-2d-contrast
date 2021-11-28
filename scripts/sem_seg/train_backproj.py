@@ -84,6 +84,8 @@ def main(args):
     else:
         print('Train 2D model from scratch')
         features_2d = MODEL_MAP_2D[model_name_2d](num_classes=cfg['data']['num_classes'], cfg=cfg)
+        print('Set finetune2d to True')
+        cfg['model']['finetune_2d'] = True
 
     # intrinsic of the color camera from scene0001_00
     intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)
