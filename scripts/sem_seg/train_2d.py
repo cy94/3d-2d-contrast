@@ -2,7 +2,7 @@ import argparse
 from lib.misc import get_args, get_logger_and_callbacks, read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D
 from models.sem_seg.utils import MODEL_MAP_2D
-from transforms.image_2d import CoarseDropout, ColorJitter, Downscale, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize, RGBShift, RandomBrightnessContrast
+from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize
 
 from torchsummary import summary
 
@@ -21,10 +21,7 @@ def main(args):
 
     train_t = Compose([
         LRFlip(),
-        # RGBShift(),
-        # Downscale(),
         ColorJitter(),
-        # RandomBrightnessContrast(),
         HueSaturationValue(),
         GaussianBlur(),
         GaussNoise(),
