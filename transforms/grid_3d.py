@@ -336,22 +336,26 @@ class LoadLabels2D(LoadData):
 
         paths = [Path(self.data_dir) / scan_name / 'label-filt' / f'{i}.png' for i in frames]
 
-        for path_ndx, path in enumerate(paths):
-            if path.exists():
-                # read the scannet label image as int, H,W
-                label_scannet = np.array(imageio.imread(path))
-                # map from scannet to nyu40 labels 0-40, H,W
-                label_nyu40 = map_labels(label_scannet, self.scannet_to_nyu40)
-                # map from NYU40 labels to 0-39 + 40 (ignored) labels, H,W
-                y = nyu40_to_continuous(label_nyu40, ignore_label=self.ignore_label, 
-                                                    num_classes=self.num_classes)
-                # resize label image here using the proper interpolation - no artifacts  
-                # dims: H,W                                     
-                y = cv2.resize(y, self.img_size, interpolation=cv2.INTER_NEAREST)
-                labels2d[path_ndx] = torch.LongTensor(y.astype(np.int64))
-            else:
-                # no label image
-                labels2d[path_ndx] = self.ignore_label
+        # fill the 2d label only if 3d label exists
+        if sample['has_label']:
+            for path_ndx, path in enumerate(paths):
+                if path.exists():
+                    # read the scannet label image as int, H,W
+                    label_scannet = np.array(imageio.imread(path))
+                    # map from scannet to nyu40 labels 0-40, H,W
+                    label_nyu40 = map_labels(label_scannet, self.scannet_to_nyu40)
+                    # map from NYU40 labels to 0-39 + 40 (ignored) labels, H,W
+                    y = nyu40_to_continuous(label_nyu40, ignore_label=self.ignore_label, 
+                                                        num_classes=self.num_classes)
+                    # resize label image here using the proper interpolation - no artifacts  
+                    # dims: H,W                                     
+                    y = cv2.resize(y, self.img_size, interpolation=cv2.INTER_NEAREST)
+                    labels2d[path_ndx] = torch.LongTensor(y.astype(np.int64))
+                else:
+                    # no label image
+                    labels2d[path_ndx] = self.ignore_label
+        else:
+            labels2d._fill(self.ignore_label)
 
         sample['labels2d'] = labels2d
         return sample
