@@ -797,10 +797,6 @@ class UNet2D3D(UNet3D):
             n_points_actual = min(n_points, n_feats)
             # shuffle all the feats, then pick the required number
             inds = torch.randperm(n_feats)[:n_points_actual]
-            # if mode == 'train':
-            #     inds = torch.LongTensor([0, 100])
-            # else:
-            #     inds = torch.arange(n_feats)
 
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
 
@@ -915,7 +911,6 @@ class UNet2D3D(UNet3D):
             x = layer(x)
         
         # store the original res 3d features
-        # feat3d = x
 
         outs = []
         # down layers
@@ -966,40 +961,6 @@ class UNet2D3D(UNet3D):
                     
                 feat3d_vecs = torch.cat(feat3d_vecs, -1).T
                 feat2d_vecs = torch.cat(feat2d_vecs, -1).T
-            # for each 3d location, take the feature of the nearest 2d-projected 
-            # location in 3d
-            elif self.positives_method == 'nearest':
-                feat3d_vecs, feat2d_vecs = [], []
-                # change input from 1DHW->WHD
-                input_x_vals = input_x.squeeze(dim=1).permute(0, 3, 2, 1)
-                # num channels
-                feat_dim = feat2d_proj.shape[1]
-
-                for ndx in range(input_x.shape[0]):
-                    # get occupied locations in 3d 
-                    ijk3d = (input_x_vals[ndx] == 1).nonzero()
-                    # get occupied locations in 2d-proj
-                    ind = feat2d_ind3d[ndx]
-                    num_ind = ind[0]
-                    coords = torch.empty(4, num_ind).to(self.device)
-                    ijk2d = ProjectionHelper.lin_ind_to_coords_static(ind[1:1+num_ind], coords, self.subvol_size).T[:, :-1]
-                    # find all pairs distance of 3d, 2d locations
-                    dists = torch.cdist(ijk3d.float(), ijk2d)
-                    if 0 in dists.shape:
-                        continue
-                    # for each 3d location, find the nearest 2d-proj location
-                    nearest2d = dists.argmin(dim=1)
-                    # pick all 3d feats
-                    i3d, j3d, k3d = ijk3d.T
-                    # convert the subvol to WHD and pick feats according to ijk
-                    feat3d_vecs.append(feat3d[ndx].permute(3, 2, 1, 0)[i3d, j3d, k3d])
-                    # pick corresponding 2d feats
-                    ind2d_select = ind[1:1+num_ind][nearest2d]
-                    # convert the subvol to WHD and pick feats according to lin inds
-                    feat2d_vecs.append(feat2d_proj[ndx].permute(3, 2, 1, 0).reshape(-1, feat_dim)[ind2d_select])
-                
-                feat3d_vecs = torch.cat(feat3d_vecs, 0)
-                feat2d_vecs = torch.cat(feat2d_vecs, 0)
 
             return feat2d_vecs, feat3d_vecs, x 
         else:
