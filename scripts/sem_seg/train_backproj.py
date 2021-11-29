@@ -76,13 +76,13 @@ def main(args):
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
                             sampler=train_sampler,
-                            shuffle=train_shuffle, num_workers=8,)
-                            # pin_memory=True)  
+                            shuffle=train_shuffle, num_workers=8,
+                            pin_memory=True)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
-                            shuffle=False, num_workers=8,)
-                            # pin_memory=True) 
+                            shuffle=False, num_workers=8,
+                            pin_memory=True) 
 
     model_name_2d = cfg['model']['name_2d']
     if 'ckpt_2d' in cfg['model']:
