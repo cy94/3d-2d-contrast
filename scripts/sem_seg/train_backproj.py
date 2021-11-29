@@ -12,7 +12,7 @@ import torch
 import pytorch_lightning as pl
 
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
-from transforms.grid_3d import AddChannelDim, TransposeDims, LoadDepths, LoadPoses,\
+from transforms.grid_3d import AddChannelDim, LoadLabels2D, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
 from transforms.image_2d import Normalize
 
@@ -23,20 +23,27 @@ def main(args):
     train_t2d = Normalize()
     val_t2d = Normalize()
 
-    train_t = Compose([
+    train_t = [
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
         LoadPoses(cfg),
         LoadRGBs(cfg, transform=train_t2d)
-    ])
-    val_t = Compose([
+    ]
+    val_t = [
         AddChannelDim(),
         TransposeDims(),
         LoadDepths(cfg),
         LoadPoses(cfg),
         LoadRGBs(cfg, transform=val_t2d)
-    ])
+    ]
+    if cfg['model']['train_2d']:
+        print('Train the 2d network on 2d labels')
+        train_t.append(LoadLabels2D(cfg))
+        val_t.append(LoadLabels2D(cfg))
+        
+    train_t = Compose(train_t)
+    val_t = Compose(val_t)
 
     train_set = ScanNet2D3DH5(cfg['data'], 'train', transform=train_t)
     val_set = ScanNet2D3DH5(cfg['data'], 'val', transform=val_t)
@@ -60,7 +67,7 @@ def main(args):
         train_shuffle = True
 
     if args.subset:
-        print('Select a subse[t of data for quick run')
+        print('Select a subset of data for quick run')
         train_set = Subset(train_set, range(1))
         val_set = Subset(val_set, range(16))
         print(f'Train set: {len(train_set)}')

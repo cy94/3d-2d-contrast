@@ -1,5 +1,7 @@
 data:
     root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+
     train_file: /mnt/data/scannet/backproj/train-v13.h5
     # keep train labels only for these scenes
     filter_train_label: /mnt/data/scannet/limited_recon/seg_scenes/1.txt
@@ -27,14 +29,18 @@ data:
 
 model: 
     name: UNet2D3D_3DMV
-    name_2d: ENet #DeepLabv3 #ENet
+    name_2d: ENet #DeepLabv3 
+    # concat 2d feats to the 3d network
     use_2dfeat: True
-    # 2d model checkpoint, always specify
+    # use 2d labels?
+    train_2d: True
+    # 2d model checkpoint
     # this model will be overwritten if pretrained is specified
     # ckpt_2d: lightning_logs/version_705/checkpoints/last.ckpt
-    finetune_2d: true
+    # finetune the whole 2d network?
+    # finetune_2d: true
     # load state dict from here
-    # pretrained: lightning_logs/version_746/checkpoints/last.ckpt
+    # pretrained: lightning_logs/version_783/checkpoints/last.ckpt
     losses:
         # keep for only contrastive loss training
         - contrastive 
@@ -57,4 +63,4 @@ train:
     eval_intv: 2000
     limit_val_batches: 1.0
 
-    resume: null #lightning_logs/version_739/checkpoints/last.ckpt
+    resume: null #lightning_logs/version_783/checkpoints/last.ckpt
