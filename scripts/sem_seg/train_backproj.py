@@ -16,11 +16,20 @@ from transforms.grid_3d import AddChannelDim, LoadLabels2D, TransposeDims, LoadD
                                 LoadRGBs
 from transforms.image_2d import Normalize
 
+from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, Normalize
+
 
 def main(args):
     cfg = read_config(args.cfg_path)
 
-    train_t2d = Normalize()
+    train_2d = [Normalize()]
+    if cfg['model'].get('augment_2d', False):
+        print('Augment 2d images')
+        train_2d = [ColorJitter(),
+        HueSaturationValue(),
+        GaussianBlur(),
+        GaussNoise()] + train_2d
+    train_t2d = Compose(train_2d)
     val_t2d = Normalize()
 
     train_t = [
@@ -72,6 +81,8 @@ def main(args):
         val_set = Subset(val_set, range(16))
         print(f'Train set: {len(train_set)}')
         print(f'Val set: {len(val_set)}')
+
+    print(f'Train sampler size:{len(train_sampler)}')
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,

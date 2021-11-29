@@ -34,6 +34,7 @@ model:
 
     # use 2d labels?
     train_2d: True
+    augment_2d: True
 
     # 2d model checkpoint
     # this model will be overwritten if pretrained is specified
@@ -57,11 +58,11 @@ train:
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 8
-    val_batch_size: 8
+    train_batch_size: 7
+    val_batch_size: 7
     epochs: 3000
     class_weights: true
     eval_intv: 2000
     limit_val_batches: 1.0
 
-    resume: null #lightning_logs/version_783/checkpoints/last.ckpt
+    resume: null #lightning_logs/version_791/checkpoints/last.ckpt
