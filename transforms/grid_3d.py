@@ -355,7 +355,7 @@ class LoadLabels2D(LoadData):
                     # no label image
                     labels2d[path_ndx] = self.ignore_label
         else:
-            labels2d._fill(self.ignore_label)
+            labels2d.fill_(self.ignore_label)
 
         sample['labels2d'] = labels2d
         return sample
