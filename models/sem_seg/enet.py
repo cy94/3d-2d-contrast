@@ -6,6 +6,7 @@ from models.sem_seg.fcn3d import SemSegNet
 from models.sem_seg.sem_seg_2d import SemSegNet2D
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from functools import reduce
 from torch.autograd import Variable
@@ -1178,7 +1179,7 @@ class ENet2(SemSegNet2D, SemSegNet):
             padding=1,
             bias=False)
 
-    def forward(self, x, return_features=False):
+    def forward(self, x, return_features=False, return_preds=True):
         # Initial block
         input_size = x.size()
         x = self.initial_block(x)
@@ -1213,9 +1214,17 @@ class ENet2(SemSegNet2D, SemSegNet):
         x = self.asymmetric3_6(x)
         # if we need features, dont use last relu
         x = self.dilated3_7(x, no_relu=return_features, no_dropout=return_features)
+        
+        feats = x
 
+        # need only feats, nothing else to do
         if return_features:
-            return x
+            # need preds after getting feats? apply relu here
+            if return_preds:
+                x = F.relu(x)
+            # nothing else to do
+            else:
+                return feats
 
         # Stage 4 - Decoder
         x = self.upsample4_0(x, max_indices2_0, output_size=stage2_input_size)
@@ -1227,4 +1236,7 @@ class ENet2(SemSegNet2D, SemSegNet):
         x = self.regular5_1(x)
         x = self.transposed_conv(x, output_size=input_size)
 
-        return x        
+        if return_features:
+            return feats, x
+        else:
+            return x        

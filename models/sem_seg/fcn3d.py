@@ -644,6 +644,10 @@ class UNet2D3D(UNet3D):
 
         print('Using 2d feats in 2d3d model?: ', self.use_2dfeat)
 
+        # train the 2d model on 2d labels?
+        self.train_2d = cfg['model'].get('train_2d', False)
+        print(f'Train the 2D model on 2D labels?: {self.train_2d}')
+
         finetune_2d = cfg['model'].get('finetune_2d', False)
         if finetune_2d:
             print('Finetune 2D weights')
@@ -668,7 +672,6 @@ class UNet2D3D(UNet3D):
         print(f'Use contrastive loss? {self.contrastive}')
         if self.contrastive:
             self.contr_cfg = cfg['model']['contrastive']
-            self.positives_method = self.contr_cfg['positives']
 
     def on_fit_start(self):
         super().on_fit_start()
@@ -755,6 +758,10 @@ class UNet2D3D(UNet3D):
         rgbs = rgbs[:, :num_nearest_imgs, :, :, :]
         frames = frames[:, :num_nearest_imgs]
 
+        if self.train_2d:
+            labels2d = batch['labels2d'][:, :num_nearest_imgs, :, :]
+            labels2d = labels2d.reshape(num_imgs, labels2d.shape[2], labels2d.shape[3])
+
         # collapse batch size and "num nearest img" dims
         # N, H, W (30, 40)
         depths = depths.reshape(num_imgs, depths.shape[2], depths.shape[3])
@@ -778,19 +785,25 @@ class UNet2D3D(UNet3D):
             print('skip batch')
             return None
         
-        # always returns a tuple
-        logits = out[-1]
+        class_weights = self.get_class_weights()
 
+        losses = {}
         # main cross entropy loss
-        loss = F.cross_entropy(logits, batch['y'], weight=self.get_class_weights(),
+        losses['crossent'] = F.cross_entropy(out['logits3d'], batch['y'], weight=class_weights,
                                 ignore_index=self.target_padding)
-        preds = logits.argmax(dim=1)
+        
+        preds3d = out['logits3d'].argmax(dim=1)
+
+        # 2d cross ent loss if needed
+        if self.train_2d:
+            losses['crossent2d'] = F.cross_entropy(out['logits2d'], labels2d, weight=class_weights,
+                                ignore_index=self.target_padding)
 
         if self.contrastive:
             n_points = self.contr_cfg['n_points']
 
             # get N,C vectors for 2d and 3d
-            feat2d_all, feat3d_all = out[0], out[1]
+            feat2d_all, feat3d_all = out['feat2d'], out['feat3d']
             # sample N of these
             n_feats = len(feat2d_all)
             # actual number of points to compute loss over
@@ -800,16 +813,10 @@ class UNet2D3D(UNet3D):
 
             feat2d, feat3d = feat2d_all[inds], feat3d_all[inds]
 
-            loss_type = self.contr_cfg['type']
+            ct_loss = pointinfoNCE_loss(feat2d, feat3d, self.contr_cfg['temperature'])
+            losses['contrastive'] = ct_loss
 
-            if loss_type == 'nce':
-                ct_loss = pointinfoNCE_loss(feat2d, feat3d, self.contr_cfg['temperature'])
-            elif loss_type == 'hardest':
-                ct_loss = hardest_contrastive_loss(feat2d, feat3d, 
-                                self.contr_cfg['margin_pos'], self.contr_cfg['margin_neg'])
-
-            loss = {'crossent': loss, 'contrastive': ct_loss}
-        return preds, loss
+        return preds3d, losses
 
 
     def rgb_to_feat3d(self, rgbs, depths, poses, transforms, frames):
@@ -852,7 +859,13 @@ class UNet2D3D(UNet3D):
         proj_ind_3d = torch.stack(proj_mapping[0])
         proj_ind_2d = torch.stack(proj_mapping[1])
 
-        feat2d = self.features_2d(rgbs, return_features=True)
+        preds2d = None
+        out = self.features_2d(rgbs, return_features=True, return_preds=self.train_2d)
+        if self.train_2d:
+            feat2d, logits2d = out
+        else:
+            feat2d = out
+
         # get C,D,H,W for each feature map
         # pass empty ind3d -> get zero features
         feat2d_proj = [project_2d_3d(ft, ind3d, ind2d, self.subvol_size) \
@@ -882,7 +895,7 @@ class UNet2D3D(UNet3D):
         feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
 
         # TODO: retain the un-pooled feat2d_proj to be used later for contrasting
-        return feat2d_proj, proj_ind_3d 
+        return feat2d_proj, proj_ind_3d, logits2d
 
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
@@ -896,7 +909,7 @@ class UNet2D3D(UNet3D):
         if out is None:
             return None
 
-        feat2d_proj, feat2d_ind3d = out 
+        feat2d_proj, feat2d_ind3d, logits2d = out 
         # reduce 2d feat dim with same conv layers, then contrast
         for layer in self.feat2d_same:
             feat2d_proj = layer(feat2d_proj)
@@ -935,37 +948,34 @@ class UNet2D3D(UNet3D):
             up_inputs.append(x)
             x = layer(x)
 
+        ret_dict = {'logits3d': x, 'logits2d': logits2d}
+
         if return_features and self.contrastive:
             feat3d = self.up3d_contr(up_inputs[1])
             feat_dim = feat3d.shape[1]
 
-            # positives are the location common to 2d and 3d
-            if self.positives_method == 'common':
-                feat2d_vecs, feat3d_vecs = [], []  
+            feat2d_vecs, feat3d_vecs = [], []  
 
-                for ndx in range(input_x.shape[0]):
-                    # proj inds for this sample
-                    proj3d = feat2d_ind3d[ndx]
-                    # number of projected voxels
-                    num_inds = proj3d[0]
-                    # the  indices into the CDHW volume
-                    ind3d = proj3d[1:1+num_inds]
-                    # out of all projected locations, which locations are occupied
-                    # in the input?
-                    occupied_mask = (input_x[ndx].squeeze().view(-1)[ind3d] == 1)
-                    overlap_inds = ind3d[occupied_mask]
-                    # pick 3d feats at these locations
-                    feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
-                    # pick 2d feats at these locations
-                    feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
-                    
-                feat3d_vecs = torch.cat(feat3d_vecs, -1).T
-                feat2d_vecs = torch.cat(feat2d_vecs, -1).T
+            for ndx in range(input_x.shape[0]):
+                # proj inds for this sample
+                proj3d = feat2d_ind3d[ndx]
+                # number of projected voxels
+                num_inds = proj3d[0]
+                # the  indices into the CDHW volume
+                ind3d = proj3d[1:1+num_inds]
+                # out of all projected locations, which locations are occupied
+                # in the input?
+                occupied_mask = (input_x[ndx].squeeze().view(-1)[ind3d] == 1)
+                overlap_inds = ind3d[occupied_mask]
+                # pick 3d feats at these locations
+                feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
+                # pick 2d feats at these locations
+                feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
+                
+            ret_dict['feat2d'] = torch.cat(feat2d_vecs, -1).T
+            ret_dict['feat3d'] = torch.cat(feat3d_vecs, -1).T
 
-            return feat2d_vecs, feat3d_vecs, x 
-        else:
-            # tuple with one element
-            return (x,) 
+        return ret_dict
 
 class UNet2D3D_3DMV(UNet2D3D):
     def init_model(self):
@@ -1007,7 +1017,7 @@ class UNet2D3D_3DMV(UNet2D3D):
         if out is None:
             return None
 
-        feat2d_proj, feat2d_ind3d = out 
+        feat2d_proj, feat2d_ind3d, logits2d = out 
 
         if self.use_2dfeat:
             # conv on 2d feats, down
@@ -1029,37 +1039,34 @@ class UNet2D3D_3DMV(UNet2D3D):
             
         out = self.pred_layer(xup32)
 
+        ret_dict = {'logits3d': out, 'logits2d': logits2d}
+
         if return_features and self.contrastive:
             feat3d = xup32
             feat_dim = feat3d.shape[1]
 
-            # positives are the locations common to 2d and 3d
-            if self.positives_method == 'common':
-                feat2d_vecs, feat3d_vecs = [], []  
+            feat2d_vecs, feat3d_vecs = [], []  
 
-                for ndx in range(x.shape[0]):
-                    # proj inds for this sample
-                    proj3d = feat2d_ind3d[ndx]
-                    # number of projected voxels
-                    num_inds = proj3d[0]
-                    # the  indices into the CDHW volume
-                    ind3d = proj3d[1:1+num_inds]
-                    # out of all projected locations, which locations are occupied
-                    # in the input?
-                    occupied_mask = (x[ndx].squeeze().view(-1)[ind3d] == 1)
-                    overlap_inds = ind3d[occupied_mask]
-                    # pick 3d feats at these locations
-                    feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
-                    # pick 2d feats at these locations
-                    feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
-                    
-                feat3d_vecs = torch.cat(feat3d_vecs, -1).T
-                feat2d_vecs = torch.cat(feat2d_vecs, -1).T
-            return feat2d_vecs, feat3d_vecs, out
-        else:
-            # tuple with one element
-            return (out,) 
+            for ndx in range(x.shape[0]):
+                # proj inds for this sample
+                proj3d = feat2d_ind3d[ndx]
+                # number of projected voxels
+                num_inds = proj3d[0]
+                # the  indices into the CDHW volume
+                ind3d = proj3d[1:1+num_inds]
+                # out of all projected locations, which locations are occupied
+                # in the input?
+                occupied_mask = (x[ndx].squeeze().view(-1)[ind3d] == 1)
+                overlap_inds = ind3d[occupied_mask]
+                # pick 3d feats at these locations
+                feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
+                # pick 2d feats at these locations
+                feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
+                
+            ret_dict['feat2d'] = torch.cat(feat2d_vecs, -1).T
+            ret_dict['feat3d'] = torch.cat(feat3d_vecs, -1).T
 
+        return ret_dict
 
 def l2_norm_vecs(vecs, eps=1e-6):
     vecs_norm = vecs / (torch.norm(vecs, p=2, dim=1, keepdim=True) + eps)

@@ -98,7 +98,7 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
     def collate_func(samples):
         floats = 'x', 'world_to_grid', 
         ints = 'y', 'frames', 'scene_id', 'scan_id', 'has_label'
-        stack_floats = 'depths', 'rgbs', 'poses'
+        stack_tensors = 'depths', 'rgbs', 'poses', 'labels2d'
 
         batch = {}
 
@@ -108,7 +108,7 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         for key in ints:
             batch[key] = torch.LongTensor([s[key] for s in samples])             
         # these are already tensors, stack them
-        for key in stack_floats:
+        for key in stack_tensors:
             batch[key] = torch.stack([s[key] for s in samples])
 
         return batch
