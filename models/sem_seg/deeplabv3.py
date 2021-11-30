@@ -81,16 +81,20 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
 
         self.dlv3.classifier = DeepLabHeadCustom(2048, self.num_classes)
     
-    def forward(self, x, return_features=False):
+    def forward(self, x, return_features=False, return_preds=True):
         input_shape = x.shape[-2:]
         features = self.dlv3.backbone(x)
         x = features["out"]
         
         # now get intermediate features or final output
         x = self.dlv3.classifier(x, return_features=return_features)
-        if return_features:
-            out = x
-        else:
-            out = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
-        
-        return out
+        feats = x
+        # handle all 3 cases - feats/preds only, both
+        if return_features and not return_preds:
+            return feats
+        if return_preds:
+            preds = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
+            if return_features:
+                return feats, preds
+            else:
+                return preds
