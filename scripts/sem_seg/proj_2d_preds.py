@@ -50,8 +50,6 @@ def main(args):
 
     # go over each 2d3d sample
     for sample_ndx, sample in enumerate(tqdm(dataset)):
-        if sample_ndx == 100:
-            break
         w2g, sceneid, scanid, frames = sample['world_to_grid'], sample['scene_id'], \
                                      sample['scan_id'], sample['frames']
         x = sample['x']
