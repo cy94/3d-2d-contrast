@@ -50,6 +50,8 @@ def main(args):
 
     # go over each 2d3d sample
     for sample_ndx, sample in enumerate(tqdm(dataset)):
+        if sample_ndx == 100:
+            break
         w2g, sceneid, scanid, frames = sample['world_to_grid'], sample['scene_id'], \
                                      sample['scan_id'], sample['frames']
         x = sample['x']
@@ -119,7 +121,6 @@ def main(args):
             rgb_path = root / scan_name / 'color' / f'{frames[frame_ndx]}.jpg' 
             # load H, W, C
             rgb = load_color(rgb_path, img_size).transpose(1, 2, 0)
-            breakpoint()
             # apply transform on rgb and back to C,H,W
             rgb = transform_2d({'x': rgb})['x'].transpose(2, 0, 1)
             # convert to tensor, add batch dim, get (1,C,H,W)
