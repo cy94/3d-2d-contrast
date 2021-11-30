@@ -69,6 +69,7 @@ def main(args):
         no_label_indices = torch.nonzero(has_label == 0)
         # upsample the minority and shuffle
         train_sampler = BalancedUpSampler(no_label_indices, has_label_indices, has_label)
+        print(f'Train sampler size:{len(train_sampler)}')
         train_shuffle = False
     else:
         print('Default sampler on train set, shuffle')
@@ -82,7 +83,6 @@ def main(args):
         print(f'Train set: {len(train_set)}')
         print(f'Val set: {len(val_set)}')
 
-    print(f'Train sampler size:{len(train_sampler)}')
 
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
