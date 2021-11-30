@@ -109,7 +109,11 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
             batch[key] = torch.LongTensor([s[key] for s in samples])             
         # these are already tensors, stack them
         for key in stack_tensors:
-            batch[key] = torch.stack([s[key] for s in samples])
+            try:
+                batch[key] = torch.stack([s[key] for s in samples])
+            except KeyError:
+                # some of these might not be present
+                pass
 
         return batch
 
