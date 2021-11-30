@@ -12,6 +12,8 @@ from transforms.sparse_3d import ChromaticAutoContrast, ChromaticJitter, Chromat
 from datasets.scannet.sem_seg_3d import ScanNetOccGridH5, ScanNetSemSegOccGrid, collate_func
 from datasets.scannet.sparse_3d import ScannetVoxelizationDataset
 
+def get_scan_name(scene_id, scan_id):
+    return f'scene{str(scene_id).zfill(4)}_{str(scan_id).zfill(2)}'
 
 class BalancedUpSampler(Sampler):
   '''
