@@ -1,5 +1,5 @@
 '''
-Create a limited reconstructions version of a backproj dataset
+Create 4 rotations for each sample 
 write it to a different file
 '''
 

@@ -1,5 +1,5 @@
 '''
-Get class weights for 3D voxel grid
+Get class weights for 3D voxel grid or a 2d dataset
 '''
 import argparse
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D

@@ -1,6 +1,6 @@
 '''
 prepare 2d+3d dataset (like 3DMV)
-3d: 32^3 subvolumes x and y sampled from dense grid
+3d: subvolumes x and y sampled from dense grid
 2d: indices of 5 nearest images to each subvolume
 '''
 import wandb
