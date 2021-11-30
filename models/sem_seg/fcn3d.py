@@ -785,18 +785,18 @@ class UNet2D3D(UNet3D):
             print('skip batch')
             return None
         
-        class_weights = self.get_class_weights()
-
         losses = {}
         # main cross entropy loss
-        losses['crossent'] = F.cross_entropy(out['logits3d'], batch['y'], weight=class_weights,
+        losses['crossent'] = F.cross_entropy(out['logits3d'], batch['y'], 
+                                weight=self.get_class_weights(),
                                 ignore_index=self.target_padding)
         
         preds3d = out['logits3d'].argmax(dim=1)
 
         # 2d cross ent loss if needed
         if self.train_2d:
-            losses['crossent2d'] = F.cross_entropy(out['logits2d'], labels2d, weight=class_weights,
+            losses['crossent2d'] = F.cross_entropy(out['logits2d'], labels2d, 
+                                weight=self.features_2d.get_class_weights(),
                                 ignore_index=self.target_padding)
 
         if self.contrastive:
