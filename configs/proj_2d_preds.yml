@@ -1,0 +1,21 @@
+data:
+    root: /mnt/data/scannet/scans/
+    val_file: /mnt/data/scannet/backproj/val-v8.h5
+    # 20 or 40 classes?
+    num_classes: 40
+    # size of each subvol
+    subvol_size: [32, 32, 64]
+    rgb_img_size: [320, 240] 
+    num_nearest_images: 1
+    target_padding: 40
+    
+    # side of each voxel in meters
+    voxel_size: 0.05
+
+    # min and max depth considered for projection
+    depth_min: 0.4
+    depth_max: 4.0
+
+model: 
+    name_2d: ENet #DeepLabv3 
+    ckpt_2d: lightning_logs/version_705/checkpoints/last.ckpt
