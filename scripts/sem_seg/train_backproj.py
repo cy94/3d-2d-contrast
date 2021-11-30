@@ -46,7 +46,7 @@ def main(args):
         LoadPoses(cfg),
         LoadRGBs(cfg, transform=val_t2d)
     ]
-    if cfg['model']['train_2d']:
+    if cfg['model'].get('train_2d', False):
         print('Train the 2d network on 2d labels')
         train_t.append(LoadLabels2D(cfg))
         val_t.append(LoadLabels2D(cfg))
