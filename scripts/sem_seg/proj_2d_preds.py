@@ -5,6 +5,9 @@ from tqdm import tqdm
 import torch
 import numpy as np
 from pathlib import Path
+import imageio
+import cv2
+import argparse
 
 from datasets.scannet.utils import get_scan_name
 from datasets.scannet.utils_3d import ProjectionHelper, adjust_intrinsic, load_color, \
@@ -15,6 +18,7 @@ from lib.misc import get_args, read_config
 from models.sem_seg.utils import MODEL_MAP_2D
 from eval.common import ConfMat
 from datasets.scannet.common import VALID_CLASSES
+from datasets.scannet.common import read_label_mapping, map_labels, nyu40_to_continuous
 
 
 def main(args):
@@ -24,15 +28,19 @@ def main(args):
     dataset = ScanNet2D3DH5(cfg['data'], 'val')
     print(f'Dataset size: {len(dataset)}')
 
+    scannet_to_nyu40 = read_label_mapping(cfg['data']['label_file'])
+
     root = Path(cfg['data']['root'])
     subvol_size = cfg['data']['subvol_size']
     img_size = tuple(cfg['data']['rgb_img_size'])
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # pick the 2d model
-    model = MODEL_MAP_2D[cfg['model']['name_2d']].load_from_checkpoint(cfg['model']['ckpt_2d'])
-    model.to(device)
+    if not args.use_gt:
+        # pick the 2d model
+        model = MODEL_MAP_2D[cfg['model']['name_2d']].load_from_checkpoint(cfg['model']['ckpt_2d'])
+        model.eval()
+        model.to(device)
 
     # init metric
     confmat = ConfMat(cfg['data']['num_classes'])
@@ -82,18 +90,45 @@ def main(args):
         ind3d = proj3d[1:1+num_inds]
         ind2d = proj2d[1:1+num_inds]
 
-        # load rgb
-        rgb_path = root / scan_name / 'color' / f'{frames[frame_ndx]}.jpg' 
-        # load H, W, C
-        rgb = load_color(rgb_path, img_size).transpose(1, 2, 0)
-        # apply transform on rgb and back to C,H,W
-        rgb = transform_2d({'x': rgb})['x'].transpose(2, 1, 0)
-        # convert to tensor, add batch dim, get (1,C,H,W)
-        rgb = torch.Tensor(rgb).unsqueeze(0).to(device)
+        if args.use_gt:
+            label_path = root / scan_name / 'label-filt' / f'{frames[frame_ndx]}.png' 
+            label_scannet = np.array(imageio.imread(label_path))
+            label_nyu40 = map_labels(label_scannet, scannet_to_nyu40)
+            # map from NYU40 labels to 0-39 + 40 (ignored) labels, H,W
+            y = nyu40_to_continuous(label_nyu40, ignore_label=cfg['data']['num_classes'], 
+                                                num_classes=cfg['data']['num_classes'])
+            # resize label image here using the proper interpolation - no artifacts  
+            # dims: H,W                                     
+            y = cv2.resize(y, img_size, interpolation=cv2.INTER_NEAREST)
+            y = torch.LongTensor(y.astype(np.int32))
+            
+            # labels at the required locations, index into H,W image
+            labels = y.view(-1)[ind2d]
+            # 40/ignore labels in 2d -> dont project 
+            invalid_2d = (labels == cfg['data']['num_classes'])
+            valid_2d = torch.logical_not(invalid_2d)
+            
+            valid_ind2d = ind2d[valid_2d]
+            ind2d = valid_ind2d
+            valid_ind3d = ind3d[valid_2d]
+            ind3d = valid_ind3d
+            
+            labels = y.view(-1)[valid_ind2d]
+        else:
+            # load rgb
+            rgb_path = root / scan_name / 'color' / f'{frames[frame_ndx]}.jpg' 
+            # load H, W, C
+            rgb = load_color(rgb_path, img_size).transpose(1, 2, 0)
+            # apply transform on rgb and back to C,H,W
+            rgb = transform_2d({'x': rgb})['x'].transpose(2, 1, 0)
+            # convert to tensor, add batch dim, get (1,C,H,W)
+            rgb = torch.Tensor(rgb).unsqueeze(0).to(device)
 
-        # get preds on this view
-        pred2d = model(rgb).argmax(dim=1).squeeze().cpu()
-        labels = pred2d.view(-1)[ind2d]
+            # get preds on this view
+            with torch.no_grad():
+                pred2d = model(rgb).argmax(dim=1).squeeze().cpu()
+            labels = pred2d.view(-1)[ind2d]
+
         # get the label volume - DHW
         # create empty volume with zeros
         output = torch.zeros(subvol_size[2], \
@@ -113,5 +148,9 @@ def main(args):
 
   
 if __name__ == '__main__':
-    args = get_args()
+    p = argparse.ArgumentParser()
+    p.add_argument('cfg_path', help='Path to cfg')
+    p.add_argument('--use-gt', action='store_true', dest='use_gt', 
+                    default=False, help='Use ground truth labels')
+    args = p.parse_args()
     main(args)
