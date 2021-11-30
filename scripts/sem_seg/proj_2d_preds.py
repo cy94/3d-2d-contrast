@@ -119,8 +119,9 @@ def main(args):
             rgb_path = root / scan_name / 'color' / f'{frames[frame_ndx]}.jpg' 
             # load H, W, C
             rgb = load_color(rgb_path, img_size).transpose(1, 2, 0)
+            breakpoint()
             # apply transform on rgb and back to C,H,W
-            rgb = transform_2d({'x': rgb})['x'].transpose(2, 1, 0)
+            rgb = transform_2d({'x': rgb})['x'].transpose(2, 0, 1)
             # convert to tensor, add batch dim, get (1,C,H,W)
             rgb = torch.Tensor(rgb).unsqueeze(0).to(device)
 
