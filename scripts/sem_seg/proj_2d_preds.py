@@ -44,6 +44,8 @@ def main(args):
 
     # init metric
     confmat = ConfMat(cfg['data']['num_classes'])
+    if not args.use_gt:
+        confmat2d = ConfMat(cfg['data']['num_classes'])
     not_occupied, skipped = 0, 0
 
     # go over each 2d3d sample
@@ -90,30 +92,28 @@ def main(args):
         ind3d = proj3d[1:1+num_inds]
         ind2d = proj2d[1:1+num_inds]
 
+        label_path = root / scan_name / 'label-filt' / f'{frames[frame_ndx]}.png' 
+        label_scannet = np.array(imageio.imread(label_path))
+        label_nyu40 = map_labels(label_scannet, scannet_to_nyu40)
+        # map from NYU40 labels to 0-39 + 40 (ignored) labels, H,W
+        y2d = nyu40_to_continuous(label_nyu40, ignore_label=cfg['data']['num_classes'], 
+                                            num_classes=cfg['data']['num_classes'])
+        # resize label image here using the proper interpolation - no artifacts  
+        # dims: H,W                                     
+        y2d = cv2.resize(y2d, img_size, interpolation=cv2.INTER_NEAREST)
+        y2d = torch.LongTensor(y2d.astype(np.int32))
+
         if args.use_gt:
-            label_path = root / scan_name / 'label-filt' / f'{frames[frame_ndx]}.png' 
-            label_scannet = np.array(imageio.imread(label_path))
-            label_nyu40 = map_labels(label_scannet, scannet_to_nyu40)
-            # map from NYU40 labels to 0-39 + 40 (ignored) labels, H,W
-            y = nyu40_to_continuous(label_nyu40, ignore_label=cfg['data']['num_classes'], 
-                                                num_classes=cfg['data']['num_classes'])
-            # resize label image here using the proper interpolation - no artifacts  
-            # dims: H,W                                     
-            y = cv2.resize(y, img_size, interpolation=cv2.INTER_NEAREST)
-            y = torch.LongTensor(y.astype(np.int32))
-            
             # labels at the required locations, index into H,W image
-            labels = y.view(-1)[ind2d]
+            labels = y2d.view(-1)[ind2d]
             # 40/ignore labels in 2d -> dont project 
             invalid_2d = (labels == cfg['data']['num_classes'])
             valid_2d = torch.logical_not(invalid_2d)
             
-            valid_ind2d = ind2d[valid_2d]
-            ind2d = valid_ind2d
-            valid_ind3d = ind3d[valid_2d]
-            ind3d = valid_ind3d
-            
-            labels = y.view(-1)[valid_ind2d]
+            ind2d = ind2d[valid_2d]
+            ind3d = ind3d[valid_2d]
+
+            labels = y2d.view(-1)[ind2d]
         else:
             # load rgb
             rgb_path = root / scan_name / 'color' / f'{frames[frame_ndx]}.jpg' 
@@ -127,6 +127,7 @@ def main(args):
             # get preds on this view
             with torch.no_grad():
                 pred2d = model(rgb).argmax(dim=1).squeeze().cpu()
+            confmat2d.update(pred2d, y2d)
             labels = pred2d.view(-1)[ind2d]
 
         # get the label volume - DHW
@@ -145,6 +146,10 @@ def main(args):
     iou_subset = np.nanmean(confmat.ious[class_subset])
     acc_subset = np.nanmean(confmat.accs[class_subset])
     print(f'iou: {iou_subset:.3f}, acc: {acc_subset:.3f}')
+
+    iou_subset2d = np.nanmean(confmat2d.ious[class_subset])
+    acc_subset2d = np.nanmean(confmat2d.accs[class_subset])
+    print(f'2d iou: {iou_subset2d:.3f}, 2d acc: {acc_subset2d:.3f}')
 
   
 if __name__ == '__main__':
