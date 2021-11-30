@@ -859,12 +859,12 @@ class UNet2D3D(UNet3D):
         proj_ind_3d = torch.stack(proj_mapping[0])
         proj_ind_2d = torch.stack(proj_mapping[1])
 
-        preds2d = None
         out = self.features_2d(rgbs, return_features=True, return_preds=self.train_2d)
         if self.train_2d:
             feat2d, logits2d = out
         else:
-            feat2d = out
+
+            feat2d, logits2d = out, None
 
         # get C,D,H,W for each feature map
         # pass empty ind3d -> get zero features
