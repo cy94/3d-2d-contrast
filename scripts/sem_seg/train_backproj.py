@@ -87,13 +87,13 @@ def main(args):
     train_loader = DataLoader(train_set, batch_size=cfg['train']['train_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
                             sampler=train_sampler,
-                            shuffle=train_shuffle, num_workers=8,
-                            pin_memory=True)  
+                            shuffle=train_shuffle, num_workers=8)
+                            # pin_memory=True)  
 
     val_loader = DataLoader(val_set, batch_size=cfg['train']['val_batch_size'],
                             collate_fn=ScanNet2D3DH5.collate_func,
-                            shuffle=False, num_workers=8,
-                            pin_memory=True) 
+                            shuffle=False, num_workers=8)
+                            # pin_memory=True) 
 
     model_name_2d = cfg['model']['name_2d']
     # create 2d have a pretrained full model? then
@@ -126,7 +126,16 @@ def main(args):
 
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
 
-    trainer = pl.Trainer(resume_from_checkpoint=ckpt,
+    
+    if args.eval:
+        assert (ckpt is not None), 'Evaluate but checkpoint not provided'
+        trainer = pl.Trainer(logger=None, 
+                            gpus=1 if not args.cpu else 0)
+        print('Evaluate with a checkpoint')
+        result = trainer.validate(model, val_loader, ckpt)
+    else:
+        print('Start training')
+        trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
                         num_sanity_val_steps=0,
                         gpus=1 if not args.cpu else 0, 
@@ -137,8 +146,7 @@ def main(args):
                         limit_val_batches=cfg['train']['limit_val_batches'],
                         fast_dev_run=args.fast_dev_run,
                         accumulate_grad_batches=cfg['train'].get('accum_grad', 1),)
-
-    trainer.fit(model, train_loader, val_loader)
+        trainer.fit(model, train_loader, val_loader)
 
 if __name__ == '__main__':
     args = get_args()
