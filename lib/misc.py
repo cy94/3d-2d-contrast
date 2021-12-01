@@ -33,9 +33,16 @@ def get_args():
         default=False, help='No checkpoint, no log')
     p.add_argument('--b', action='store_true', dest='b', 
                     default=False, help='Add b to wandb name')      
+    p.add_argument('--eval', action='store_true', dest='eval', 
+                    default=False, help='Eval with a checkpoint')      
+    
     
     p = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
+
+    if args.eval:
+        print('Evaluating, use debug mode')
+        args.debug = True
 
     if args.debug:
         print('Debug: no checkpoint, no log')
