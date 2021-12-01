@@ -359,6 +359,7 @@ dependencies:
     - scipy==1.6.3
     - sentry-sdk==1.0.0
     - setuptools==56.0.0
+    - sklearn==0.0
     - snakeviz==2.1.0
     - sqlalchemy==1.4.20
     - sqlparse==0.4.1
