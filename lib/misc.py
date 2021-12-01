@@ -1,12 +1,25 @@
 from pathlib import Path
 import yaml
 import argparse
+from datasets.scannet.common import CLASS_NAMES
 
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
+def display_results(results):
+    '''
+    results: result dict from pt lightning.trainer.validate
+    '''
+    cls_names = sorted(CLASS_NAMES)
+    
+    cls_str = '\t|'.join(cls_names)
+    val_str = '\t|'.join(map(str, [results[f'iou/val/{cls}'] for cls in cls_names]))
+    print(cls_str)
+    print(val_str)
+    print('mIOU:', results['iou/val/mean_subset'])
 
 
 def read_config(path):

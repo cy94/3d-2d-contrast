@@ -26,9 +26,9 @@ VALID_CLASSES_ALL = list(range(1, 41))
 CLASS_NAMES = ['wall', 'floor', 'cabinet', 
             'bed', 'chair', 'sofa', 'table', 
             'door', 'window', 'bookshelf', 'picture', 
-            'counter', 'desk', 'curtain', 'refrigerator', 
+            'counter', 'desk', 'curtain', 'refridgerator', 
             'shower_curtain', 'toilet', 'sink', 'bathtub', 
-            'otherfurn']
+            'otherfurniture']
 
 # 40 class names
 CLASS_NAMES_ALL = ['wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 
@@ -37,7 +37,6 @@ CLASS_NAMES_ALL = ['wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table',
 'books', 'refridgerator', 'television', 'paper', 'towel', 'shower_curtain', 
 'box', 'whiteboard', 'person', 'night stand', 'toilet', 'sink', 'lamp', 
 'bathtub', 'bag', 'otherstructure', 'otherfurniture', 'otherprop']
-
 
 
 # short class names, max 5 chars

@@ -2,7 +2,7 @@ from datasets.scannet.utils import BalancedUpSampler
 from torch.utils.data import WeightedRandomSampler
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 
-from lib.misc import get_args, get_logger_and_callbacks, read_config
+from lib.misc import display_results, get_args, get_logger_and_callbacks, read_config
 from models.sem_seg.utils import MODEL_MAP_2D, MODEL_MAP_2D3D, count_parameters
 
 from torchvision.transforms import Compose
@@ -132,7 +132,8 @@ def main(args):
         trainer = pl.Trainer(logger=None, 
                             gpus=1 if not args.cpu else 0)
         print('Evaluate with a checkpoint')
-        result = trainer.validate(model, val_loader, ckpt)
+        results = trainer.validate(model, val_loader, ckpt, verbose=False)
+        display_results(results[0])
     else:
         print('Start training')
         trainer = pl.Trainer(resume_from_checkpoint=ckpt,
