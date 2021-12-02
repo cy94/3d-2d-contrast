@@ -738,44 +738,49 @@ class UNet2D3D(UNet3D):
         '''
         mode: train/val/None - can be used in subclasses for differing behaviour
         '''
-        x, world_to_grid, frames = batch['x'], batch['world_to_grid'], \
-                                    batch['frames']
+        x = batch['x']
 
-        # x is NCDHW
-        bsize = x.shape[0]
+        # dont need these in 3d-only model
+        rgbs, depths, poses, transforms, frames = None, None, None, None, None
 
-        # dataset should have atleast num_nearest_images frames per chunk
-        # use only the number that is specified in the cfg
-        num_nearest_imgs = self.hparams['cfg']['data']['num_nearest_images']
-        # total number of frames (num chunks * num frames per chunk)
-        num_imgs = bsize * num_nearest_imgs
+        if self.use_2dfeat or self.contrastive:
+            # x is NCDHW
+            bsize = x.shape[0]
 
-        depths, poses, rgbs = batch['depths'], batch['poses'], batch['rgbs']
+            world_to_grid, frames = batch['world_to_grid'], batch['frames']
 
-        # keep only the number of frames required
-        depths = depths[:, :num_nearest_imgs, :, :]
-        poses = poses[:, :num_nearest_imgs, :, :]
-        rgbs = rgbs[:, :num_nearest_imgs, :, :, :]
-        frames = frames[:, :num_nearest_imgs]
+            # dataset should have atleast num_nearest_images frames per chunk
+            # use only the number that is specified in the cfg
+            num_nearest_imgs = self.hparams['cfg']['data']['num_nearest_images']
+            # total number of frames (num chunks * num frames per chunk)
+            num_imgs = bsize * num_nearest_imgs
 
-        if self.train_2d:
-            labels2d = batch['labels2d'][:, :num_nearest_imgs, :, :]
-            labels2d = labels2d.reshape(num_imgs, labels2d.shape[2], labels2d.shape[3])
+            depths, poses, rgbs = batch['depths'], batch['poses'], batch['rgbs']
 
-        # collapse batch size and "num nearest img" dims
-        # N, H, W (30, 40)
-        depths = depths.reshape(num_imgs, depths.shape[2], depths.shape[3])
-        # N, 4, 4
-        poses = poses.reshape(num_imgs, poses.shape[2], poses.shape[3])
-        # N, H, W (240, 320)
-        rgbs = rgbs.reshape(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
-        # N, 1
-        frames = frames.reshape(num_imgs, 1)
+            # keep only the number of frames required
+            depths = depths[:, :num_nearest_imgs, :, :]
+            poses = poses[:, :num_nearest_imgs, :, :]
+            rgbs = rgbs[:, :num_nearest_imgs, :, :, :]
+            frames = frames[:, :num_nearest_imgs]
 
-        # repeat the w2g transform for each image
-        # add an extra dimension 
-        transforms = world_to_grid.unsqueeze(1)
-        transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
+            if self.train_2d:
+                labels2d = batch['labels2d'][:, :num_nearest_imgs, :, :]
+                labels2d = labels2d.reshape(num_imgs, labels2d.shape[2], labels2d.shape[3])
+
+            # collapse batch size and "num nearest img" dims
+            # N, H, W (30, 40)
+            depths = depths.reshape(num_imgs, depths.shape[2], depths.shape[3])
+            # N, 4, 4
+            poses = poses.reshape(num_imgs, poses.shape[2], poses.shape[3])
+            # N, H, W (240, 320)
+            rgbs = rgbs.reshape(num_imgs, 3, rgbs.shape[3], rgbs.shape[4])
+            # N, 1
+            frames = frames.reshape(num_imgs, 1)
+
+            # repeat the w2g transform for each image
+            # add an extra dimension 
+            transforms = world_to_grid.unsqueeze(1)
+            transforms = transforms.expand(bsize, num_nearest_imgs, 4, 4).contiguous().view(-1, 4, 4).to(self.device)
         
         # model forward pass 
         out = self(x, rgbs, depths, poses, transforms, frames, return_features=self.contrastive)
@@ -1011,13 +1016,14 @@ class UNet2D3D_3DMV(UNet2D3D):
         All the differentiable ops here
         return_features: return the intermediate 2d and 3d features
         '''
-        # fwd pass on rgb, then project to 3d volume and get features
-        out = self.rgb_to_feat3d(rgbs, depths, poses, transforms, frames)
-        # skip this batch
-        if out is None:
-            return None
+        if self.use_2dfeat or self.contrastive:
+            # fwd pass on rgb, then project to 3d volume and get features
+            out = self.rgb_to_feat3d(rgbs, depths, poses, transforms, frames)
+            # skip this batch
+            if out is None:
+                return None
 
-        feat2d_proj, feat2d_ind3d, logits2d = out 
+            feat2d_proj, feat2d_ind3d, logits2d = out 
 
         if self.use_2dfeat:
             # conv on 2d feats, down

@@ -34,18 +34,25 @@ def main(args):
 
     train_t = [
         AddChannelDim(),
-        TransposeDims(),
-        LoadDepths(cfg),
-        LoadPoses(cfg),
-        LoadRGBs(cfg, transform=train_t2d)
+        TransposeDims()
     ]
     val_t = [
         AddChannelDim(),
-        TransposeDims(),
-        LoadDepths(cfg),
-        LoadPoses(cfg),
-        LoadRGBs(cfg, transform=val_t2d)
+        TransposeDims()
     ]
+    # load only if using 2d features or contrastive
+    if cfg['model']['use_2dfeat'] or 'contrastive' in cfg['model']:
+        train_t += [
+            LoadDepths(cfg),
+            LoadPoses(cfg),
+            LoadRGBs(cfg, transform=train_t2d)
+        ]
+        val_t += [
+            LoadDepths(cfg),
+            LoadPoses(cfg),
+            LoadRGBs(cfg, transform=val_t2d)
+        ]
+
     if cfg['model'].get('train_2d', False):
         print('Train the 2d network on 2d labels')
         train_t.append(LoadLabels2D(cfg))

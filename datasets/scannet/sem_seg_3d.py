@@ -96,9 +96,12 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
         
     @staticmethod
     def collate_func(samples):
-        floats = 'x', 'world_to_grid', 
-        ints = 'y', 'frames', 'scene_id', 'scan_id', 'has_label'
-        stack_tensors = 'depths', 'rgbs', 'poses', 'labels2d'
+        # get the key in the first sample
+        have_keys = set(samples[0].keys())
+        # set only the keys which are there in the sample
+        floats = list(set(('x', 'world_to_grid')).intersection(have_keys))
+        ints = list(set(('y', 'frames', 'scene_id', 'scan_id', 'has_label')).intersection(have_keys))
+        stack_tensors = list(set(('depths', 'rgbs', 'poses', 'labels2d')).intersection(have_keys))
 
         batch = {}
 
@@ -109,11 +112,7 @@ class ScanNet2D3DH5(ScanNetOccGridH5):
             batch[key] = torch.LongTensor([s[key] for s in samples])             
         # these are already tensors, stack them
         for key in stack_tensors:
-            try:
-                batch[key] = torch.stack([s[key] for s in samples])
-            except KeyError:
-                # some of these might not be present
-                pass
+            batch[key] = torch.stack([s[key] for s in samples])
 
         return batch
 
