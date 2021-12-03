@@ -56,12 +56,11 @@ class DeepLabHeadCustom(nn.Module):
             nn.Conv2d(128, num_classes, 1)
         )
 
-    def forward(self, x, return_features=False):
+    def forward(self, x):
         x = self.aspp(x)
-        if return_features:
-            return x
-        x = self.conv(x)
-        return x
+        feats = x
+        preds = self.conv(x)
+        return feats, preds
 
 class DeepLabv3(SemSegNet2D, SemSegNet):
     ''' 
@@ -87,13 +86,13 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
         x = features["out"]
         
         # now get intermediate features or final output
-        x = self.dlv3.classifier(x, return_features=return_features)
-        feats = x
+        feats, preds = self.dlv3.classifier(x)
         # handle all 3 cases - feats/preds only, both
         if return_features and not return_preds:
             return feats
         if return_preds:
-            preds = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
+            # get preds at original size
+            preds = F.interpolate(preds, size=input_shape, mode="bilinear", align_corners=False)
             if return_features:
                 return feats, preds
             else:
