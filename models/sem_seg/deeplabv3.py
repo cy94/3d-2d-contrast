@@ -56,9 +56,13 @@ class DeepLabHeadCustom(nn.Module):
             nn.Conv2d(128, num_classes, 1)
         )
 
-    def forward(self, x):
+    def forward(self, x, return_features, return_preds):
         x = self.aspp(x)
         feats = x
+        # only features
+        if return_features and not return_preds:
+            return feats, None
+        # get predictions, return both
         preds = self.conv(x)
         return feats, preds
 
@@ -86,7 +90,8 @@ class DeepLabv3(SemSegNet2D, SemSegNet):
         x = features["out"]
         
         # now get intermediate features or final output
-        feats, preds = self.dlv3.classifier(x)
+        feats, preds = self.dlv3.classifier(x, return_features=return_features, 
+                                            return_preds=return_preds)
         # handle all 3 cases - feats/preds only, both
         if return_features and not return_preds:
             return feats
