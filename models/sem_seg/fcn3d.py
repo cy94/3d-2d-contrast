@@ -295,7 +295,7 @@ class SemSegNet(pl.LightningModule):
 
         current_val_loss = val_loss['crossent'] if isinstance(val_loss, dict) else val_loss
 
-        if current_val_loss < self.best_val_loss:
+        if current_val_loss <= self.best_val_loss:
             self.best_val_loss = current_val_loss
             expt = self.logger.experiment
             expt.summary["best_val_loss"] = current_val_loss
