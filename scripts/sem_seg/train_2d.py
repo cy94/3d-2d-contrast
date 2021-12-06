@@ -58,11 +58,6 @@ def main(args):
     # pick the 2d model
     model = MODEL_MAP_2D[cfg['model']['name']](num_classes=cfg['data']['num_classes'], cfg=cfg)
     
-    model = model.cuda()
-    input_dims = (1, 3) + tuple(cfg['data']['img_size'][::-1])
-    print(input_dims)
-    # summary(model, input_dims)
-
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
 
     ckpt = cfg['train']['resume']
