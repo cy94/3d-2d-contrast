@@ -1016,6 +1016,7 @@ class UNet2D3D_3DMV(UNet2D3D):
         All the differentiable ops here
         return_features: return the intermediate 2d and 3d features
         '''
+        logits2d = None
         if self.use_2dfeat or self.contrastive:
             # fwd pass on rgb, then project to 3d volume and get features
             out = self.rgb_to_feat3d(rgbs, depths, poses, transforms, frames)
