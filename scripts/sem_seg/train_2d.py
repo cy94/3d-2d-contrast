@@ -1,5 +1,5 @@
 import argparse
-from lib.misc import get_args, get_logger_and_callbacks, read_config
+from lib.misc import display_results, get_args, get_logger_and_callbacks, read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D
 from models.sem_seg.utils import MODEL_MAP_2D
 from transforms.image_2d import ColorJitter, GaussNoise, GaussianBlur, HueSaturationValue, LRFlip, Normalize
@@ -62,7 +62,16 @@ def main(args):
 
     ckpt = cfg['train']['resume']
 
-    trainer = pl.Trainer(resume_from_checkpoint=ckpt,
+    if args.eval:
+        assert (ckpt is not None), 'Evaluate but checkpoint not provided'
+        trainer = pl.Trainer(logger=None, 
+                            gpus=1 if not args.cpu else 0)
+        print('Evaluate with a checkpoint')
+        results = trainer.validate(model, val_loader, ckpt, verbose=False)
+        display_results(results[0])
+    else:
+        print('Start training')
+        trainer = pl.Trainer(resume_from_checkpoint=ckpt,
                         logger=wblogger,
                         num_sanity_val_steps=0,
                         gpus=1 if not args.cpu else 0, 
@@ -72,9 +81,8 @@ def main(args):
                         val_check_interval=cfg['train']['eval_intv'],
                         limit_val_batches=cfg['train']['limit_val_batches'],
                         fast_dev_run=args.fast_dev_run,
-                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1))
-
-    trainer.fit(model, train_loader, val_loader)
+                        accumulate_grad_batches=cfg['train'].get('accum_grad', 1),)
+        trainer.fit(model, train_loader, val_loader)
 
   
 if __name__ == '__main__':
