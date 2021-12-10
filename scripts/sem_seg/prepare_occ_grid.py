@@ -62,6 +62,7 @@ def main(args):
     root = Path(args.scannet_dir)
     voxel_size = args.voxel_size
     print(f'Using voxel size: {voxel_size}')
+    print(f'Read labels?: {not args.no_label}')
 
     for scan_id in tqdm(sorted(os.listdir(root)), desc='scan'):
         scan_dir = root / scan_id
@@ -74,11 +75,16 @@ def main(args):
         input_grid = input_mesh.voxelized(pitch=voxel_size) 
         
         # read GT mesh, get vertex coordinates and labels
-        _, rgb, _ = load_ply(scan_dir / input_file)
-        # read coords and labels from GT file
-        coords, _, labels = load_ply(scan_dir / gt_file, read_label=True)
+        coords, rgb, _ = load_ply(scan_dir / input_file)
 
-        label_grid, rgb_grid, center_colors = get_label_grid(input_grid, coords, labels, rgb)
+        if args.no_label:
+            # no labels, zeros
+            label_grid = np.zeros_like(input_grid.matrix, dtype=np.int16)
+        else:
+            # read coords and labels from GT file
+            _, _, labels = load_ply(scan_dir / gt_file, read_label=True)
+            # get label grid
+            label_grid, _, _ = get_label_grid(input_grid, coords, labels, rgb)
         
         x, y = input_grid.matrix, label_grid
         out_file = f'{scan_id}_occ_grid.pth'
@@ -93,6 +99,8 @@ if __name__ == '__main__':
     # data paths
     parser.add_argument('scannet_dir', help='path to scannet root dir file to read')
     parser.add_argument('--voxel-size', type=float, dest='voxel_size', default=0.05)
+    parser.add_argument('--no-label', action='store_true', default=False, dest='no_label', 
+                        help='No labels (test set)')
 
     args = parser.parse_args()
 
