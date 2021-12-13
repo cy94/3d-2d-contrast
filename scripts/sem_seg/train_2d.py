@@ -1,4 +1,4 @@
-import argparse
+from torchinfo import summary
 from lib.misc import display_results, get_args, get_logger_and_callbacks, read_config
 from datasets.scannet.sem_seg_2d import ScanNetSemSeg2D
 from models.sem_seg.utils import MODEL_MAP_2D
@@ -58,6 +58,9 @@ def main(args):
     # pick the 2d model
     model = MODEL_MAP_2D[cfg['model']['name']](num_classes=cfg['data']['num_classes'], cfg=cfg)
     
+    model.cuda()
+    summary(model.dlv3.backbone, input_size=(1, 3, 240, 320))
+
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
 
     ckpt = cfg['train']['resume']
