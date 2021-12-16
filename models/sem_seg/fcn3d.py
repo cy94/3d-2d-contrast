@@ -1100,7 +1100,7 @@ def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
 
     return loss
 
-def NCE_loss(feat1, feat2, temp):
+def NCE_loss(feat1, feat2, temp, positives=None):
     '''
     contrasts feat2 with feat1 (feat2 in numerator, rest in denominator)
 
@@ -1110,41 +1110,24 @@ def NCE_loss(feat1, feat2, temp):
     feat1_norm = l2_norm_vecs(feat1)
     feat2_norm = l2_norm_vecs(feat2)
 
-    # find all pair feature distances
-    # multiply (N,C) and (C,N), get (N,N)
-    scores = torch.matmul(feat2_norm, feat1_norm.T)
-    labels = torch.arange(len(feat1)).to(feat1.device)
-    # get contrastive loss
-    ct_loss = F.cross_entropy(scores/temp, labels)
-
-    return ct_loss
-
-def NCE_loss_positives(feat1, feat2, positives, temp):
-    '''
-    contrast feat2 with feat1, similar to above
-    but use 'positives' as the +ve features
-    '''
-    feat1_norm = l2_norm_vecs(feat1)
-    feat2_norm = l2_norm_vecs(feat2)
-    positives_norm = l2_norm_vecs(positives)
-
     n_points = len(feat1)
 
     # find all pair feature distances
     # multiply (N,C) and (C,N), get (N,N)
     scores = torch.matmul(feat2_norm, feat1_norm.T)
-    # scores for positives - dot product of corresponding pairs 
-    pos_scores = (feat2_norm * positives_norm).sum(1)
-    # insert into the diagonal of scores
-    scores[torch.arange(n_points), torch.arange(n_points)] = pos_scores
-    # labels as usual - using the new positives, rest are negatives
-    labels = torch.arange(n_points).to(feat1.device)
+
+    if positives is not None:
+        positives_norm = l2_norm_vecs(positives)
+        # scores for positives - dot product of corresponding pairs 
+        pos_scores = (feat2_norm * positives_norm).sum(1)
+        # insert into the diagonal of scores
+        scores[torch.arange(n_points), torch.arange(n_points)] = pos_scores
+
+    labels = torch.arange(len(feat1)).to(feat1.device)
     # get contrastive loss
     ct_loss = F.cross_entropy(scores/temp, labels)
 
     return ct_loss
-
-
 
 def pointinfoNCE_loss(feat2d, feat3d, contr_cfg):
     '''
@@ -1157,7 +1140,7 @@ def pointinfoNCE_loss(feat2d, feat3d, contr_cfg):
     if 'extra_pairs' in contr_cfg:
         if '3d' in contr_cfg['extra_pairs']:
             breakpoint()
-            ct_loss += NCE_loss_positives(feat3d, feat3d, feat2d, temp)
+            ct_loss += NCE_loss(feat3d, feat3d, temp, positives=feat2d)
 
     return ct_loss
 
