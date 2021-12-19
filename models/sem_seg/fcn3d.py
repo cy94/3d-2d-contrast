@@ -1100,7 +1100,7 @@ def hardest_contrastive_loss(feat1, feat2, margin_pos, margin_neg):
 
     return loss
 
-def NCE_loss(feat1, feat2, temp, positives=None):
+def NCE_loss(feat1, feat2, temp, negatives=None):
     '''
     contrasts feat2 with feat1 (feat2 in numerator, rest in denominator)
 
@@ -1116,12 +1116,18 @@ def NCE_loss(feat1, feat2, temp, positives=None):
     # multiply (N,C) and (C,N), get (N,N)
     scores = torch.matmul(feat2_norm, feat1_norm.T)
 
-    if positives is not None:
-        positives_norm = l2_norm_vecs(positives)
-        # scores for positives - dot product of corresponding pairs 
-        pos_scores = (feat2_norm * positives_norm).sum(1)
-        # insert into the diagonal of scores
-        scores[torch.arange(n_points), torch.arange(n_points)] = pos_scores
+    # use extra negatives in the denominator
+    if negatives is not None:
+        negatives_norm = l2_norm_vecs(negatives)
+        # scores for negatives - dot product of corresponding pairs 
+        neg_scores = torch.matmul(feat2_norm, negatives_norm.T)
+        # remove the diagonal elements
+        mask = torch.ones_like(neg_scores, dtype=bool)
+        mask[torch.arange(n_points), torch.arange(n_points)] = False
+        neg_scores_new = torch.masked_select(neg_scores, mask).reshape(n_points, -1)
+        # append to the scores matrix
+        # NxN + NxN-1 -> Nx2N-1
+        scores = torch.cat((scores, neg_scores_new), -1)
 
     labels = torch.arange(len(feat1)).to(feat1.device)
     # get contrastive loss
@@ -1135,11 +1141,12 @@ def pointinfoNCE_loss(feat2d, feat3d, contr_cfg):
     feat3d: 3d features
     '''
     temp = contr_cfg['temperature']
-    ct_loss = NCE_loss(feat2d, feat3d, temp)
 
     if 'extra_pairs' in contr_cfg:
         if '3d' in contr_cfg['extra_pairs']:
-            ct_loss += NCE_loss(feat3d, feat3d, temp, positives=feat2d)
+            ct_loss = NCE_loss(feat3d, feat3d, temp, negatives=feat3d)
+    else:
+        ct_loss = NCE_loss(feat2d, feat3d, temp)
 
     return ct_loss
 
