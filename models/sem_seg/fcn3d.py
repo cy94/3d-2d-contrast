@@ -1144,7 +1144,7 @@ def pointinfoNCE_loss(feat2d, feat3d, contr_cfg):
 
     if 'extra_pairs' in contr_cfg:
         if '3d' in contr_cfg['extra_pairs']:
-            ct_loss = NCE_loss(feat3d, feat3d, temp, negatives=feat3d)
+            ct_loss = NCE_loss(feat2d, feat3d, temp, negatives=feat3d)
     else:
         ct_loss = NCE_loss(feat2d, feat3d, temp)
 
