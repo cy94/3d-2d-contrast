@@ -881,10 +881,17 @@ class UNet2D3D(UNet3D):
         # N = #volumes x #imgs/vol 
         # keep the features from different images separate                      
         feat2d_proj = torch.stack(feat2d_proj, dim=4)   
-
-        # reshape to max pool over features
+        
         # C, D, H, W, N
         sz = feat2d_proj.shape
+
+        # keep the feats from each view separately as well, can be used later
+        num_nearest_imgs = self.hparams['cfg']['data']['num_nearest_images']
+        # N, num_nearest_images, C, D, H, W
+        feat2d_all = feat2d_proj.permute(4, 0, 1, 2, 3).reshape(-1, num_nearest_imgs, 
+                                                    sz[0], sz[1], sz[2], sz[3])
+        
+        # reshape to max pool over features
         # C, D*H*W, N
         feat2d_proj = feat2d_proj.view(sz[0], -1, N)
         # pool features from images
@@ -899,8 +906,7 @@ class UNet2D3D(UNet3D):
         # back to #vols, C, D, H, W
         feat2d_proj = feat2d_proj.permute(4, 0, 1, 2, 3)   
 
-        # TODO: retain the un-pooled feat2d_proj to be used later for contrasting
-        return feat2d_proj, proj_ind_3d, logits2d
+        return feat2d_proj, proj_ind_3d, logits2d, feat2d_all
 
     def forward(self, x, rgbs, depths, poses, transforms, frames, return_features=False):
         '''
@@ -1024,7 +1030,7 @@ class UNet2D3D_3DMV(UNet2D3D):
             if out is None:
                 return None
 
-            feat2d_proj, feat2d_ind3d, logits2d = out 
+            feat2d_proj, feat2d_ind3d, logits2d, feat2d_all = out 
 
         if self.use_2dfeat:
             # conv on 2d feats, down
@@ -1054,6 +1060,9 @@ class UNet2D3D_3DMV(UNet2D3D):
 
             feat2d_vecs, feat3d_vecs = [], []  
 
+            # N, num_nearest_images, C, D, H, W
+            num_nearest_images = feat2d_all.shape[1]
+
             for ndx in range(x.shape[0]):
                 # proj inds for this sample
                 proj3d = feat2d_ind3d[ndx]
@@ -1065,11 +1074,26 @@ class UNet2D3D_3DMV(UNet2D3D):
                 # in the input?
                 occupied_mask = (x[ndx].squeeze().view(-1)[ind3d] == 1)
                 overlap_inds = ind3d[occupied_mask]
-                # pick 3d feats at these locations
-                feat3d_vecs.append(feat3d[ndx].view(feat_dim, -1)[:, overlap_inds])
-                # pick 2d feats at these locations
-                feat2d_vecs.append(feat2d_proj[ndx].view(feat_dim, -1)[:, overlap_inds])
-                
+
+                # contrast with 2d feats that have not been pooled
+                if self.contr_cfg.get('contrast_unpooled', False):
+                    for view_ndx in range(num_nearest_images):
+                        # pick the same 3d feats at these locations repeatedly
+                        feat3d_flat = feat3d[ndx].view(feat_dim, -1)
+                        feat3d_vecs.append(feat3d_flat[:, overlap_inds])
+
+                        # pick 2d feats at these locations from the n-th view
+                        feat2d_flat = feat2d_all[ndx, view_ndx].view(feat_dim, -1)
+                        feat2d_vecs.append(feat2d_flat[:, overlap_inds])
+                else:
+                    # pick the 3d feats
+                    feat3d_flat = feat3d[ndx].view(feat_dim, -1)
+                    feat3d_vecs.append(feat3d_flat[:, overlap_inds])
+
+                    # pick 2d feats
+                    feat2d_flat = feat2d_proj[ndx].view(feat_dim, -1)
+                    feat2d_vecs.append(feat2d_flat[:, overlap_inds])
+
             ret_dict['feat2d'] = torch.cat(feat2d_vecs, -1).T
             ret_dict['feat3d'] = torch.cat(feat3d_vecs, -1).T
 
@@ -1117,7 +1141,7 @@ def NCE_loss(feat1, feat2, temp, negatives=None):
     scores = torch.matmul(feat2_norm, feat1_norm.T)
 
     # use extra negatives in the denominator
-    if negatives is not None:
+    if n_points > 0 and negatives is not None:
         negatives_norm = l2_norm_vecs(negatives)
         # scores for negatives - dot product of corresponding pairs 
         neg_scores = torch.matmul(feat2_norm, negatives_norm.T)

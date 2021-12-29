@@ -13,7 +13,7 @@ data:
     # size of each subvol
     subvol_size: [32, 32, 64]
     # how many rgb images for each chunk (3DMV)
-    num_nearest_images: 1
+    num_nearest_images: 3
     # size of the image that "looks" at the voxel
     proj_img_size: [40, 30]
     rgb_img_size: [320, 240] 
@@ -39,13 +39,14 @@ model:
 
     # 2d model checkpoint
     # this model will be overwritten if pretrained is specified
+    # 806, 818, 800
     ckpt_2d: lightning_logs/version_806/checkpoints/last.ckpt
 
     # finetune the whole 2d network?
     finetune_2d: False
 
     # load state dict for the whole model from here
-    # pretrained: lightning_logs/version_843/checkpoints/last.ckpt
+    # pretrained: lightning_logs/version_873/checkpoints/last.ckpt
 
     losses:
         - contrastive 
@@ -54,17 +55,19 @@ model:
     contrastive:
         temperature: 0.04
         n_points: 8192
-        # other than 3d-2d pairs
-        extra_pairs:
-            - 3d
+        # contrast 3d with the unpooled 2d features when using >1 view
+        contrast_unpooled: true
+    #     # other than 3d-2d pairs
+    #     extra_pairs:
+    #         - 3d
 
 train:
     opt: 
         name: adam
         lr: 0.0001
         l2: 0.0000
-    train_batch_size: 12
-    val_batch_size: 12
+    train_batch_size: 10
+    val_batch_size: 10
     epochs: 3000
     class_weights: true
     eval_intv: 2000
