@@ -64,6 +64,7 @@ def main(args):
         trainer = pl.Trainer(logger=None, 
                             gpus=1 if not args.cpu else 0)
         print('Evaluate with a checkpoint')
+        model.log_all_classes = True
         results = trainer.validate(model, val_loader, ckpt, verbose=False)
         display_results(results[0])
     else:
