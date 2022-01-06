@@ -641,21 +641,22 @@ class UNet2D3D(UNet3D):
 
         # 2D pretrained model
         self.features_2d = features_2d
-
-        print('Using 2d feats in 2d3d model?: ', self.use_2dfeat)
-
         # train the 2d model on 2d labels?
         self.train_2d = cfg['model'].get('train_2d', False)
-        print(f'Train the 2D model on 2D labels?: {self.train_2d}')
 
-        finetune_2d = cfg['model'].get('finetune_2d', False)
-        if finetune_2d:
-            print('Finetune 2D weights')
-        else:
-            # freeze the 2d weights
-            print('Freeze 2D weights')
-            for param in self.features_2d.parameters():
-                param.requires_grad = False
+        if self.features_2d is not None:
+            print('Using 2d feats in 2d3d model?: ', self.use_2dfeat)
+
+            print(f'Train the 2D model on 2D labels?: {self.train_2d}')
+
+            finetune_2d = cfg['model'].get('finetune_2d', False)
+            if finetune_2d:
+                print('Finetune 2D weights')
+            else:
+                # freeze the 2d weights
+                print('Freeze 2D weights')
+                for param in self.features_2d.parameters():
+                    param.requires_grad = False
 
         self.subvol_size = cfg['data']['subvol_size']
         self.proj_img_dims = cfg['data']['proj_img_size']
