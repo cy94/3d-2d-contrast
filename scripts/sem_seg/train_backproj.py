@@ -144,6 +144,10 @@ def main(args):
         if args.eval:                    
             print('Evaluate with a checkpoint')
             model.log_all_classes = True
+            if not args.cpu:
+                # force change to GPU if required
+                model = model.cuda()
+                model.change_device()
             results = trainer.validate(model, val_loader, ckpt, verbose=False)
             display_results(results[0])
         else:
