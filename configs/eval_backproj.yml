@@ -1,0 +1,50 @@
+data:
+    root: /mnt/data/scannet/scans/
+    label_file: /mnt/data/scannet/scannetv2-labels.combined.tsv
+    train_file: /mnt/data/scannet/backproj/train-v13.h5
+    # keep train labels only for these scenes
+    # filter_train_label: /mnt/data/scannet/limited_recon/seg_scenes/1.txt
+    val_file: /mnt/data/scannet/backproj/val-v8.h5
+    # 20 or 40 classes?
+    num_classes: 40
+    # padding value used in the target - usually = num_classes
+    # since targets are 0..num_classes-1
+    target_padding: 40
+    # size of each subvol
+    subvol_size: [32, 32, 64]
+    # how many rgb images for each chunk (3DMV)
+    num_nearest_images: 1
+    # size of the image that "looks" at the voxel
+    proj_img_size: [40, 30]
+    rgb_img_size: [320, 240] 
+    
+    # side of each voxel in meters
+    voxel_size: 0.05
+
+    # min and max depth considered for projection
+    depth_min: 0.4
+    depth_max: 4.0
+
+model: 
+    name: UNet2D3D_3DMV
+    name_2d: DeepLabv3 #DeepLabv3 #ENet
+    
+    # concat 2d feats to the 3d network
+    use_2dfeat: True
+
+    losses:
+        - crossent
+
+train:
+    opt: 
+        name: adam
+        lr: 0.0001
+        l2: 0.0000
+    train_batch_size: 12
+    val_batch_size: 12
+    epochs: 3000
+    class_weights: true
+    eval_intv: 2666
+    limit_val_batches: 1.0
+
+    resume: lightning_logs/version_812/checkpoints/epoch00-step23999-miou0.39.ckpt
