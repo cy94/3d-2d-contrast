@@ -146,6 +146,8 @@ def main(args):
     iou_subset = np.nanmean(confmat.ious[class_subset])
     acc_subset = np.nanmean(confmat.accs[class_subset])
     print(f'iou: {iou_subset:.3f}, acc: {acc_subset:.3f}')
+    val_str = '\t & '.join(map(lambda x: f'{x:.2f}', confmat.ious[class_subset]))
+    print(val_str, f' & {iou_subset:.2f} & {acc_subset:.2f}')
 
     iou_subset2d = np.nanmean(confmat2d.ious[class_subset])
     acc_subset2d = np.nanmean(confmat2d.accs[class_subset])
