@@ -682,7 +682,8 @@ class UNet2D3D(UNet3D):
         '''
         Change device for everything that ptL/torch doesn't handle
         '''
-        self.features_2d.to(self.device)
+        if self.features_2d is not None:
+            self.features_2d.to(self.device)
         self.projection.to(self.device)
 
     def init_model(self):
