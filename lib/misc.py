@@ -14,12 +14,13 @@ def display_results(results):
     results: result dict from pt lightning.trainer.validate
     '''
     cls_names = sorted(CLASS_NAMES)
-    
-    cls_str = '\t|'.join(cls_names)
-    val_str = '\t|'.join(map(str, [results[f'iou/val/{cls}'] for cls in cls_names]))
+    cls_str = '\t & '.join(cls_names)
+    val_str = '\t & '.join(map(lambda x: f'{x:.2f}', [results[f'iou/val/{cls}'] for cls in cls_names]))
     print(cls_str)
-    print(val_str)
-    print('mIOU:', results['iou/val/mean_subset'])
+    print('ious, mIoU, mAcc')
+    miou = results['iou/val/mean_subset']
+    macc = results['acc/val/mean_subset']
+    print(val_str, f' & {miou:.2f} & {macc:.2f}')
 
 
 def read_config(path):
@@ -47,14 +48,15 @@ def get_args():
     p.add_argument('--b', action='store_true', dest='b', 
                     default=False, help='Add b to wandb name')      
     p.add_argument('--eval', action='store_true', dest='eval', 
-                    default=False, help='Eval with a checkpoint')      
-    
+                    default=False, help='Eval with a checkpoint') 
+    p.add_argument('--pred', action='store_true', dest='pred', 
+                    default=False, help='Generate preds with a checkpoint')                          
     
     p = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
 
-    if args.eval:
-        print('Evaluating, use debug mode')
+    if args.eval or args.pred:
+        print('Evaluating/predicting use debug mode')
         args.debug = True
 
     if args.debug:
