@@ -102,17 +102,20 @@ def main(args):
                             shuffle=False, num_workers=8)
                             # pin_memory=True) 
 
-    model_name_2d = cfg['model']['name_2d']
-    # create 2d have a pretrained full model? then
-    if 'ckpt_2d' in cfg['model']:
-        print('Use pretrained 2D model')
-        features_2d = MODEL_MAP_2D[model_name_2d].load_from_checkpoint(cfg['model']['ckpt_2d'])
-    else:
-        print('Create a new 2D model')
-        features_2d = MODEL_MAP_2D[model_name_2d](num_classes=cfg['data']['num_classes'], cfg=cfg)
-        if 'pretrained' not in cfg['model']:
-            print('Set finetune2d to True')
-            cfg['model']['finetune_2d'] = True
+    model_name_2d = cfg['model'].get('name_2d', None)
+    features_2d = None
+    # do we have a 2d model?
+    if model_name_2d:
+        # create 2d have a pretrained full model? then
+        if 'ckpt_2d' in cfg['model']:
+            print('Use pretrained 2D model')
+            features_2d = MODEL_MAP_2D[model_name_2d].load_from_checkpoint(cfg['model']['ckpt_2d'])
+        else:
+            print('Create a new 2D model')
+            features_2d = MODEL_MAP_2D[model_name_2d](num_classes=cfg['data']['num_classes'], cfg=cfg)
+            if 'pretrained' not in cfg['model']:
+                print('Set finetune2d to True')
+                cfg['model']['finetune_2d'] = True
 
     # intrinsic of the color camera from scene0001_00
     intrinsic = make_intrinsic(1170.187988, 1170.187988, 647.75, 483.75)
@@ -134,13 +137,17 @@ def main(args):
     wblogger, callbacks = get_logger_and_callbacks(args, cfg)
 
     
-    if args.eval:
+    if args.eval or args.pred:
         assert (ckpt is not None), 'Evaluate but checkpoint not provided'
         trainer = pl.Trainer(logger=None, 
                             gpus=1 if not args.cpu else 0)
-        print('Evaluate with a checkpoint')
-        results = trainer.validate(model, val_loader, ckpt, verbose=False)
-        display_results(results[0])
+        if args.eval:                    
+            print('Evaluate with a checkpoint')
+            results = trainer.validate(model, val_loader, ckpt, verbose=False)
+            display_results(results[0])
+        else:
+            print('Generate predictions with a checkpoint')
+            preds = trainer.predict(model, val_loader, ckpt, verbose=False)
     else:
         print('Start training')
         trainer = pl.Trainer(resume_from_checkpoint=ckpt,
