@@ -120,14 +120,18 @@ def continous_to_nyu40(img):
     
     return new_img
 
-def load_ply(path, read_label=False):
+def load_ply(path, read_label=False, read_colors=True):
     ply_path = Path(path)
     plydata = PlyData.read(ply_path)
     
     data = plydata.elements[0].data
 
     coords = np.array([data['x'], data['y'], data['z']], dtype=np.float32).T
-    feats = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
+    
+    if read_colors:
+        feats = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
+    else:
+        feats = None
     
     if read_label:  
       labels = np.array(data['label'], dtype=np.int32)
