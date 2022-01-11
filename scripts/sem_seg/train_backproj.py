@@ -1,4 +1,5 @@
 from datasets.scannet.utils import BalancedUpSampler
+from eval.sem_seg_3d import gen_predictions, get_dataset_split_scans
 from torch.utils.data import WeightedRandomSampler
 from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
 
@@ -141,18 +142,28 @@ def main(args):
         assert (ckpt is not None), 'Evaluate but checkpoint not provided'
         trainer = pl.Trainer(logger=None, 
                             gpus=1 if not args.cpu else 0)
+        if not args.cpu:
+            # force change to GPU if required
+            model = model.cuda()
+            model.change_device()
         if args.eval:                    
             print('Evaluate with a checkpoint')
             model.log_all_classes = True
-            if not args.cpu:
-                # force change to GPU if required
-                model = model.cuda()
-                model.change_device()
             results = trainer.validate(model, val_loader, ckpt, verbose=False)
             display_results(results[0])
         else:
             print('Generate predictions with a checkpoint')
-            preds = trainer.predict(model, val_loader, ckpt, verbose=False)
+            # predictions only on this scan
+            scene_scan = (568, 0)
+            # split the val set into scenes
+            splits = torch.load(cfg['data']['val_splits_file'])
+            # pick only the required scene and do inference
+            val_set_single = Subset(val_set, splits[scene_scan])
+            val_loader = DataLoader(val_set_single, batch_size=cfg['train']['val_batch_size'],
+                            collate_fn=ScanNet2D3DH5.collate_func,
+                            shuffle=False, num_workers=8)
+            preds = gen_predictions(model, val_loader, ckpt)
+            
     else:
         print('Start training')
         trainer = pl.Trainer(resume_from_checkpoint=ckpt,
