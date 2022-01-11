@@ -1,10 +1,4 @@
-from datasets.scannet.utils import BalancedUpSampler
-from eval.sem_seg_3d import gen_predictions, get_dataset_split_scans
-from torch.utils.data import WeightedRandomSampler
-from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
-
-from lib.misc import display_results, get_args, get_logger_and_callbacks, read_config
-from models.sem_seg.utils import MODEL_MAP_2D, MODEL_MAP_2D3D, count_parameters
+from pathlib import Path
 
 from torchvision.transforms import Compose
 from torch.utils.data import Subset, DataLoader
@@ -12,6 +6,11 @@ import torch
 
 import pytorch_lightning as pl
 
+from datasets.scannet.utils import BalancedUpSampler, get_scan_name
+from eval.sem_seg_3d import gen_predictions, get_dataset_split_scans, save_preds
+from datasets.scannet.utils_3d import adjust_intrinsic, make_intrinsic
+from lib.misc import display_results, get_args, get_logger_and_callbacks, read_config
+from models.sem_seg.utils import MODEL_MAP_2D, MODEL_MAP_2D3D, count_parameters
 from datasets.scannet.sem_seg_3d import ScanNet2D3DH5
 from transforms.grid_3d import AddChannelDim, LoadLabels2D, TransposeDims, LoadDepths, LoadPoses,\
                                 LoadRGBs
@@ -163,6 +162,12 @@ def main(args):
                             collate_fn=ScanNet2D3DH5.collate_func,
                             shuffle=False, num_workers=8)
             preds = gen_predictions(model, val_loader, ckpt)
+            # combine preds over all batches into a single tensor
+            preds_combined = torch.cat(preds, dim=0)
+            scan_name = get_scan_name(*scene_scan)
+            out_path = f'{Path(ckpt).parent.parent.stem}_{scan_name}.ply'
+            save_preds(preds_combined, val_set_single, out_path)
+
             
     else:
         print('Start training')
