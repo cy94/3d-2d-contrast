@@ -1,3 +1,5 @@
+*.ply
+*.png
 enet_models
 wandb
 .vscode
