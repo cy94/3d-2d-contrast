@@ -155,6 +155,7 @@ def main(args):
             # predictions only on this scan
             scene_scan = (568, 0)
             # split the val set into scenes
+            # see get_dataset_split_scans to create this dict, save as pth file
             splits = torch.load(cfg['data']['val_splits_file'])
             # pick only the required scene and do inference
             val_set_single = Subset(val_set, splits[scene_scan])
