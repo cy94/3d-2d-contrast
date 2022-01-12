@@ -73,6 +73,7 @@ def gen_predictions(model, loader, ckpt_path):
     loader: 3d/2d3d data loader
     ckpt_path: path to checkpoint
     '''
+    device = model.device
     # load the ckpt
     model.load_state_dict(torch.load(ckpt_path, map_location=model.device)['state_dict'])
     # eval mode
@@ -82,7 +83,9 @@ def gen_predictions(model, loader, ckpt_path):
 
     with torch.no_grad():
         for batch in loader:
+            for key in batch:
+                batch[key] = batch[key].to(device)
             preds = model.common_step(batch)[0]
-            all_preds.append(preds)
+            all_preds.append(preds.cpu())
 
     return all_preds
