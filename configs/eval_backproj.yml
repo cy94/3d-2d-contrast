@@ -5,6 +5,8 @@ data:
     # keep train labels only for these scenes
     # filter_train_label: /mnt/data/scannet/limited_recon/seg_scenes/1.txt
     val_file: /mnt/data/scannet/backproj/val-v8.h5
+    # scan->indices mapping in the val set
+    val_splits_file: /mnt/data/scannet/backproj/val-v8-split.pth
     # 20 or 40 classes?
     num_classes: 40
     # padding value used in the target - usually = num_classes
