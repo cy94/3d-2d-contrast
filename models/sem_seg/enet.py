@@ -3,8 +3,10 @@
 
 from datasets.scannet.common import CLASS_WEIGHTS_ALL_2D
 from models.sem_seg.fcn3d import SemSegNet
+from models.sem_seg.sem_seg_2d import SemSegNet2D
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from functools import reduce
 from torch.autograd import Variable
@@ -1059,7 +1061,7 @@ class UpsamplingBottleneck(nn.Module):
         return self.out_activation(out)
 
 
-class ENet2(SemSegNet):
+class ENet2(SemSegNet2D, SemSegNet):
     """Generate the ENet model.
 
     Keyword arguments:
@@ -1177,20 +1179,7 @@ class ENet2(SemSegNet):
             padding=1,
             bias=False)
 
-    def init_class_weights(self, cfg):
-        if cfg['train']['class_weights']:
-            print('Using class weights for 2D model')
-            weights = {
-                40: CLASS_WEIGHTS_ALL_2D
-            }
-            if self.num_classes in weights:
-                self.class_weights = torch.Tensor(weights[self.num_classes])
-            else:
-                raise NotImplementedError(f'Add class weights for {self.num_classes} classes')
-        else: 
-            self.class_weights = None
-
-    def forward(self, x, return_features=False):
+    def forward(self, x, return_features=False, return_preds=True):
         # Initial block
         input_size = x.size()
         x = self.initial_block(x)
@@ -1225,9 +1214,17 @@ class ENet2(SemSegNet):
         x = self.asymmetric3_6(x)
         # if we need features, dont use last relu
         x = self.dilated3_7(x, no_relu=return_features, no_dropout=return_features)
+        
+        feats = x
 
+        # need only feats, nothing else to do
         if return_features:
-            return x
+            # need preds after getting feats? apply relu here
+            if return_preds:
+                x = F.relu(x)
+            # nothing else to do
+            else:
+                return feats
 
         # Stage 4 - Decoder
         x = self.upsample4_0(x, max_indices2_0, output_size=stage2_input_size)
@@ -1239,4 +1236,7 @@ class ENet2(SemSegNet):
         x = self.regular5_1(x)
         x = self.transposed_conv(x, output_size=input_size)
 
-        return x        
+        if return_features:
+            return feats, x
+        else:
+            return x        

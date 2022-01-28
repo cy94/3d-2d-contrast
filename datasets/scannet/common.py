@@ -26,9 +26,9 @@ VALID_CLASSES_ALL = list(range(1, 41))
 CLASS_NAMES = ['wall', 'floor', 'cabinet', 
             'bed', 'chair', 'sofa', 'table', 
             'door', 'window', 'bookshelf', 'picture', 
-            'counter', 'desk', 'curtain', 'refrigerator', 
+            'counter', 'desk', 'curtain', 'refridgerator', 
             'shower_curtain', 'toilet', 'sink', 'bathtub', 
-            'otherfurn']
+            'otherfurniture']
 
 # 40 class names
 CLASS_NAMES_ALL = ['wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 
@@ -37,7 +37,6 @@ CLASS_NAMES_ALL = ['wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table',
 'books', 'refridgerator', 'television', 'paper', 'towel', 'shower_curtain', 
 'box', 'whiteboard', 'person', 'night stand', 'toilet', 'sink', 'lamp', 
 'bathtub', 'bag', 'otherstructure', 'otherfurniture', 'otherprop']
-
 
 
 # short class names, max 5 chars
@@ -121,14 +120,18 @@ def continous_to_nyu40(img):
     
     return new_img
 
-def load_ply(path, read_label=False):
+def load_ply(path, read_label=False, read_colors=True):
     ply_path = Path(path)
     plydata = PlyData.read(ply_path)
     
     data = plydata.elements[0].data
 
     coords = np.array([data['x'], data['y'], data['z']], dtype=np.float32).T
-    feats = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
+    
+    if read_colors:
+        feats = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
+    else:
+        feats = None
     
     if read_label:  
       labels = np.array(data['label'], dtype=np.int32)

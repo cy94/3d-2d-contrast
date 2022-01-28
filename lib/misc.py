@@ -1,12 +1,26 @@
 from pathlib import Path
 import yaml
 import argparse
+from datasets.scannet.common import CLASS_NAMES
 
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
+def display_results(results):
+    '''
+    results: result dict from pt lightning.trainer.validate
+    '''
+    cls_names = sorted(CLASS_NAMES)
+    cls_str = '\t & '.join(cls_names)
+    val_str = '\t & '.join(map(lambda x: f'{x:.2f}', [results[f'iou/val/{cls}'] for cls in cls_names]))
+    print(cls_str)
+    print('ious, mIoU, mAcc')
+    miou = results['iou/val/mean_subset']
+    macc = results['acc/val/mean_subset']
+    print(val_str, f' & {miou:.2f} & {macc:.2f}')
 
 
 def read_config(path):
@@ -33,9 +47,17 @@ def get_args():
         default=False, help='No checkpoint, no log')
     p.add_argument('--b', action='store_true', dest='b', 
                     default=False, help='Add b to wandb name')      
+    p.add_argument('--eval', action='store_true', dest='eval', 
+                    default=False, help='Eval with a checkpoint') 
+    p.add_argument('--pred', action='store_true', dest='pred', 
+                    default=False, help='Generate preds with a checkpoint')                          
     
     p = pl.Trainer.add_argparse_args(p)
     args = p.parse_args()
+
+    if args.eval or args.pred:
+        print('Evaluating/predicting use debug mode')
+        args.debug = True
 
     if args.debug:
         print('Debug: no checkpoint, no log')
@@ -110,11 +132,20 @@ def get_logger_and_callbacks(args, cfg):
     # loss will be logged, can do early stopping
     # dont early stop when using a subset of data to overfit
     if not args.no_log and not args.subset:
-        print('Add early stopping callback')
+        # monitor this value
+        monitor_key = 'loss/val'
+
+        # using contr loss?
+        if 'contrastive' in cfg['model']:
+            # only contr loss?
+            if 'losses' in cfg['model'] and cfg['model']['losses'] == ['contrastive']:
+                monitor_key = 'loss/val/contrastive'
+
+        print(f'Add early stopping callback on {monitor_key}')
         callbacks.append(
             # loss ~ 3, need to improve atleast 0.01
-            EarlyStopping(monitor="loss/val", min_delta=0.005, 
-            patience=5, verbose=True, mode="min", strict=True,
+            EarlyStopping(monitor=monitor_key, min_delta=0.005, 
+            patience=3, verbose=True, mode="min", strict=True,
             check_finite=True,)
         )
 

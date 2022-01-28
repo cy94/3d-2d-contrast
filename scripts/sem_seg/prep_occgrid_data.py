@@ -1,4 +1,6 @@
-
+'''
+sample x, y volumes from an occupancy grid
+'''
 from datasets.scannet.sem_seg_3d import ScanNetPLYDataset
 from transforms.grid_3d import RandomRotate
 from tqdm import tqdm

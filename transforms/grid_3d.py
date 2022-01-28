@@ -1,4 +1,6 @@
-from transforms.image_2d import Normalize
+from datasets.scannet.common import map_labels, nyu40_to_continuous, read_label_mapping
+import imageio
+import cv2
 from datasets.scannet.utils_3d import load_depth_multiple, load_pose_multiple, load_rgbs_multiple
 from pathlib import Path
 from abc import ABC
@@ -316,7 +318,48 @@ class LoadPoses(LoadData):
         sample['poses'] = poses
 
         return sample
-    
+
+class LoadLabels2D(LoadData):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.img_size = tuple(cfg['data']['rgb_img_size'])
+        self.ignore_label = cfg['data']['target_padding']
+        self.num_classes = cfg['data']['num_classes']
+        self.scannet_to_nyu40 = read_label_mapping(cfg['data']['label_file'])
+
+    def __call__(self, sample):
+        scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
+        frames = sample['frames']
+
+        # N, H, W -> torch nn convention
+        labels2d = torch.zeros(len(frames), self.img_size[1], self.img_size[0], dtype=torch.int64)
+
+        paths = [Path(self.data_dir) / scan_name / 'label-filt' / f'{i}.png' for i in frames]
+
+        # fill the 2d label only if 3d label exists
+        if sample['has_label']:
+            for path_ndx, path in enumerate(paths):
+                if path.exists():
+                    # read the scannet label image as int, H,W
+                    label_scannet = np.array(imageio.imread(path))
+                    # map from scannet to nyu40 labels 0-40, H,W
+                    label_nyu40 = map_labels(label_scannet, self.scannet_to_nyu40)
+                    # map from NYU40 labels to 0-39 + 40 (ignored) labels, H,W
+                    y = nyu40_to_continuous(label_nyu40, ignore_label=self.ignore_label, 
+                                                        num_classes=self.num_classes)
+                    # resize label image here using the proper interpolation - no artifacts  
+                    # dims: H,W                                     
+                    y = cv2.resize(y, self.img_size, interpolation=cv2.INTER_NEAREST)
+                    labels2d[path_ndx] = torch.LongTensor(y.astype(np.int64))
+                else:
+                    # no label image
+                    labels2d[path_ndx] = self.ignore_label
+        else:
+            labels2d.fill_(self.ignore_label)
+
+        sample['labels2d'] = labels2d
+        return sample
+
 class LoadRGBs(LoadData):
     def __init__(self, cfg, transform=None):
         super().__init__(cfg)
@@ -324,7 +367,7 @@ class LoadRGBs(LoadData):
         self.transform = transform
 
     def __call__(self, sample):
-        # create all paths for depths
+        # create all paths for images
         scan_name = self.get_scan_name(sample['scene_id'], sample['scan_id'])
         frames = sample['frames']
 

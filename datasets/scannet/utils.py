@@ -1,15 +1,41 @@
 import torch
+
 from torchvision.transforms import Compose
 from torch.utils.data import DataLoader, Sampler
 import MinkowskiEngine as ME
 
 
-from transforms.grid_3d import RandomRotate, AddChannelDim, TransposeDims
+from transforms.grid_3d import AddChannelDim, TransposeDims
 from transforms.common import ComposeCustom
 from models.sem_seg.utils import SPARSE_MODELS
 from transforms.sparse_3d import ChromaticAutoContrast, ChromaticJitter, ChromaticTranslation, ElasticDistortion, RandomDropout, RandomHorizontalFlip
-from datasets.scannet.sem_seg_3d import ScanNetOccGridH5, ScanNetPLYDataset, ScanNetSemSegOccGrid, collate_func
+from datasets.scannet.sem_seg_3d import ScanNetOccGridH5, ScanNetSemSegOccGrid, collate_func
 from datasets.scannet.sparse_3d import ScannetVoxelizationDataset
+
+def get_scan_name(scene_id, scan_id):
+    return f'scene{str(scene_id).zfill(4)}_{str(scan_id).zfill(2)}'
+
+class BalancedUpSampler(Sampler):
+  '''
+  Upsample the minority class so that it occurs the same number of times 
+  as the majority class
+  For binary classes - 0 and 1
+  '''
+  def __init__(self, majority_indices, minority_indices, has_label):
+    majority_indices = list(majority_indices)
+    minority_indices = list(minority_indices)
+    ratio = len(majority_indices) // len(minority_indices)
+    # maj class + repeat the min class ratio time
+    indices = torch.LongTensor(majority_indices + minority_indices * ratio)
+    shuffle = torch.randperm(len(indices))
+    # shuffle the whole thing
+    self.all_indices = indices[shuffle]
+
+  def __iter__(self):
+    return iter(self.all_indices)
+
+  def __len__(self):
+    return len(self.all_indices)
 
 
 class cfl_collate_fn_factory:
